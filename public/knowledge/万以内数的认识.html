@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>万以内数的认识 | 数学小游戏：数字接龙排序</title>
+    <!-- 引入 SortableJS 轻量级拖拽库，完美支持移动端触摸拖拽 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖拽时选中文字，提升触摸体验，但不影响输入 */
+        }
+
+        body {
+            background: #EFF6F0;   /* 柔和浅色背景，护眼 */
+            font-family: 'Comic Neue', 'Segoe UI', 'Comic Neue', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主课程卡片容器 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background: #FFFFFFDD;
+            backdrop-filter: blur(2px);
+            border-radius: 56px;
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0,0,0,0.05);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右内容区域：响应式flex */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区域 (浅色卡片风格) */
+        .knowledge-area {
+            flex: 1.2;
+            background: #FFFEF7;
+            padding: 28px 24px;
+            border-radius: 48px;
+            margin: 18px 0 18px 18px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.03);
+            border: 1px solid #FFE6C9;
+        }
+
+        /* 右侧游戏区域 */
+        .game-area {
+            flex: 2;
+            background: #FFFFFF;
+            padding: 28px 24px;
+            margin: 18px 18px 18px 12px;
+            border-radius: 48px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.05);
+            border: 1px solid #FFE2C1;
+            transition: all 0.2s;
+        }
+
+        /* 知识点样式 */
+        .knowledge-area h2 {
+            font-size: 1.9rem;
+            background: linear-gradient(135deg, #F9A26C, #F7C56E);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            display: inline-block;
+            border-left: 7px solid #F9A26C;
+            padding-left: 18px;
+        }
+
+        .knowledge-card {
+            background: #FFF5E9;
+            border-radius: 36px;
+            padding: 18px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+
+        .knowledge-card p {
+            font-size: 1.05rem;
+            line-height: 1.45;
+            color: #4A3B2C;
+            margin: 12px 0;
+        }
+
+        .knowledge-card .highlight {
+            background: #FDE6C4;
+            border-radius: 28px;
+            padding: 4px 12px;
+            display: inline-block;
+            font-weight: bold;
+            color: #C25D00;
+        }
+
+        .number-board {
+            display: flex;
+            justify-content: space-between;
+            background: #FFFAF0;
+            border-radius: 40px;
+            padding: 12px 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .digit-card {
+            background: #FFEED9;
+            border-radius: 28px;
+            text-align: center;
+            flex: 1;
+            padding: 10px 0;
+            font-weight: bold;
+            font-size: 1rem;
+            color: #BB6B2E;
+        }
+
+        .digit-card span {
+            font-size: 1.8rem;
+            display: block;
+            font-weight: 800;
+            color: #E67E22;
+        }
+
+        /* 右侧游戏区标题和交互区 */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border-bottom: 3px dotted #FFD7A5;
+            padding-bottom: 10px;
+        }
+
+        .game-header h3 {
+            font-size: 1.8rem;
+            color: #D97A2B;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .rule-badge {
+            background: #FCE5C1;
+            border-radius: 60px;
+            padding: 6px 16px;
+            font-size: 0.9rem;
+            color: #B45F1B;
+            font-weight: 500;
+        }
+
+        /* 拖拽排序卡片列表容器 */
+        .sortable-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin: 25px 0 30px;
+            min-height: 360px;
+        }
+
+        /* 可拖拽卡片样式 */
+        .drag-card {
+            background: #FEF6E8;
+            border-radius: 48px;
+            padding: 18px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            cursor: grab;
+            transition: all 0.2s ease;
+            border: 2px solid #FFE0B5;
+            box-shadow: 0 6px 0 #FAD19E;
+            backdrop-filter: blur(2px);
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        /* 拖拽时的样式 */
+        .sortable-drag {
+            opacity: 0.5;
+            background: #FFEBD6;
+            box-shadow: 0 0 0 2px #F9B062;
+        }
+        /* 卡片内部数字大展示 */
+        .card-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: #FFFFFFCC;
+            padding: 5px 18px;
+            border-radius: 50px;
+            display: inline-block;
+            color: #C45F1A;
+            letter-spacing: 2px;
+            min-width: 130px;
+            text-align: center;
+            font-family: monospace;
+        }
+        .card-composition {
+            font-size: 0.9rem;
+            background: #FFF0DF;
+            border-radius: 36px;
+            padding: 8px 18px;
+            color: #9C5B2A;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .card-composition span {
+            background: white;
+            border-radius: 40px;
+            padding: 4px 10px;
+            font-size: 0.8rem;
+        }
+
+        /* 按钮组样式 */
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0 20px;
+            justify-content: center;
+        }
+        .btn {
+            border: none;
+            background: #FFE1B9;
+            padding: 12px 24px;
+            border-radius: 60px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #A55313;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.05);
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: #F9B062;
+            color: white;
+            box-shadow: 0 5px 0 #C46A1E;
+        }
+        .btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #C46A1E;
+        }
+        .btn:active {
+            transform: translateY(2px);
+        }
+        .feedback {
+            background: #FFF1E0;
+            border-radius: 48px;
+            padding: 14px 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: #C5611A;
+            margin-top: 12px;
+            border-left: 6px solid #F9B062;
+        }
+        .correct-feedback {
+            background: #E0F7E8;
+            color: #2B6E3C;
+            border-left-color: #47B56B;
+        }
+        .wrong-feedback {
+            background: #FFEBEE;
+            color: #C7362B;
+            border-left-color: #FF8A80;
+        }
+
+        /* 提示按钮区域 */
+        .hint-area {
+            margin-top: 12px;
+            font-size: 0.85rem;
+            background: #FCF7F0;
+            border-radius: 40px;
+            padding: 8px 12px;
+            text-align: center;
+        }
+        /* 响应式设计 */
+        @media (max-width: 780px) {
+            body {
+                padding: 12px;
+            }
+            .split-layout {
+                flex-direction: column;
+            }
+            .knowledge-area {
+                margin: 12px;
+                padding: 20px;
+            }
+            .game-area {
+                margin: 12px;
+                padding: 20px;
+            }
+            .card-number {
+                font-size: 1.8rem;
+                min-width: 100px;
+            }
+            .drag-card {
+                padding: 12px 18px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .card-composition {
+                align-self: flex-start;
+            }
+            .btn {
+                padding: 8px 18px;
+                font-size: 0.9rem;
+            }
+        }
+        /* 装饰小元素 */
+        .emoji-big {
+            font-size: 1.5rem;
+            vertical-align: middle;
+        }
+        footer {
+            text-align: center;
+            padding: 12px;
+            font-size: 0.7rem;
+            color: #C0A080;
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧：知识点区域 -->
+        <div class="knowledge-area">
+            <h2>📖 万以内数的认识</h2>
+            <div class="knowledge-card">
+                <p>🧸 <strong class="highlight">什么是万以内的数？</strong> 从 0 到 9999 的数，我们叫做万以内的数。</p>
+                <p>🏠 <strong class="highlight">数位小家庭</strong>：每个数字都有它的“座位”——<strong>个位、十位、百位、千位</strong>。</p>
+                <div class="number-board">
+                    <div class="digit-card">千位<br><span>⚡️</span></div>
+                    <div class="digit-card">百位<br><span>🌟</span></div>
+                    <div class="digit-card">十位<br><span>✨</span></div>
+                    <div class="digit-card">个位<br><span>🍎</span></div>
+                </div>
+                <p>📚 例如：<strong>3528</strong> = 3个千 + 5个百 + 2个十 + 8个一</p>
+                <p>🔍 <strong class="highlight">比大小秘诀</strong>：先比千位，千位相同比百位，百位相同比十位…… 谁大谁就“厉害”！</p>
+                <p>🎯 右边的游戏里，你需要把数字卡片 <strong>拖拽排序</strong>，按 <strong>从小到大</strong> 的顺序排列！试试看～</p>
+            </div>
+            <div class="knowledge-card" style="background:#FFF3E3;">
+                <p>🧠 <strong>小技巧</strong>：数字位数越多，数越大！例如 999 ＜ 1000 。</p>
+                <p>⭐️ 每个卡片下面都标出了它的“数位组成”，帮你轻松比较大小~</p>
+            </div>
+        </div>
+
+        <!-- 右侧：拖拽排序游戏区域 (接龙排序风格) -->
+        <div class="game-area">
+            <div class="game-header">
+                <h3>🎮 数字接龙排序 <span class="emoji-big">🐉✨</span></h3>
+                <div class="rule-badge">🤚 拖拽卡片 → 从小到大排列</div>
+            </div>
+            <p style="margin-bottom: 8px; background:#FFFAF0; border-radius: 30px; padding: 5px 12px; display: inline-block;">👇 按住卡片上下拖动，调整顺序！</p>
+            <!-- 拖拽卡片列表容器 -->
+            <ul id="sortableList" class="sortable-list"></ul>
+
+            <div class="btn-group">
+                <button id="checkBtn" class="btn btn-primary">✅ 检查答案</button>
+                <button id="shuffleBtn" class="btn">🃏 洗牌 / 打乱顺序</button>
+                <button id="newGameBtn" class="btn">🎲 全新数字</button>
+                <button id="hintBtn" class="btn">💡 正确顺序提示</button>
+            </div>
+            <div id="feedbackMsg" class="feedback">
+                🌟 拖动卡片，按数值从小到大排序，点击“检查答案”！
+            </div>
+            <div class="hint-area">
+                💡 <strong>互动说明</strong>：长按或按住卡片即可上下拖拽移动位置（手机/电脑都支持）。将四个数字按「最小→最大」正确排序，就可以获得表扬啦！
+            </div>
+        </div>
+    </div>
+    <footer>🐣 数学小探险 — 通过拖拽学习万以内数的大小比较</footer>
+</div>
+
+<script>
+    // ---------- 游戏逻辑 ----------
+    // 存储当前四个数字 (数组)
+    let currentNumbers = [];
+    // 存储Sortable实例
+    let sortableInstance = null;
+    // 获取列表容器
+    const listContainer = document.getElementById('sortableList');
+
+    // 辅助函数: 生成0~9999范围内不重复的随机整数 (count = 4)
+    function generateUniqueRandomNumbers(count, min = 0, max = 9999) {
+        const numbers = new Set();
+        while (numbers.size < count) {
+            const rand = Math.floor(Math.random() * (max - min + 1)) + min;
+            numbers.add(rand);
+        }
+        return Array.from(numbers);
+    }
+
+    // 将一个数字转换为“数位组成”描述字符串 (万以内)
+    function getNumberComposition(num) {
+        if (num === 0) return "0 个一";
+        const thousand = Math.floor(num / 1000);
+        const hundred = Math.floor((num % 1000) / 100);
+        const ten = Math.floor((num % 100) / 10);
+        const one = num % 10;
+        const parts = [];
+        if (thousand > 0) parts.push(`${thousand}千`);
+        if (hundred > 0) parts.push(`${hundred}百`);
+        if (ten > 0) parts.push(`${ten}十`);
+        if (one > 0) parts.push(`${one}一`);
+        if (parts.length === 0) return "0";
+        return parts.join(' + ');
+    }
+
+    // 生成卡片html (每个卡片显示数字 + 组成)
+    function renderCardItem(number) {
+        const compositionStr = getNumberComposition(number);
+        // 用于显示更详细的小标签
+        return `
+            <li class="drag-card" data-value="${number}">
+                <div class="card-number">${number}</div>
+                <div class="card-composition">
+                    <span>🧩 ${compositionStr}</span>
+                </div>
+            </li>
+        `;
+    }
+
+    // 根据当前数字数组渲染列表 (完全刷新DOM)
+    function renderList(numbersArray) {
+        if (!listContainer) return;
+        let html = '';
+        for (let num of numbersArray) {
+            html += renderCardItem(num);
+        }
+        listContainer.innerHTML = html;
+    }
+
+    // 初始化/重新初始化Sortable拖拽 (先销毁旧的)
+    function initSortable() {
+        if (sortableInstance) {
+            sortableInstance.destroy();
+            sortableInstance = null;
+        }
+        if (listContainer) {
+            sortableInstance = new Sortable(listContainer, {
+                animation: 300,          // 拖动动画
+                ghostClass: 'sortable-drag',   // 拖拽时的样式
+                handle: '.drag-card',    // 拖拽卡片任意区域触发
+                touchStartThreshold: 2,
+                fallbackOnBody: false,
+                scroll: true,
+                forceFallback: false,    // 移动端效果更好
+                onEnd: function() {
+                    // 拖动结束后清除旧反馈样式（不自动清除消息，但保留原有反馈，可以轻微淡化错误提示）
+                    const fbDiv = document.getElementById('feedbackMsg');
+                    if (fbDiv && !fbDiv.classList.contains('correct-feedback')) {
+                        // 如果之前不是正确反馈，拖拽后可以提示继续尝试，但不清空内容也可
+                        if (fbDiv.innerText.includes('正确')) {
+                            // 如果正确信息因拖拽而变得不正确, 稍后检查时自然更新, 但为了避免误导不自动清空
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // 更新所有卡片的数据属性 (因为重新渲染后，每个li的data-value已经存在)
+    // 但重新渲染后必须重新绑定Sortable，本函数直接重绘并重置拖拽
+    function fullRefresh(numbersArray) {
+        renderList(numbersArray);
+        initSortable();
+    }
+
+    // 洗牌：打乱当前数字数组的顺序，并刷新列表 (不改变数字集合)
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    function shuffleCurrentNumbers() {
+        if (!currentNumbers.length) return;
+        currentNumbers = shuffleArray([...currentNumbers]);
+        fullRefresh(currentNumbers);
+        clearFeedbackStyle();
+        setFeedbackMessage("🃏 卡片顺序已打乱，请拖拽重新排序～", false);
+    }
+
+    // 生成全新的随机数字 (四个不同数字)
+    function generateNewNumbers() {
+        let newNums = generateUniqueRandomNumbers(4, 0, 9999);
+        // 随机打乱顺序展示 (让初始不是排序好的状态)
+        newNums = shuffleArray([...newNums]);
+        currentNumbers = [...newNums];
+        fullRefresh(currentNumbers);
+        clearFeedbackStyle();
+        setFeedbackMessage("🎉 新数字来啦！拖拽卡片，按从小到大正确排列吧！", false);
+    }
+
+    // 获取当前界面上卡片顺序的数字数组 (根据 data-value)
+    function getCurrentOrderNumbers() {
+        const items = document.querySelectorAll('#sortableList .drag-card');
+        const order = [];
+        items.forEach(item => {
+            const val = item.getAttribute('data-value');
+            if (val !== null) order.push(parseInt(val, 10));
+        });
+        return order;
+    }
+
+    // 检查排序是否正确 (从小到大)
+    function checkSorting() {
+        const currentOrder = getCurrentOrderNumbers();
+        if (currentOrder.length !== currentNumbers.length) {
+            setFeedbackMessage("⚠️ 咦？卡片好像不完整，试试刷新题目～", false);
+            return false;
+        }
+        let isSorted = true;
+        for (let i = 0; i < currentOrder.length - 1; i++) {
+            if (currentOrder[i] > currentOrder[i + 1]) {
+                isSorted = false;
+                break;
+            }
+        }
+        if (isSorted) {
+            setFeedbackMessage("🎉🎉 太棒啦！排序完全正确！你已经是万以内数的大小比较小高手啦！ 🌟🌟🌟", true);
+            // 额外彩蛋效果
+            const fbDiv = document.getElementById('feedbackMsg');
+            fbDiv.classList.add('correct-feedback');
+            fbDiv.classList.remove('wrong-feedback');
+            return true;
+        } else {
+            setFeedbackMessage("🤔 顺序不对哦，再观察一下每个数字的大小！从小到大排列：千位不同比千位，相同再比下一位～ 再试试拖拽调整吧！💪", false);
+            const fbDiv = document.getElementById('feedbackMsg');
+            fbDiv.classList.add('wrong-feedback');
+            fbDiv.classList.remove('correct-feedback');
+            return false;
+        }
+    }
+
+    // 提示正确顺序 (显示当前数字集合的正确升序排列，但不会自动排序)
+    function showHint() {
+        if (!currentNumbers.length) return;
+        // 获取当前真实数字列表（集合是当前数字，注意可能洗牌或新数字后currentNumbers是乱序但数字集合不变）
+        // 正确升序排序副本
+        const sortedCorrect = [...currentNumbers].sort((a,b) => a - b);
+        const correctSequence = sortedCorrect.join(' → ');
+        setFeedbackMessage(`💡 提示：正确的从小到大顺序是 [ ${correctSequence} ] 。把卡片拖拽成这个顺序吧！`, false);
+        const fbDiv = document.getElementById('feedbackMsg');
+        fbDiv.classList.remove('correct-feedback', 'wrong-feedback');
+        fbDiv.style.background = "#FFF1E0";
+    }
+
+    function setFeedbackMessage(msg, isSuccess) {
+        const fbDiv = document.getElementById('feedbackMsg');
+        if (!fbDiv) return;
+        fbDiv.innerHTML = msg;
+        if (isSuccess) {
+            fbDiv.classList.add('correct-feedback');
+            fbDiv.classList.remove('wrong-feedback');
+        } else {
+            // 保持原有样式但可根据消息不对样式特殊处理，但是不要每次都覆盖correct类
+            if(!msg.includes("正确") && !msg.includes("太棒")){
+                // 非成功消息不一定加错误类，但为了视觉可以不加错误红背景，只保留中性
+            }
+        }
+    }
+
+    function clearFeedbackStyle() {
+        const fbDiv = document.getElementById('feedbackMsg');
+        if (fbDiv) {
+            fbDiv.classList.remove('correct-feedback', 'wrong-feedback');
+            fbDiv.style.background = "";
+        }
+    }
+
+    // 重置并初始化页面
+    function initGame() {
+        // 生成四个随机不同数字, 并打乱初始顺序
+        let initNums = generateUniqueRandomNumbers(4, 0, 9999);
+        initNums = shuffleArray(initNums);
+        currentNumbers = [...initNums];
+        fullRefresh(currentNumbers);
+        setFeedbackMessage("🌟 拖拽数字卡片，按数值从小到大排序！试试你的比较本领～", false);
+        const fbDiv = document.getElementById('feedbackMsg');
+        fbDiv.classList.remove('correct-feedback', 'wrong-feedback');
+    }
+
+    // 事件绑定与额外清理
+    function bindEvents() {
+        const checkBtn = document.getElementById('checkBtn');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const hintBtn = document.getElementById('hintBtn');
+        if (checkBtn) checkBtn.addEventListener('click', checkSorting);
+        if (shuffleBtn) shuffleBtn.addEventListener('click', shuffleCurrentNumbers);
+        if (newGameBtn) newGameBtn.addEventListener('click', generateNewNumbers);
+        if (hintBtn) hintBtn.addEventListener('click', showHint);
+    }
+
+    // 页面启动
+    initGame();
+    bindEvents();
+
+    // 确保移动端触摸拖拽时页面不会滚动 (但Sortable已经做了预防, 不过为了防止背景滚动，可加轻微处理)
+    document.body.addEventListener('touchmove', function(e) {
+        // 如果拖拽的元素是卡片内的内容，不做额外阻止，Sortable内部会处理好; 不干扰整体滚动。
+    }, { passive: false });
+
+    // 监听新数字生成时重置正确/错误样式
+    const originalGenerateNew = generateNewNumbers;
+    window.generateNewNumbers = generateNewNumbers;
+    // 额外保护：如果任何刷新后与Sortable联动完美
+</script>
+</body>
+</html>

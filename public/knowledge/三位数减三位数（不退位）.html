@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>数学小探险 | 三位数减三位数（不退位）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖拽时选中文字，提升体验 */
+        }
+
+        body {
+            background: #f0f4fa;  /* 柔和浅色背景 */
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 主容器 - 浅色藏青风格 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background: #ffffffdd;
+            backdrop-filter: blur(2px);
+            border-radius: 56px;
+            box-shadow: 0 20px 35px rgba(0, 20, 40, 0.1);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右布局：桌面端并排，移动端堆叠 */
+        .flex-lesson {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区 - 藏青色主题，浅色底 */
+        .knowledge-box {
+            flex: 1.2;
+            min-width: 260px;
+            background: #ffffff;
+            margin: 20px 0 20px 20px;
+            border-radius: 48px;
+            padding: 24px 22px;
+            box-shadow: 0 8px 18px rgba(28, 52, 84, 0.08);
+            border: 1px solid #e0e9f2;
+        }
+
+        /* 右侧游戏区 */
+        .game-box {
+            flex: 2;
+            min-width: 300px;
+            background: #ffffff;
+            margin: 20px 20px 20px 12px;
+            border-radius: 48px;
+            padding: 24px 22px;
+            box-shadow: 0 8px 18px rgba(28, 52, 84, 0.08);
+            border: 1px solid #e0e9f2;
+        }
+
+        /* 藏青色点缀 */
+        h2, h3 {
+            color: #1e3a5f;  /* 深藏青 */
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .knowledge-box h2 {
+            font-size: 1.9rem;
+            border-left: 8px solid #2c5a7a;
+            padding-left: 18px;
+            margin-bottom: 20px;
+        }
+
+        .rule-card {
+            background: #eef3fc;
+            border-radius: 32px;
+            padding: 18px;
+            margin: 20px 0;
+            border: 1px solid #cbdde9;
+        }
+
+        .rule-text {
+            font-size: 1.1rem;
+            line-height: 1.5;
+            color: #1f3b4c;
+            margin-bottom: 12px;
+        }
+
+        .example {
+            background: #ffffffd9;
+            border-radius: 28px;
+            padding: 12px 16px;
+            font-family: monospace;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #0f4c5f;
+            margin-top: 12px;
+            box-shadow: inset 0 1px 3px #0001, 0 2px 4px #d4e2f0;
+        }
+
+        .highlight {
+            background: #ffecb3;
+            border-radius: 24px;
+            padding: 10px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 500;
+            color: #8a6300;
+        }
+
+        /* 游戏标题与进度 */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border-bottom: 2px dashed #cbdde9;
+            padding-bottom: 12px;
+        }
+        .progress {
+            background: #eef2f9;
+            border-radius: 60px;
+            padding: 8px 16px;
+            font-weight: bold;
+            color: #1e3a5f;
+        }
+        .reset-btn {
+            background: #2c5a7a;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            padding: 8px 22px;
+            border-radius: 60px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+        .reset-btn:hover {
+            background: #18435c;
+            transform: scale(0.96);
+        }
+
+        /* 拖拽游戏区域网格 */
+        .drag-area {
+            margin: 20px 0;
+        }
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 20px 0 12px 0;
+            color: #2c5a7a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .cards-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .answer-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        /* 可拖拽卡片样式 */
+        .drag-card {
+            background: #fff7e8;
+            background-image: linear-gradient(145deg, #fffdf5, #fff5e0);
+            width: 150px;
+            padding: 18px 8px;
+            border-radius: 48px;
+            text-align: center;
+            font-size: 1.6rem;
+            font-weight: bold;
+            font-family: monospace;
+            color: #1e3a5f;
+            box-shadow: 0 12px 18px -8px rgba(0, 0, 0, 0.1);
+            cursor: grab;
+            transition: 0.1s linear;
+            border: 2px solid #f7e2b0;
+            backdrop-filter: blur(2px);
+            touch-action: none;  /* 优化触屏拖拽 */
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        .drag-card.dragging {
+            opacity: 0.4;
+            cursor: grabbing;
+        }
+        .drag-card.matched {
+            background: #cfe9cd;
+            border: 2px solid #6f9e6f;
+            text-decoration: line-through;
+            opacity: 0.7;
+            cursor: default;
+            filter: grayscale(0.1);
+            transform: scale(0.97);
+            pointer-events: none;  /* 已配对不可再拖拽 */
+        }
+
+        /* 答案框（目标区） */
+        .answer-slot {
+            background: #f3f9ff;
+            width: 150px;
+            padding: 18px 8px;
+            border-radius: 48px;
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            font-family: monospace;
+            color: #2c5a7a;
+            border: 3px dashed #8fb1cf;
+            transition: all 0.1s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
+        .answer-slot.matched {
+            background: #d9e8d6;
+            border: 3px solid #4c8b4c;
+            color: #2a6230;
+            position: relative;
+            box-shadow: 0 0 0 2px #b5d3b5;
+        }
+        .answer-slot span {
+            font-size: 0.9rem;
+            display: block;
+            margin-top: 6px;
+            font-weight: normal;
+            color: #527a7a;
+        }
+        .slot-value {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        /* 提示浮层 */
+        .toast-msg {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e3a5fdd;
+            backdrop-filter: blur(12px);
+            color: white;
+            padding: 12px 28px;
+            border-radius: 60px;
+            font-weight: bold;
+            z-index: 1000;
+            font-size: 1rem;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* 胜利特效简单彩带占位 */
+        .celebration {
+            animation: bouncePop 0.5s ease;
+        }
+        @keyframes bouncePop {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            80% { transform: scale(1.05);}
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 750px) {
+            body { padding: 12px; }
+            .knowledge-box, .game-box {
+                margin: 12px;
+            }
+            .drag-card, .answer-slot {
+                width: 130px;
+                font-size: 1.3rem;
+                padding: 12px 4px;
+            }
+            .slot-value { font-size: 1.6rem; }
+            .drag-card { font-size: 1.2rem; }
+            .rule-text { font-size: 1rem; }
+        }
+
+        /* 拖拽克隆体样式 */
+        .dragging-clone {
+            position: fixed;
+            z-index: 9999;
+            background: #fff0cf;
+            border-radius: 48px;
+            padding: 12px 18px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: monospace;
+            color: #1e3a5f;
+            box-shadow: 0 15px 25px rgba(0,0,0,0.2);
+            border: 2px solid #ffd966;
+            transform: rotate(3deg);
+            pointer-events: none;
+            width: auto;
+            white-space: nowrap;
+        }
+        button {
+            font-family: inherit;
+        }
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 12px;
+            color: #8ba3bc;
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="flex-lesson">
+        <!-- 左侧知识点 -->
+        <div class="knowledge-box">
+            <h2>📘 不退位减法</h2>
+            <div class="rule-card">
+                <div class="rule-text">✨ <strong>三位数减三位数 · 不退位法则</strong><br>
+                相同数位对齐，从个位减起。<br>
+                ✅ 被减数的每一位都 ≥ 减数的对应位，<br>
+                ➖ 直接相减，不需要借位！</div>
+                <div class="example">
+                    🌟 例如：<br>
+                    4 5 6<br>
+                –  1 2 3<br>
+                ———————<br>
+                    3 3 3
+                </div>
+                <div class="example">
+                    🌟 7 8 9 – 3 4 5 = 4 4 4
+                </div>
+                <div class="highlight">
+                    🧸 小提示：百位、十位、个位分别相减，每一位都够减！
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧游戏区：拖拽配对游戏 -->
+        <div class="game-box">
+            <div class="game-header">
+                <h3>🎮 算式拖拖乐</h3>
+                <div class="progress">✅ 配对进度: <span id="matchedCount">0</span> / <span id="totalCount">0</span></div>
+                <button class="reset-btn" id="newGameBtn">🔄 新的一局</button>
+            </div>
+            <div class="drag-area">
+                <div class="section-title">
+                    <span>📌 把算式卡片拖到正确的答案框上</span>
+                    <span style="font-size:0.8rem;">👉 按住卡片拖拽</span>
+                </div>
+                <!-- 算式卡片容器 -->
+                <div id="cardsContainer" class="cards-grid"></div>
+
+                <div class="section-title">
+                    <span>🎯 答案小屋</span>
+                </div>
+                <!-- 答案区域容器 -->
+                <div id="answersContainer" class="answer-grid"></div>
+            </div>
+            <footer>⭐ 把每个算式拖到对应的结果上，全部配对成功就胜利啦！</footer>
+        </div>
+    </div>
+</div>
+<div id="toastMessage" class="toast-msg" style="opacity:0;">✨ 消息</div>
+
+<script>
+    // ---------- 核心游戏逻辑 ----------
+    // 题目数据：id, 算式文本(如"389 - 125")，正确结果
+    let currentQuestions = [];     // [{ id, text, result }]
+    let matchedStatus = [];        // 记录题目是否已配对 (index映射)
+    let answerMatched = [];        // 记录答案框是否已被配对 (按答案索引)
+    let currentCardsOrder = [];    // 存储卡片顺序（题目索引数组）
+    let currentAnswersOrder = [];   // 存储答案框顺序（题目索引数组）
+
+    // DOM 元素
+    const cardsContainer = document.getElementById('cardsContainer');
+    const answersContainer = document.getElementById('answersContainer');
+    const matchedCountSpan = document.getElementById('matchedCount');
+    const totalCountSpan = document.getElementById('totalCount');
+    const newGameBtn = document.getElementById('newGameBtn');
+    const toastMsgDiv = document.getElementById('toastMessage');
+
+    // 拖拽全局变量
+    let isDragging = false;
+    let dragSourceCard = null;         // 拖拽的原卡片DOM
+    let dragSourceQuestionId = null;    // 对应的题目id
+    let dragSourceIndex = -1;           // 在currentCardsOrder中的索引
+    let cloneElement = null;            // 克隆跟随元素
+    let startX = 0, startY = 0;
+    let currentPointerId = null;
+
+    // 显示提示消息
+    function showMessage(text, isError = false) {
+        toastMsgDiv.style.transition = 'opacity 0.2s';
+        toastMsgDiv.textContent = text;
+        toastMsgDiv.style.opacity = '1';
+        toastMsgDiv.style.background = isError ? '#b33e5c' : '#1e5a6fdd';
+        setTimeout(() => {
+            toastMsgDiv.style.opacity = '0';
+        }, 1500);
+    }
+
+    // 生成随机的三位数不退位减法题目 (保证被减数每一位>=减数对应位)
+    function generateValidSubtraction() {
+        // 生成百位 (1-9)
+        let hundredsA = Math.floor(Math.random() * 9) + 1; // 1~9
+        let hundredsB = Math.floor(Math.random() * hundredsA) + 1; // 1 ~ hundredsA
+        // 十位 0-9
+        let tensA = Math.floor(Math.random() * 10);
+        let tensB = Math.floor(Math.random() * (tensA + 1)); // 0 ~ tensA
+        // 个位
+        let unitsA = Math.floor(Math.random() * 10);
+        let unitsB = Math.floor(Math.random() * (unitsA + 1));
+        const numA = hundredsA * 100 + tensA * 10 + unitsA;
+        const numB = hundredsB * 100 + tensB * 10 + unitsB;
+        const result = numA - numB;
+        // 算式文本
+        const text = `${numA} - ${numB}`;
+        return { text, result };
+    }
+
+    // 生成一组题目 (默认4个，并且确保有趣，无重复结果也无妨，id区分)
+    function generateQuestionsSet(count = 4) {
+        const questions = [];
+        for (let i = 0; i < count; i++) {
+            let sub = generateValidSubtraction();
+            // 避免过于简单但保证不退位, 不用额外处理
+            questions.push({
+                id: i,
+                text: sub.text,
+                result: sub.result
+            });
+        }
+        return questions;
+    }
+
+    // 重置/初始化游戏 (打乱卡片顺序和答案框顺序)
+    function initGame() {
+        // 生成全新题目 (保证不退位)
+        currentQuestions = generateQuestionsSet(4);
+        const total = currentQuestions.length;
+        totalCountSpan.innerText = total;
+        matchedCountSpan.innerText = '0';
+
+        // 重置配对状态
+        matchedStatus = new Array(total).fill(false);
+        answerMatched = new Array(total).fill(false);
+
+        // 打乱卡片显示顺序 (存储题目索引的数组)
+        currentCardsOrder = Array.from({length: total}, (_, i) => i);
+        for (let i = currentCardsOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [currentCardsOrder[i], currentCardsOrder[j]] = [currentCardsOrder[j], currentCardsOrder[i]];
+        }
+
+        // 打乱答案框显示顺序
+        currentAnswersOrder = Array.from({length: total}, (_, i) => i);
+        for (let i = currentAnswersOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [currentAnswersOrder[i], currentAnswersOrder[j]] = [currentAnswersOrder[j], currentAnswersOrder[i]];
+        }
+
+        // 渲染界面
+        renderCardsAndAnswers();
+        // 重新绑定拖拽事件 (因为卡片重新生成了)
+        bindDragEvents();
+        // 清除胜利高亮
+    }
+
+    // 渲染卡片和答案区
+    function renderCardsAndAnswers() {
+        cardsContainer.innerHTML = '';
+        answersContainer.innerHTML = '';
+
+        // 渲染卡片 (按照打乱顺序)
+        for (let idx = 0; idx < currentCardsOrder.length; idx++) {
+            const qIndex = currentCardsOrder[idx];    // 真实题目索引
+            const question = currentQuestions[qIndex];
+            const isMatched = matchedStatus[qIndex];
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'drag-card';
+            if (isMatched) cardDiv.classList.add('matched');
+            cardDiv.setAttribute('data-question-id', question.id);
+            cardDiv.setAttribute('data-real-index', qIndex);
+            cardDiv.setAttribute('data-card-order-idx', idx);
+            cardDiv.innerText = question.text;
+            cardsContainer.appendChild(cardDiv);
+        }
+
+        // 渲染答案框 (按照打乱顺序)
+        for (let ansIdx = 0; ansIdx < currentAnswersOrder.length; ansIdx++) {
+            const qIndex = currentAnswersOrder[ansIdx];
+            const question = currentQuestions[qIndex];
+            const isMatched = answerMatched[qIndex];
+            const answerSlot = document.createElement('div');
+            answerSlot.className = 'answer-slot';
+            if (isMatched) answerSlot.classList.add('matched');
+            answerSlot.setAttribute('data-answer-id', question.id);
+            answerSlot.setAttribute('data-real-index', qIndex);
+            answerSlot.setAttribute('data-answer-order', ansIdx);
+            answerSlot.innerHTML = `<div class="slot-value">${question.result}</div><span>⭐ 正确结果</span>`;
+            answersContainer.appendChild(answerSlot);
+        }
+
+        updateMatchedProgress();
+    }
+
+    // 更新配对进度显示
+    function updateMatchedProgress() {
+        const pairedCount = matchedStatus.filter(v => v === true).length;
+        matchedCountSpan.innerText = pairedCount;
+        if (pairedCount === currentQuestions.length && currentQuestions.length > 0) {
+            showMessage("🎉 太棒啦！全部配对成功！  🎉", false);
+            // 添加简单的动画到游戏盒子
+            const gameBox = document.querySelector('.game-box');
+            gameBox.classList.add('celebration');
+            setTimeout(() => gameBox.classList.remove('celebration'), 600);
+        }
+    }
+
+    // 配对成功逻辑
+    function matchSuccess(cardDiv, answerDiv, questionRealIndex, answerRealIndex) {
+        // 检查是否已经配对
+        if (matchedStatus[questionRealIndex] || answerMatched[answerRealIndex]) {
+            showMessage("这个已经配对过了哟！再试试别的吧", true);
+            return false;
+        }
+        // 验证是否匹配 (通过题目id和答案所属题目id是否一致)
+        const question = currentQuestions[questionRealIndex];
+        const targetQuestionForAnswer = currentQuestions[answerRealIndex];
+        if (question.id !== targetQuestionForAnswer.id) {
+            showMessage(`不对哦，${question.text} 不等于 ${targetQuestionForAnswer.result}，再试试看！`, true);
+            return false;
+        }
+        // 正确配对
+        matchedStatus[questionRealIndex] = true;
+        answerMatched[answerRealIndex] = true;
+
+        // 更新UI样式
+        cardDiv.classList.add('matched');
+        cardDiv.style.pointerEvents = 'none';
+        answerDiv.classList.add('matched');
+
+        showMessage(`✅ 正确！${question.text} = ${question.result}`, false);
+        updateMatchedProgress();
+        return true;
+    }
+
+    // ----- 拖拽模拟 (支持鼠标 + 触摸 PointerEvent) -----
+    function bindDragEvents() {
+        // 移除所有旧监听（避免重复绑定）, 通过重新获取卡片绑定
+        const cards = document.querySelectorAll('.drag-card');
+        cards.forEach(card => {
+            // 如果已经配对过, 直接忽略指针事件 (但matched已经设置了pointer-events:none)
+            if (card.classList.contains('matched')) return;
+            card.addEventListener('pointerdown', onPointerDown);
+            // 防止触屏长按菜单
+            card.addEventListener('contextmenu', (e) => e.preventDefault());
+        });
+    }
+
+    function onPointerDown(e) {
+        const card = e.currentTarget;
+        // 已配对的卡片不可拖拽
+        if (card.classList.contains('matched')) {
+            e.preventDefault();
+            return;
+        }
+        e.preventDefault();   // 避免拖动时选中或滚动
+        if (isDragging) return;
+
+        // 记录拖拽源信息
+        dragSourceCard = card;
+        const realIdxAttr = card.getAttribute('data-real-index');
+        if (realIdxAttr === null) return;
+        dragSourceIndex = parseInt(realIdxAttr);
+        dragSourceQuestionId = parseInt(card.getAttribute('data-question-id'));
+        isDragging = true;
+
+        // 记录起始坐标
+        startX = e.clientX;
+        startY = e.clientY;
+
+        // 创建克隆体
+        const rect = card.getBoundingClientRect();
+        cloneElement = document.createElement('div');
+        cloneElement.className = 'dragging-clone';
+        cloneElement.innerText = card.innerText;
+        cloneElement.style.left = `${rect.left}px`;
+        cloneElement.style.top = `${rect.top}px`;
+        cloneElement.style.width = `${rect.width}px`;
+        cloneElement.style.height = `${rect.height}px`;
+        cloneElement.style.lineHeight = `${rect.height}px`;
+        document.body.appendChild(cloneElement);
+
+        card.classList.add('dragging');
+        // 添加全局指针事件
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        // 设置捕获避免丢失
+        e.target.setPointerCapture(e.pointerId);
+    }
+
+    function onPointerMove(e) {
+        if (!isDragging || !cloneElement) return;
+        e.preventDefault();
+        // 移动克隆体
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const currentLeft = parseFloat(cloneElement.style.left);
+        const currentTop = parseFloat(cloneElement.style.top);
+        cloneElement.style.left = `${currentLeft + dx}px`;
+        cloneElement.style.top = `${currentTop + dy}px`;
+        startX = e.clientX;
+        startY = e.clientY;
+    }
+
+    function onPointerUp(e) {
+        if (!isDragging || !dragSourceCard) {
+            cleanDrag();
+            return;
+        }
+
+        // 获取释放点下方的元素
+        const elemUnderPointer = document.elementsFromPoint(e.clientX, e.clientY);
+        let targetAnswerSlot = null;
+        for (let elem of elemUnderPointer) {
+            if (elem.classList && elem.classList.contains('answer-slot')) {
+                targetAnswerSlot = elem;
+                break;
+            }
+        }
+
+        let success = false;
+        if (targetAnswerSlot && !dragSourceCard.classList.contains('matched')) {
+            // 获取答案框对应的真实题目索引
+            const answerRealIdx = parseInt(targetAnswerSlot.getAttribute('data-real-index'));
+            const cardRealIdx = dragSourceIndex;
+            if (!isNaN(answerRealIdx) && !isNaN(cardRealIdx)) {
+                // 检查双方都未配对
+                if (!matchedStatus[cardRealIdx] && !answerMatched[answerRealIdx]) {
+                    success = matchSuccess(dragSourceCard, targetAnswerSlot, cardRealIdx, answerRealIdx);
+                    if (success) {
+                        // 配对成功后, 重新刷新拖拽事件绑定(因为卡片变成不可拖拽, 而且需解绑)
+                        // 重新绑定让已配对卡片移除监听，并移除所有旧监听重新绑定？
+                        rebindRemainingDragEvents();
+                    }
+                } else {
+                    showMessage("这个算式或答案已经配对啦！", true);
+                }
+            } else {
+                showMessage("拖拽出错，再试试看~", true);
+            }
+        } else {
+            if (!targetAnswerSlot) showMessage("要把算式拖到答案小屋上哦～", true);
+            else if (dragSourceCard.classList.contains('matched')) showMessage("这个已经配对啦！", true);
+        }
+
+        cleanDrag();
+
+        // 全部配对成功后自动庆祝（进度已更新）
+        if (!success && targetAnswerSlot === null && isDragging) {
+            // 不做额外处理
+        }
+    }
+
+    function rebindRemainingDragEvents() {
+        // 重新为未配对的卡片绑定事件 (移除原有的全部监听再添加)
+        const allCards = document.querySelectorAll('.drag-card');
+        allCards.forEach(card => {
+            card.removeEventListener('pointerdown', onPointerDown);
+            if (!card.classList.contains('matched')) {
+                card.addEventListener('pointerdown', onPointerDown);
+            }
+        });
+    }
+
+    function cleanDrag() {
+        if (cloneElement && cloneElement.parentNode) cloneElement.parentNode.removeChild(cloneElement);
+        if (dragSourceCard) dragSourceCard.classList.remove('dragging');
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        isDragging = false;
+        dragSourceCard = null;
+        cloneElement = null;
+        dragSourceIndex = -1;
+        dragSourceQuestionId = null;
+    }
+
+    // 新游戏重置所有数据
+    function resetAndNewGame() {
+        // 清理拖拽防止残留
+        if (isDragging) cleanDrag();
+        // 重新生成题目，重置状态
+        initGame();
+    }
+
+    // 页面加载 & 新游戏按钮
+    newGameBtn.addEventListener('click', () => {
+        resetAndNewGame();
+    });
+
+    // 初始化整个游戏
+    initGame();
+
+    // 额外处理移动端滚动防止拖拽时滚动页面
+    window.addEventListener('touchmove', function(e) {
+        if (isDragging) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+</script>
+</body>
+</html>

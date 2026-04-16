@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>数学小探险家 - 亿以内数的认识 | 拖拽配对游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖拽时选中文字，提升体验 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #eef7ff 0%, #d9eaff 100%);
+            font-family: 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Segoe UI Emoji', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* 主容器 - 左右结构，响应式 */
+        .course-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background-color: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(2px);
+            border-radius: 56px;
+            box-shadow: 0 20px 35px rgba(104, 159, 184, 0.25);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右布局 flex */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左边知识点区域 */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 260px;
+            background: #ffffffdd;
+            backdrop-filter: blur(4px);
+            margin: 20px 15px 20px 20px;
+            border-radius: 40px;
+            padding: 24px 20px;
+            box-shadow: 0 10px 20px rgba(91, 140, 167, 0.1);
+            border: 1px solid #ffffffaa;
+        }
+
+        /* 右边游戏区 */
+        .game-area {
+            flex: 2;
+            min-width: 280px;
+            background: #ffffffcc;
+            backdrop-filter: blur(4px);
+            margin: 20px 20px 20px 15px;
+            border-radius: 40px;
+            padding: 24px 20px;
+            box-shadow: 0 10px 20px rgba(91, 140, 167, 0.1);
+            border: 1px solid #ffffffaa;
+        }
+
+        /* 知识点样式 */
+        .knowledge-title {
+            font-size: 1.7rem;
+            font-weight: bold;
+            color: #2c6e9e;
+            border-left: 12px solid #64b5f6;
+            padding-left: 18px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #e1f3fe, transparent);
+            border-radius: 30px;
+        }
+
+        .bit-table {
+            background: #eef3fc;
+            border-radius: 28px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: inset 0 1px 3px #0001, 0 5px 8px #bdd4e6;
+        }
+
+        .bit-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .bit-cell {
+            background: white;
+            border-radius: 20px;
+            padding: 8px 12px;
+            text-align: center;
+            min-width: 68px;
+            font-weight: bold;
+            color: #1f5e8e;
+            box-shadow: 0 2px 6px #cbdbe2;
+            font-size: 0.9rem;
+        }
+
+        .bit-cell span {
+            display: block;
+            font-size: 0.75rem;
+            color: #5e9bc7;
+        }
+
+        .rule-box {
+            background: #fff3e0;
+            border-radius: 24px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 8px solid #ffb347;
+        }
+
+        .rule-box p {
+            margin: 8px 0;
+            line-height: 1.45;
+            font-size: 1rem;
+        }
+
+        .example {
+            font-family: monospace;
+            background: #f0f7ff;
+            padding: 8px 12px;
+            border-radius: 24px;
+            font-weight: bold;
+            color: #005c8a;
+        }
+
+        /* 游戏区组件 */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 3px dashed #7bc3f0;
+        }
+
+        .score-board {
+            background: #afe1fa;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            color: #1d577b;
+        }
+
+        .newgame-btn {
+            background: #ffc857;
+            border: none;
+            font-size: 1.1rem;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: bold;
+            color: #3c2a1f;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 5px 0 #b97f10;
+            font-family: inherit;
+        }
+
+        .newgame-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #b97f10;
+        }
+
+        /* 卡片区（可拖拽卡片列表） */
+        .cards-area {
+            background: #cbe5fe70;
+            border-radius: 48px;
+            padding: 20px 15px;
+            margin-bottom: 30px;
+        }
+
+        .cards-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #1f6392;
+            margin-bottom: 15px;
+            display: inline-block;
+            background: white;
+            padding: 4px 20px;
+            border-radius: 30px;
+        }
+
+        .drag-cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin: 15px 0;
+        }
+
+        /* 可拖拽卡片样式 */
+        .drag-item {
+            background: linear-gradient(135deg, #fff, #f6ffff);
+            width: 140px;
+            padding: 18px 8px;
+            text-align: center;
+            border-radius: 32px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #034b73;
+            box-shadow: 0 12px 18px -8px rgba(0, 32, 64, 0.2);
+            cursor: grab;
+            transition: 0.1s linear;
+            border: 2px solid white;
+            backdrop-filter: blur(2px);
+            letter-spacing: 1px;
+        }
+
+        .drag-item:active {
+            cursor: grabbing;
+        }
+
+        /* 放置区 (读法框) */
+        .dropzone-area {
+            background: #dcf2fe70;
+            border-radius: 48px;
+            padding: 20px 15px;
+        }
+
+        .dropzones-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 12px;
+        }
+
+        .drop-zone {
+            background: #fef9e6;
+            width: 180px;
+            min-height: 110px;
+            border-radius: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 16px 8px;
+            transition: all 0.2s;
+            box-shadow: 0 8px 12px #b7cfdf;
+            border: 3px solid #ffe1a0;
+            position: relative;
+            font-weight: bold;
+            color: #2c5a7a;
+            font-size: 1rem;
+        }
+
+        .drop-zone.matched {
+            background: #b9e6c2;
+            border-color: #3ba86a;
+            text-decoration: line-through;
+            filter: grayscale(0.1);
+            opacity: 0.85;
+            box-shadow: 0 2px 6px #64a56e;
+            cursor: default;
+        }
+
+        .drop-zone.matched::after {
+            content: "✓✓";
+            font-size: 1.8rem;
+            position: absolute;
+            top: -12px;
+            right: -8px;
+            background: #2ecc71;
+            color: white;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 2px 8px green;
+        }
+
+        .reading-text {
+            font-size: 1rem;
+            font-weight: 600;
+            background: #ffffffaa;
+            padding: 6px 10px;
+            border-radius: 28px;
+            margin-top: 6px;
+        }
+
+        .feedback-message {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 8px;
+            background: #fffbd0;
+            border-radius: 60px;
+            color: #c26b00;
+        }
+
+        /* 拖拽克隆体样式 */
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.2));
+            opacity: 0.85;
+            transform: scale(1.02) rotate(2deg);
+            pointer-events: none;
+            transition: none;
+            width: 140px;
+            text-align: center;
+            background: #ffffffea;
+            border-radius: 32px;
+            padding: 18px 8px;
+            font-weight: bold;
+            color: #034b73;
+            border: 2px solid #ffe7a3;
+        }
+
+        /* 响应式 */
+        @media (max-width: 780px) {
+            body {
+                padding: 12px;
+            }
+            .knowledge-area, .game-area {
+                margin: 10px;
+                flex: 1 1 100%;
+            }
+            .drag-item, .drag-clone {
+                width: 120px;
+                font-size: 1rem;
+                padding: 14px 4px;
+            }
+            .drop-zone {
+                width: 150px;
+                min-height: 100px;
+                font-size: 0.85rem;
+            }
+            .bit-cell {
+                min-width: 55px;
+                font-size: 0.75rem;
+            }
+        }
+
+        button {
+            background: none;
+            border: none;
+        }
+        .error-tip {
+            color: #d9534f;
+            background: #ffe6e5;
+            border-radius: 32px;
+            padding: 4px 12px;
+            animation: shake 0.3s;
+        }
+        @keyframes shake {
+            0%,100%{ transform: translateX(0);}
+            25%{ transform: translateX(-4px);}
+            75%{ transform: translateX(4px);}
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧知识点区域 -->
+        <div class="knowledge-area">
+            <div class="knowledge-title">📖 亿以内数的认识</div>
+            <div class="bit-table">
+                <div style="font-weight:bold; margin-bottom:10px;">🔢 数位顺序表（个级 → 万级）</div>
+                <div class="bit-row">
+                    <div class="bit-cell">千万位<span>千万</span></div>
+                    <div class="bit-cell">百万位<span>百万</span></div>
+                    <div class="bit-cell">十万位<span>十万</span></div>
+                    <div class="bit-cell">万位<span>万</span></div>
+                    <div class="bit-cell">千位<span>千</span></div>
+                    <div class="bit-cell">百位<span>百</span></div>
+                    <div class="bit-cell">十位<span>十</span></div>
+                    <div class="bit-cell">个位<span>个</span></div>
+                </div>
+            </div>
+            <div class="rule-box">
+                <p>✨ <strong>读数小秘诀</strong> ✨</p>
+                <p>1️⃣ 先分级：从个位开始，每四位一级，分为<strong>万级</strong>和<strong>个级</strong>。</p>
+                <p>2️⃣ 万级上的数按个级读法，末尾加个“<strong>万</strong>”字。</p>
+                <p>3️⃣ 每级末尾的0都不读；中间一个0或连续几个0只读一个零。</p>
+                <p>📌 <strong>例子</strong>：<span class="example">13820000</span> → 一千三百八十二万<br>
+                <span class="example">30600000</span> → 三千零六十万</p>
+                <p>🎯 <strong>游戏规则</strong>：把左边的数字卡片，<span style="color:#d97706;">拖拽</span>到右边正确的读法框里！全部配对成功即可获得胜利✌️</p>
+            </div>
+        </div>
+
+        <!-- 右侧游戏区 -->
+        <div class="game-area">
+            <div class="game-header">
+                <div class="score-board">🏆 配对进度: <span id="matchedCount">0</span> / <span id="totalCount">0</span></div>
+                <button class="newgame-btn" id="newGameBtn">🎲 新的一局</button>
+            </div>
+            <!-- 可拖拽卡片区域 -->
+            <div class="cards-area">
+                <div class="cards-title">🎴 拖动数字卡片</div>
+                <div id="dragCardsContainer" class="drag-cards-container">
+                    <!-- 动态卡片列表 -->
+                </div>
+            </div>
+            <!-- 放置区：读法框 -->
+            <div class="dropzone-area">
+                <div class="cards-title">🎯 拖放到正确的读法框</div>
+                <div id="dropZonesContainer" class="dropzones-container">
+                    <!-- 动态读法框 -->
+                </div>
+            </div>
+            <div id="feedbackMsg" class="feedback-message">⭐ 把数字拖到对应的读法上面吧！</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 题库（亿以内数的认识）----------
+    const QUESTION_BANK = [
+        { id: 1, number: "13820000", reading: "一千三百八十二万" },
+        { id: 2, number: "50000000", reading: "五千万" },
+        { id: 3, number: "30600000", reading: "三千零六十万" },
+        { id: 4, number: "40030000", reading: "四千零三万" },
+        { id: 5, number: "12000000", reading: "一千二百万" },
+        { id: 6, number: "25006000", reading: "二千五百万六千" },
+        { id: 7, number: "80050000", reading: "八千零五万" },
+        { id: 8, number: "67000000", reading: "六千七百万" }
+    ];
+
+    // 当前游戏数据
+    let currentQuestions = [];        // 存储当前题目对象 [{id, number, reading}]
+    let matchedStatus = [];           // 记录每个读法框是否已配对 (索引对应 dropZones 顺序)
+    let currentScore = 0;             // 已配对成功数量
+    let totalPairs = 0;               // 总配对数量（卡片数量）
+
+    // DOM 元素
+    const dragContainer = document.getElementById('dragCardsContainer');
+    const dropContainer = document.getElementById('dropZonesContainer');
+    const matchedSpan = document.getElementById('matchedCount');
+    const totalSpan = document.getElementById('totalCount');
+    const feedbackDiv = document.getElementById('feedbackMsg');
+    const newGameBtn = document.getElementById('newGameBtn');
+
+    // ---------- 拖拽系统全局变量 ----------
+    let activeDragItem = null;          // 被拖拽的原卡片DOM
+    let dragClone = null;               // 克隆元素
+    let dragStartX = 0, dragStartY = 0;
+    let currentCardMatchId = null;      // 当前拖拽卡片的匹配id
+    let isDragging = false;
+    let dragItemOriginalParent = null;
+    let dragItemNextSibling = null;
+
+    // 防止多次绑定/全局清理
+    let globalMoveHandler = null;
+    let globalUpHandler = null;
+
+    // 辅助函数: 随机选 n 个不重复题目
+    function getRandomQuestions(n) {
+        if (n > QUESTION_BANK.length) n = QUESTION_BANK.length;
+        const shuffled = [...QUESTION_BANK];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled.slice(0, n);
+    }
+
+    // 洗牌算法 (打乱数组顺序)
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    // 重新构建游戏界面
+    function initGame(questions) {
+        currentQuestions = [...questions];
+        totalPairs = currentQuestions.length;
+        currentScore = 0;
+        matchedStatus = new Array(totalPairs).fill(false);
+        updateScoreUI();
+
+        // 准备卡片数据（数字卡片）和 读法框数据
+        let cardsData = currentQuestions.map(q => ({ id: q.id, number: q.number, reading: q.reading }));
+        let zonesData = currentQuestions.map(q => ({ id: q.id, reading: q.reading }));
+
+        // 打乱卡片顺序（增加趣味）
+        cardsData = shuffleArray(cardsData);
+        // 打乱读法框顺序（增加挑战）
+        zonesData = shuffleArray(zonesData);
+
+        // 渲染卡片区
+        renderCards(cardsData);
+        // 渲染放置区
+        renderDropZones(zonesData);
+
+        // 每次新游戏后重新绑定拖拽事件（移除旧监听重新绑定）
+        bindDragEventsToCards();
+        // 重置反馈消息
+        feedbackDiv.innerHTML = "🎈 新的一轮！把数字拖拽到对应的读法框吧～";
+        feedbackDiv.classList.remove("error-tip");
+    }
+
+    // 渲染可拖拽卡片
+    function renderCards(cardsArray) {
+        dragContainer.innerHTML = '';
+        cardsArray.forEach(card => {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'drag-item';
+            cardDiv.setAttribute('data-card-id', card.id);
+            cardDiv.setAttribute('data-match-id', card.id);
+            cardDiv.setAttribute('data-number', card.number);
+            cardDiv.textContent = card.number;
+            // 添加一点点装饰小图标
+            cardDiv.innerHTML = `📇 ${card.number}`;
+            dragContainer.appendChild(cardDiv);
+        });
+    }
+
+    // 渲染放置区（读法框）
+    function renderDropZones(zonesArray) {
+        dropContainer.innerHTML = '';
+        zonesArray.forEach((zone, idx) => {
+            const zoneDiv = document.createElement('div');
+            zoneDiv.className = 'drop-zone';
+            zoneDiv.setAttribute('data-zone-idx', idx);
+            zoneDiv.setAttribute('data-match-id', zone.id);
+            zoneDiv.setAttribute('data-matched', 'false');
+            // 显示读法内容
+            zoneDiv.innerHTML = `
+                <div style="font-size:0.85rem;">📖 读作</div>
+                <div class="reading-text">${zone.reading}</div>
+            `;
+            // 如果之前已经配对 (新游戏时全是false)
+            if (matchedStatus[idx]) {
+                zoneDiv.classList.add('matched');
+                zoneDiv.setAttribute('data-matched', 'true');
+            } else {
+                zoneDiv.classList.remove('matched');
+                zoneDiv.setAttribute('data-matched', 'false');
+            }
+            dropContainer.appendChild(zoneDiv);
+        });
+    }
+
+    // 更新得分UI
+    function updateScoreUI() {
+        matchedSpan.textContent = currentScore;
+        totalSpan.textContent = totalPairs;
+    }
+
+    // 检查是否胜利
+    function checkVictory() {
+        if (currentScore === totalPairs && totalPairs > 0) {
+            feedbackDiv.innerHTML = "🎉🎉 太厉害了！全部配对正确！🎉🎉 <br> 🌟 点击「新的一局」继续挑战吧！";
+            feedbackDiv.style.background = "#c8f0d1";
+        } else {
+            if (currentScore !== totalPairs) {
+                // 不清空，只是普通提示
+            }
+        }
+    }
+
+    // 配对成功逻辑
+    function matchSuccess(cardElement, targetZone) {
+        const cardMatchId = parseInt(cardElement.getAttribute('data-match-id'));
+        const zoneMatchId = parseInt(targetZone.getAttribute('data-match-id'));
+        if (cardMatchId !== zoneMatchId) return false;
+
+        // 检查这个zone是否已经配对过
+        const zoneIdxAttr = targetZone.getAttribute('data-zone-idx');
+        if (!zoneIdxAttr) return false;
+        const zoneIdx = parseInt(zoneIdxAttr);
+        if (matchedStatus[zoneIdx]) return false;  // 已经配对了
+
+        // 配对成功！
+        // 1. 移除卡片DOM
+        cardElement.remove();
+        // 2. 标记放置区为已配对
+        matchedStatus[zoneIdx] = true;
+        targetZone.setAttribute('data-matched', 'true');
+        targetZone.classList.add('matched');
+        // 3. 增加分数
+        currentScore++;
+        updateScoreUI();
+        // 4. 提示成功
+        feedbackDiv.innerHTML = "✅ 配对正确！ 继续加油～ ✅";
+        feedbackDiv.classList.remove("error-tip");
+        setTimeout(() => {
+            if (currentScore !== totalPairs) feedbackDiv.innerHTML = "🎈 拖动卡片放到正确位置吧！";
+            checkVictory();
+        }, 800);
+        checkVictory();
+        return true;
+    }
+
+    // 配对失败反馈
+    function matchFailed() {
+        feedbackDiv.innerHTML = "❌ 配对错误！再试试看～ ❌";
+        feedbackDiv.classList.add("error-tip");
+        setTimeout(() => {
+            if (currentScore !== totalPairs) feedbackDiv.innerHTML = "💪 没关系，再读一读数字和读法！";
+            feedbackDiv.classList.remove("error-tip");
+        }, 1000);
+    }
+
+    // ---------- 自定义拖拽核心（支持鼠标+触摸）----------
+    function startDrag(e, cardElement) {
+        if (isDragging) return;
+        // 如果卡片已被移除或游戏已完成所有配对? 阻止拖拽
+        if (!document.body.contains(cardElement)) return;
+        // 如果胜利后，还可以拖拽但是禁止? 防止胜利后继续拖拽残留, 其实新游戏前无所谓, 但为了避免破坏胜利界面, 当currentScore===totalPairs时,不允许再拖拽
+        if (currentScore === totalPairs && totalPairs > 0) {
+            feedbackDiv.innerHTML = "🏆 已经完成啦！点「新的一局」继续挑战吧～";
+            return;
+        }
+
+        e.preventDefault();
+        const startPoint = e.touches ? e.touches[0] : e;
+        dragStartX = startPoint.clientX;
+        dragStartY = startPoint.clientY;
+
+        activeDragItem = cardElement;
+        currentCardMatchId = parseInt(activeDragItem.getAttribute('data-match-id'));
+
+        // 记录原位置信息
+        dragItemOriginalParent = activeDragItem.parentNode;
+        dragItemNextSibling = activeDragItem.nextSibling;
+
+        // 隐藏原卡片（视觉上隐藏，但保留占位？为了体验，隐藏但保留其占位空间，让克隆体跟随）
+        activeDragItem.style.opacity = '0';
+        activeDragItem.style.visibility = 'hidden';  // 隐藏但仍占位防止布局移动
+
+        // 创建克隆体
+        const clone = activeDragItem.cloneNode(true);
+        clone.classList.add('drag-clone');
+        clone.style.position = 'fixed';
+        clone.style.left = `${startPoint.clientX - activeDragItem.offsetWidth / 2}px`;
+        clone.style.top = `${startPoint.clientY - activeDragItem.offsetHeight / 2}px`;
+        clone.style.width = `${activeDragItem.offsetWidth}px`;
+        clone.style.opacity = '0.85';
+        clone.style.margin = '0';
+        document.body.appendChild(clone);
+        dragClone = clone;
+
+        isDragging = true;
+
+        // 全局移动和结束监听
+        if (globalMoveHandler) document.removeEventListener('mousemove', globalMoveHandler);
+        if (globalUpHandler) document.removeEventListener('mouseup', globalUpHandler);
+        if (globalMoveHandler) document.removeEventListener('touchmove', globalMoveHandler);
+        if (globalUpHandler) document.removeEventListener('touchend', globalUpHandler);
+
+        globalMoveHandler = (moveEv) => onDragMove(moveEv);
+        globalUpHandler = (upEv) => onDragEnd(upEv);
+
+        document.addEventListener('mousemove', globalMoveHandler);
+        document.addEventListener('mouseup', globalUpHandler);
+        document.addEventListener('touchmove', globalMoveHandler, { passive: false });
+        document.addEventListener('touchend', globalUpHandler);
+        document.addEventListener('touchcancel', globalUpHandler);
+    }
+
+    function onDragMove(e) {
+        if (!isDragging || !dragClone) return;
+        e.preventDefault();
+        const point = e.touches ? e.touches[0] : e;
+        const moveX = point.clientX - dragStartX;
+        const moveY = point.clientY - dragStartY;
+        const cloneRect = dragClone.getBoundingClientRect();
+        dragClone.style.left = `${point.clientX - cloneRect.width / 2}px`;
+        dragClone.style.top = `${point.clientY - cloneRect.height / 2}px`;
+    }
+
+    function onDragEnd(e) {
+        if (!isDragging || !activeDragItem) {
+            cleanDrag();
+            return;
+        }
+        e.preventDefault();
+        const endPoint = e.changedTouches ? e.changedTouches[0] : e;
+        // 获取鼠标下方的元素
+        const elemUnderCursor = document.elementsFromPoint(endPoint.clientX, endPoint.clientY);
+        let targetDropZone = null;
+        for (let el of elemUnderCursor) {
+            if (el.classList && el.classList.contains('drop-zone')) {
+                targetDropZone = el;
+                break;
+            }
+        }
+
+        let success = false;
+        if (targetDropZone && activeDragItem && currentCardMatchId !== null) {
+            const zoneMatchedAttr = targetDropZone.getAttribute('data-matched');
+            const isZoneMatched = (zoneMatchedAttr === 'true');
+            if (!isZoneMatched) {
+                // 进行配对验证
+                const zoneMatchId = parseInt(targetDropZone.getAttribute('data-match-id'));
+                if (zoneMatchId === currentCardMatchId) {
+                    // 配对成功
+                    success = matchSuccess(activeDragItem, targetDropZone);
+                }
+            }
+        }
+
+        if (!success && activeDragItem && activeDragItem.parentNode) {
+            // 配对失败，恢复卡片可见性
+            activeDragItem.style.opacity = '';
+            activeDragItem.style.visibility = '';
+            matchFailed();
+        } else if (success) {
+            // 配对成功时卡片已经被移除，无需恢复可见性
+        }
+
+        // 清理拖拽残留
+        cleanDrag();
+
+        // 如果全部配对后胜利额外反馈
+        if (currentScore === totalPairs && totalPairs > 0) {
+            feedbackDiv.innerHTML = "🏆✨ 完美通关！你是读数小英雄 ✨🏆";
+        }
+    }
+
+    function cleanDrag() {
+        if (dragClone && dragClone.parentNode) dragClone.remove();
+        if (activeDragItem) {
+            // 如果卡片还存在且没有被移除（配对失败时还在），恢复样式
+            if (activeDragItem.parentNode) {
+                activeDragItem.style.opacity = '';
+                activeDragItem.style.visibility = '';
+            }
+        }
+        isDragging = false;
+        activeDragItem = null;
+        dragClone = null;
+        if (globalMoveHandler) {
+            document.removeEventListener('mousemove', globalMoveHandler);
+            document.removeEventListener('touchmove', globalMoveHandler);
+            document.removeEventListener('mouseup', globalUpHandler);
+            document.removeEventListener('touchend', globalUpHandler);
+            document.removeEventListener('touchcancel', globalUpHandler);
+            globalMoveHandler = null;
+            globalUpHandler = null;
+        }
+    }
+
+    // 为所有卡片绑定拖拽事件（每次新游戏后重新绑定）
+    function bindDragEventsToCards() {
+        const cards = document.querySelectorAll('.drag-item');
+        cards.forEach(card => {
+            // 移除之前的监听避免重复（简单粗暴）
+            card.removeEventListener('mousedown', onMouseDownHandler);
+            card.removeEventListener('touchstart', onTouchStartHandler);
+            // 添加新监听
+            card.addEventListener('mousedown', onMouseDownHandler);
+            card.addEventListener('touchstart', onTouchStartHandler, { passive: false });
+        });
+    }
+
+    function onMouseDownHandler(e) {
+        e.preventDefault();
+        const card = e.currentTarget;
+        startDrag(e, card);
+    }
+    function onTouchStartHandler(e) {
+        e.preventDefault();
+        const card = e.currentTarget;
+        startDrag(e, card);
+    }
+
+    // 新游戏逻辑
+    function newGame() {
+        // 清理拖拽残留
+        cleanDrag();
+        // 随机选择3~4个题目 (3或4个更友好)
+        const pairCount = Math.min(4, QUESTION_BANK.length);
+        const newQuestions = getRandomQuestions(pairCount);
+        initGame(newQuestions);
+    }
+
+    // 初始化首轮游戏
+    function firstGame() {
+        const startQuestions = getRandomQuestions(3);
+        initGame(startQuestions);
+    }
+
+    // 添加新游戏按钮监听
+    newGameBtn.addEventListener('click', () => {
+        newGame();
+    });
+
+    firstGame();
+</script>
+</body>
+</html>

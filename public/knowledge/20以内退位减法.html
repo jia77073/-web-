@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>数学小探险：20以内退位减法 | 互动课程</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升体验 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #cfe9ff 0%, #b8dcff 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'PingFang SC', Roboto, system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主课程卡片容器 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 56px;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1), 0 5px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+        }
+
+        /* 左右布局：桌面左右，手机上下 */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        /* 左侧知识点区域 */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 240px;
+            background: #ffffffdd;
+            backdrop-filter: blur(4px);
+            border-radius: 48px;
+            padding: 20px 24px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        /* 右侧游戏区域 */
+        .game-area {
+            flex: 2;
+            min-width: 300px;
+            background: #ffffffdd;
+            backdrop-filter: blur(4px);
+            border-radius: 48px;
+            padding: 20px 24px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        /* 知识点样式 */
+        .knowledge-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2c5a7a;
+            border-left: 8px solid #5fa7cf;
+            padding-left: 18px;
+            margin-bottom: 20px;
+            letter-spacing: -0.3px;
+        }
+
+        .method-card {
+            background: #eef6fe;
+            border-radius: 32px;
+            padding: 18px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.02);
+        }
+
+        .method-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #1f6392;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .method-title span {
+            font-size: 1.8rem;
+        }
+
+        .method-text {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #2c3e4e;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 24px;
+            margin-top: 6px;
+        }
+
+        .example-box {
+            background: #fff3cf;
+            border-radius: 28px;
+            padding: 14px 18px;
+            margin-top: 12px;
+            font-weight: 500;
+        }
+
+        .tip {
+            background: #cbe5fe;
+            border-radius: 30px;
+            padding: 14px;
+            text-align: center;
+            font-size: 0.9rem;
+            margin-top: 20px;
+            color: #004070;
+        }
+
+        /* 右侧游戏头部 */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px dashed #8fc5e8;
+        }
+
+        .game-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffa559;
+            background: #fff1e0;
+            display: inline-block;
+            padding: 4px 18px;
+            border-radius: 60px;
+            letter-spacing: 1px;
+        }
+
+        .score-board {
+            background: #4f9fcf;
+            padding: 8px 20px;
+            border-radius: 40px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.3rem;
+            box-shadow: inset 0 -2px 0 #2d6b92, 0 4px 8px rgba(0,0,0,0.05);
+        }
+
+        /* 当前算式展示区 */
+        .question-zone {
+            background: #ffe5b4;
+            border-radius: 48px;
+            padding: 20px 12px;
+            text-align: center;
+            margin: 15px 0 20px;
+            box-shadow: 0 8px 0 #c29b4a;
+        }
+
+        .equation {
+            font-size: 3.5rem;
+            font-weight: 800;
+            font-family: monospace, 'Courier New', 'Segoe UI';
+            letter-spacing: 8px;
+            background: white;
+            display: inline-block;
+            padding: 10px 30px;
+            border-radius: 70px;
+            color: #2c5a6e;
+            box-shadow: inset 0 1px 4px #0001, 0 6px 0 #c0d0e0;
+        }
+
+        /* 钓鱼游戏核心：鱼篓放置区 */
+        .dropzone {
+            background: #d9eefe;
+            border-radius: 60px;
+            margin: 20px 0 30px;
+            padding: 18px;
+            text-align: center;
+            border: 3px dashed #4f9fcf;
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+
+        .dropzone p {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2e7ea6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .basket-icon {
+            font-size: 2rem;
+            filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1));
+        }
+
+        /* 可拖拽的鱼儿列表 */
+        .fish-tank {
+            background: #cde3f5;
+            border-radius: 56px;
+            padding: 20px 12px;
+            margin-top: 15px;
+        }
+
+        .fish-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .fish-card {
+            background: #ffcf9a;
+            background: linear-gradient(135deg, #ffe0b5, #ffc48a);
+            width: 110px;
+            padding: 15px 0;
+            text-align: center;
+            border-radius: 60% 40% 50% 50% / 45% 40% 60% 55%;
+            box-shadow: 0 12px 0 #b97f3a;
+            cursor: grab;
+            transition: transform 0.1s ease, box-shadow 0.1s;
+            touch-action: none; /* 优化触摸拖动 */
+        }
+
+        .fish-card:active {
+            cursor: grabbing;
+        }
+
+        .fish-emoji {
+            font-size: 2.8rem;
+            display: block;
+        }
+
+        .fish-number {
+            font-size: 2rem;
+            font-weight: bold;
+            background: white;
+            display: inline-block;
+            width: 60px;
+            border-radius: 40px;
+            margin-top: 8px;
+            color: #bd6b1e;
+            box-shadow: inset 0 1px 3px #0001, 0 2px 3px rgba(0,0,0,0.1);
+        }
+
+        /* 消息提示 */
+        .message-area {
+            text-align: center;
+            margin-top: 18px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 8px;
+            background: #fffce0;
+            border-radius: 40px;
+            color: #d88c2a;
+        }
+
+        /* 辅助按钮(重置得分) */
+        .reset-btn {
+            background: #c7e2f5;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #2c5a7a;
+            cursor: pointer;
+            margin-left: 12px;
+            transition: 0.1s;
+        }
+
+        .reset-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* 拖拽克隆样式 */
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 8px 12px rgba(0,0,0,0.2));
+            opacity: 0.85;
+            pointer-events: none;
+            transform: scale(1.05) rotate(5deg);
+            transition: none;
+            width: 100px;
+            text-align: center;
+        }
+
+        /* 响应式 */
+        @media (max-width: 780px) {
+            .split-layout {
+                flex-direction: column;
+            }
+            .equation {
+                font-size: 2.4rem;
+                letter-spacing: 4px;
+                padding: 6px 18px;
+            }
+            .fish-card {
+                width: 90px;
+            }
+            .fish-number {
+                font-size: 1.6rem;
+                width: 50px;
+            }
+            .game-title {
+                font-size: 1.4rem;
+            }
+        }
+
+        button {
+            background: none;
+            border: none;
+        }
+        .drag-over {
+            background: #f9e45b;
+            border-color: #ffa047;
+        }
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 16px;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧：知识点讲解 -->
+        <div class="knowledge-area">
+            <div class="knowledge-title">📖 退位减法小课堂</div>
+            <div class="method-card">
+                <div class="method-title"><span>🧠 破十法</span></div>
+                <div class="method-text">
+                    把大数拆成10和几，先用10减去小数，再加回剩下的数。<br>
+                    例如：<strong>15 - 9</strong> → 15拆成10和5 → 10-9=1 → 1+5=6
+                </div>
+                <div class="example-box">
+                    🌟 13 - 5 = ? <br>
+                    10 - 5 = 5, 5 + 3 = 8 → 答案就是8！
+                </div>
+            </div>
+            <div class="method-card">
+                <div class="method-title"><span>➕ 想加算减法</span></div>
+                <div class="method-text">
+                    想几加几等于被减数，从而得出减法的答案。<br>
+                    例如：12 - 7 = ? 想 7+5=12，所以答案是5。
+                </div>
+            </div>
+            <div class="tip">
+                💡 小技巧：20以内退位减法，差总是比被减数的个位多（当减数大于个位时）～ 多多练习就熟练啦！
+            </div>
+        </div>
+
+        <!-- 右侧：钓鱼小游戏（拖拽互动） -->
+        <div class="game-area">
+            <div class="game-header">
+                <div class="game-title">🎣 钓鱼小挑战</div>
+                <div class="score-board">🏆 得分: <span id="scoreValue">0</span></div>
+                <button class="reset-btn" id="resetScoreBtn">✨ 重置分数</button>
+            </div>
+
+            <!-- 题目展示区 -->
+            <div class="question-zone">
+                <div class="equation" id="currentEquation">13 - 5 = ?</div>
+            </div>
+
+            <!-- 鱼篓：答案放置区 (拖拽目标) -->
+            <div class="dropzone" id="dropZone">
+                <p>🐟 把正确的“数字鱼”拖到这里 🧺</p>
+                <div class="basket-icon">🧺 ➕ 🎣</div>
+            </div>
+
+            <!-- 可拖拽的鱼群（选项卡片） -->
+            <div class="fish-tank">
+                <div style="text-align: center; margin-bottom: 12px; font-weight: bold; color:#1f6392;">🐠 哪条鱼藏着正确答案？拖拽它到鱼篓！ 🐡</div>
+                <div class="fish-list" id="fishListContainer">
+                    <!-- 动态生成3条鱼 (数字选项) -->
+                </div>
+            </div>
+
+            <div class="message-area" id="gameMessage">
+                💪 拖拽数字鱼到鱼篓吧！
+            </div>
+            <footer>✨ 拖拽小鱼 → 放进鱼篓，正确自动获得下一题！</footer>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 游戏状态 ----------
+    let currentScore = 0;
+    let currentQuestion = { first: 13, second: 5, answer: 8 };
+    let currentAnswer = 8;
+    let currentOptions = []; // 存储三个选项数字 (包含答案)
+
+    // 拖拽全局变量
+    let dragActive = false;
+    let cloneElement = null;
+    let dragSourceNumber = null;      // 当前拖拽的鱼的数值
+    let startClientX = 0, startClientY = 0;
+    let currentDragElement = null;    // 原始被拖拽元素（用于样式）
+    let moveHandler = null;
+    let upHandler = null;
+
+    // DOM 元素
+    const equationEl = document.getElementById('currentEquation');
+    const scoreSpan = document.getElementById('scoreValue');
+    const fishContainer = document.getElementById('fishListContainer');
+    const dropZone = document.getElementById('dropZone');
+    const gameMessage = document.getElementById('gameMessage');
+    const resetBtn = document.getElementById('resetScoreBtn');
+
+    // ---------- 辅助函数 ----------
+    function showMessage(msg, isError = false) {
+        gameMessage.innerHTML = isError ? `❌ ${msg}` : `✅ ${msg}`;
+        if (!isError) {
+            setTimeout(() => {
+                if (gameMessage.innerHTML.includes(msg))
+                    gameMessage.innerHTML = "🎣 继续拖拽小鱼到鱼篓吧！";
+            }, 1500);
+        } else {
+            setTimeout(() => {
+                if (gameMessage.innerHTML.includes(msg))
+                    gameMessage.innerHTML = "💪 再试试看！拖拽正确的数字鱼～";
+            }, 1800);
+        }
+    }
+
+    // 更新得分显示
+    function updateScoreUI() {
+        scoreSpan.innerText = currentScore;
+    }
+
+    // 生成随机退位减法 (20以内，且需要退位: 个位不够减，例如 11~20 减去 1~9 且大于个位)
+    function generateSubtraction() {
+        // 确保是退位减法: 被减数在11-20之间，减数 > 被减数的个位数，且减数 ≤ 被减数-1（保证结果正整数并且为退位）
+        let minuend = Math.floor(Math.random() * 10) + 11; // 11~20
+        let unitsDigit = minuend % 10;
+        let minSubtractor = unitsDigit + 1;
+        let maxSubtractor = Math.min(9, minuend - 1); // 确保结果至少为1
+        if (minSubtractor > maxSubtractor) {
+            // 如果不符合（例如20，个位0，退位最小减数1，最大减数9，没问题；但11个位1最小减数2最大减数10但是不能超过9，所以重新生成）
+            return generateSubtraction();
+        }
+        let subtractor = Math.floor(Math.random() * (maxSubtractor - minSubtractor + 1)) + minSubtractor;
+        let answer = minuend - subtractor;
+        // 确保答案在1-10之间且是退位减法
+        if (answer <= 0 || answer > 10) return generateSubtraction();
+        return { first: minuend, second: subtractor, answer: answer };
+    }
+
+    // 生成随机选项 (包含正确答案，两个不同干扰项，范围0~10且不等于正确答案，且彼此不同)
+    function generateOptions(correctAns) {
+        let opts = new Set();
+        opts.add(correctAns);
+        while (opts.size < 3) {
+            let candidate = Math.floor(Math.random() * 11); // 0-10
+            if (candidate !== correctAns) opts.add(candidate);
+        }
+        // 转成数组并打乱顺序
+        let optsArray = Array.from(opts);
+        for (let i = optsArray.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [optsArray[i], optsArray[j]] = [optsArray[j], optsArray[i]];
+        }
+        return optsArray;
+    }
+
+    // 刷新题目 (生成新算式 + 新选项 + 重绘鱼)
+    function refreshQuestion() {
+        const newQ = generateSubtraction();
+        currentQuestion = newQ;
+        currentAnswer = newQ.answer;
+        // 更新算式显示
+        equationEl.innerHTML = `${currentQuestion.first} - ${currentQuestion.second} = ?`;
+        // 生成新选项
+        currentOptions = generateOptions(currentAnswer);
+        // 重新绘制鱼卡片
+        renderFishCards();
+        // 清除消息残留（只清除非错误提示）
+        if (!gameMessage.innerHTML.includes("❌")) {
+            gameMessage.innerHTML = "🐟 新题目！快把正确答案的鱼拖到鱼篓吧~";
+        }
+    }
+
+    // 渲染可拖拽的鱼卡片 (并绑定拖拽事件)
+    function renderFishCards() {
+        fishContainer.innerHTML = '';
+        for (let num of currentOptions) {
+            const fishCard = document.createElement('div');
+            fishCard.className = 'fish-card';
+            fishCard.setAttribute('data-value', num);
+            fishCard.innerHTML = `
+                <div class="fish-emoji">🐟</div>
+                <div class="fish-number">${num}</div>
+            `;
+            fishContainer.appendChild(fishCard);
+        }
+        // 绑定拖拽监听 (因为元素全新生成)
+        bindDragToFishes();
+    }
+
+    // 为所有鱼卡片绑定拖拽启动事件 (自定义触摸/鼠标拖拽)
+    function bindDragToFishes() {
+        const fishes = document.querySelectorAll('.fish-card');
+        fishes.forEach(fish => {
+            // 鼠标/触摸 启动
+            fish.addEventListener('mousedown', onDragStart);
+            fish.addEventListener('touchstart', onDragStart, { passive: false });
+            // 禁止原生拖拽图片
+            fish.ondragstart = (e) => { e.preventDefault(); return false; };
+        });
+    }
+
+    // 拖拽开始逻辑
+    function onDragStart(e) {
+        if (dragActive) return; // 防止同时拖拽多个
+        e.preventDefault();
+        const targetElem = e.target.closest('.fish-card');
+        if (!targetElem) return;
+
+        // 获取数值
+        const value = parseInt(targetElem.getAttribute('data-value'));
+        if (isNaN(value)) return;
+
+        dragSourceNumber = value;
+        currentDragElement = targetElem;
+        dragActive = true;
+
+        // 记录起始点（用于移动）
+        let clientX, clientY;
+        if (e.type === 'mousedown') {
+            clientX = e.clientX;
+            clientY = e.clientY;
+            moveHandler = onDragMove;
+            upHandler = onDragEnd;
+            window.addEventListener('mousemove', moveHandler);
+            window.addEventListener('mouseup', upHandler);
+        } else { // touchstart
+            const touch = e.touches[0];
+            clientX = touch.clientX;
+            clientY = touch.clientY;
+            moveHandler = onDragMove;
+            upHandler = onDragEnd;
+            window.addEventListener('touchmove', moveHandler, { passive: false });
+            window.addEventListener('touchend', upHandler);
+            window.addEventListener('touchcancel', upHandler);
+        }
+
+        startClientX = clientX;
+        startClientY = clientY;
+
+        // 创建克隆体 (跟随拖拽)
+        cloneElement = document.createElement('div');
+        cloneElement.className = 'drag-clone';
+        // 复制鱼卡片内容样式
+        const rect = targetElem.getBoundingClientRect();
+        cloneElement.style.width = rect.width + 'px';
+        cloneElement.style.height = rect.height + 'px';
+        cloneElement.style.left = (clientX - rect.width/2) + 'px';
+        cloneElement.style.top = (clientY - rect.height/2) + 'px';
+        cloneElement.style.position = 'fixed';
+        cloneElement.style.background = '#ffcf9a';
+        cloneElement.style.borderRadius = '60% 40% 50% 50% / 45% 40% 60% 55%';
+        cloneElement.style.display = 'flex';
+        cloneElement.style.flexDirection = 'column';
+        cloneElement.style.alignItems = 'center';
+        cloneElement.style.justifyContent = 'center';
+        cloneElement.style.boxShadow = '0 12px 18px rgba(0,0,0,0.3)';
+        cloneElement.innerHTML = `
+            <div style="font-size:2rem;">🐟</div>
+            <div style="font-size:1.8rem; font-weight:bold; background:white; width:50px; border-radius:40px; margin-top:4px;">${dragSourceNumber}</div>
+        `;
+        document.body.appendChild(cloneElement);
+        // 给原始元素增加半透明效果 (表示正在拖拽)
+        targetElem.style.opacity = '0.4';
+    }
+
+    // 拖拽移动过程
+    function onDragMove(e) {
+        if (!dragActive || !cloneElement) return;
+        e.preventDefault();
+        let clientX, clientY;
+        if (e.type === 'mousemove') {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        } else {
+            const touch = e.touches[0];
+            if (!touch) return;
+            clientX = touch.clientX;
+            clientY = touch.clientY;
+        }
+        // 更新克隆位置
+        const cloneWidth = cloneElement.offsetWidth;
+        const cloneHeight = cloneElement.offsetHeight;
+        cloneElement.style.left = (clientX - cloneWidth/2) + 'px';
+        cloneElement.style.top = (clientY - cloneHeight/2) + 'px';
+    }
+
+    // 拖拽结束：判定是否在鱼篓区域
+    function onDragEnd(e) {
+        if (!dragActive) {
+            cleanDrag();
+            return;
+        }
+        e.preventDefault();
+        let endX, endY;
+        if (e.type === 'mouseup') {
+            endX = e.clientX;
+            endY = e.clientY;
+        } else if (e.type === 'touchend' || e.type === 'touchcancel') {
+            // 对于touchend，最后触点位置可以从changedTouches获取
+            if (e.changedTouches && e.changedTouches.length > 0) {
+                endX = e.changedTouches[0].clientX;
+                endY = e.changedTouches[0].clientY;
+            } else {
+                cleanDrag();
+                return;
+            }
+        } else {
+            cleanDrag();
+            return;
+        }
+
+        // 检测是否在dropZone区域内
+        const dropRect = dropZone.getBoundingClientRect();
+        const isInside = (endX >= dropRect.left && endX <= dropRect.right && endY >= dropRect.top && endY <= dropRect.bottom);
+
+        let resultValid = false;
+        if (isInside) {
+            // 比对拖拽的数字和当前正确答案
+            if (dragSourceNumber === currentAnswer) {
+                // 正确！
+                resultValid = true;
+                // 增加分数
+                currentScore++;
+                updateScoreUI();
+                showMessage(`正确！ ${currentQuestion.first} - ${currentQuestion.second} = ${currentAnswer} 🎉`, false);
+                // 刷新题目
+                refreshQuestion();
+            } else {
+                // 错误答案
+                showMessage(`哎呀，${dragSourceNumber} 不对哦！再试试看～`, true);
+                // 不加分，不刷新题目，保持原样，但加一个抖动效果？
+                const dropZoneEl = dropZone;
+                dropZoneEl.style.transform = 'scale(0.98)';
+                setTimeout(() => { if(dropZoneEl) dropZoneEl.style.transform = ''; }, 200);
+            }
+        } else {
+            // 没有拖拽到鱼篓
+            showMessage(`要把小鱼放进鱼篓才算数哟 🧺`, true);
+        }
+
+        // 清理拖拽相关视觉和事件
+        cleanDrag();
+
+        // 如果正确拖拽并刷新题目后，选项列表已经刷新，无需额外操作
+        // 如果错误，选项不变，但需要恢复鱼卡片透明度
+        if (!resultValid && currentDragElement) {
+            currentDragElement.style.opacity = '';
+        } else if (resultValid && currentDragElement) {
+            currentDragElement.style.opacity = '';
+        }
+        // 额外确保如果正确刷新后，所有卡片透明度为正常（已在render时重置）
+    }
+
+    function cleanDrag() {
+        if (cloneElement && cloneElement.parentNode) {
+            cloneElement.parentNode.removeChild(cloneElement);
+        }
+        if (currentDragElement) {
+            currentDragElement.style.opacity = '';
+        }
+        if (moveHandler) {
+            window.removeEventListener('mousemove', moveHandler);
+            window.removeEventListener('touchmove', moveHandler);
+        }
+        if (upHandler) {
+            window.removeEventListener('mouseup', upHandler);
+            window.removeEventListener('touchend', upHandler);
+            window.removeEventListener('touchcancel', upHandler);
+        }
+        dragActive = false;
+        cloneElement = null;
+        dragSourceNumber = null;
+        currentDragElement = null;
+        moveHandler = null;
+        upHandler = null;
+    }
+
+    // 重置分数
+    function resetScore() {
+        currentScore = 0;
+        updateScoreUI();
+        showMessage("分数已重置，继续挑战吧！", false);
+    }
+
+    // 初始化游戏
+    function initGame() {
+        currentScore = 0;
+        updateScoreUI();
+        // 随机生成第一个题目
+        const firstQ = generateSubtraction();
+        currentQuestion = firstQ;
+        currentAnswer = firstQ.answer;
+        equationEl.innerHTML = `${currentQuestion.first} - ${currentQuestion.second} = ?`;
+        currentOptions = generateOptions(currentAnswer);
+        renderFishCards();
+        gameMessage.innerHTML = "🐟 拖拽小鱼到鱼篓，答对自动换题！";
+        // 重置分数按钮监听
+        resetBtn.onclick = () => resetScore();
+    }
+
+    // 防页面滚动（touchmove全局在拖拽时已prevent，但是需要额外确保body不滚动）
+    window.addEventListener('touchmove', function(e) {
+        if (dragActive) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // 开始游戏
+    initGame();
+</script>
+</body>
+</html>

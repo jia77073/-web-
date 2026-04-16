@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>算术探险岛 | 三位数加减法估算小课堂</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖拽时选中文字，提升体验 */
+        }
+
+        body {
+            background: linear-gradient(145deg, #fff5e8 0%, #ffede0 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Comic Neue', 'Comic Neue', 'Segoe UI Emoji', 'Chalkboard SE', 'Comic Sans MS', 'Poppins', system-ui, -apple-system, sans-serif;
+        }
+
+        /* 主容器 */
+        .dashboard {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: rgba(255, 248, 235, 0.8);
+            border-radius: 64px;
+            box-shadow: 0 20px 35px rgba(251, 176, 64, 0.2), 0 8px 12px rgba(0,0,0,0.05);
+            backdrop-filter: blur(2px);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 两栏布局 响应式 */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区域 */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 260px;
+            background: #fffef7;
+            margin: 24px 16px 24px 24px;
+            border-radius: 48px;
+            padding: 28px 22px;
+            box-shadow: 0 8px 20px rgba(251, 140, 0, 0.1);
+            border: 2px solid #ffe2b5;
+        }
+
+        /* 右侧游戏区 */
+        .game-area {
+            flex: 2;
+            min-width: 300px;
+            background: #fffaf2;
+            margin: 24px 24px 24px 8px;
+            border-radius: 48px;
+            padding: 28px 24px;
+            box-shadow: 0 8px 20px rgba(251, 140, 0, 0.1);
+            border: 2px solid #ffe2b5;
+        }
+
+        /* 装饰小元素 */
+        .title-icon {
+            font-size: 2rem;
+            display: inline-block;
+            margin-right: 12px;
+            vertical-align: middle;
+        }
+
+        h2 {
+            font-size: 1.9rem;
+            color: #c25d00;
+            border-left: 10px solid #ffb347;
+            padding-left: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            font-weight: 700;
+        }
+
+        .knowledge-card {
+            background: #fff3e6;
+            border-radius: 32px;
+            padding: 20px;
+            margin-top: 12px;
+        }
+
+        .step {
+            background: white;
+            border-radius: 28px;
+            padding: 16px 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 12px rgba(0,0,0,0.03);
+            border: 1px solid #ffd9a5;
+        }
+
+        .step h3 {
+            color: #e67e22;
+            font-size: 1.4rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .step p {
+            font-size: 1.1rem;
+            line-height: 1.45;
+            color: #5a3e1f;
+            font-weight: 500;
+        }
+
+        .example-box {
+            background: #ffefdb;
+            border-radius: 28px;
+            padding: 14px;
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+            color: #b45f1b;
+            margin: 12px 0;
+        }
+
+        .tip {
+            background: #ffeedd;
+            border-radius: 28px;
+            padding: 12px;
+            text-align: center;
+            font-size: 1rem;
+            color: #b45a1a;
+            font-weight: 600;
+        }
+
+        /* 右侧游戏样式 */
+        .question-board {
+            background: #ffefdb;
+            border-radius: 60px;
+            padding: 24px 12px;
+            text-align: center;
+            margin-bottom: 32px;
+            box-shadow: inset 0 1px 4px #ffd2a5, 0 10px 20px rgba(0,0,0,0.05);
+        }
+
+        .equation {
+            font-size: 3.2rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            background: white;
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 80px;
+            color: #c25d00;
+            box-shadow: 0 6px 0 #ffe0b5;
+            font-family: monospace;
+        }
+
+        .drop-zone {
+            background: #ffefd5;
+            border: 4px dashed #ffaa55;
+            border-radius: 60px;
+            padding: 22px 16px;
+            margin: 24px 0 28px;
+            text-align: center;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .drop-zone p {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #c96f1e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .drop-icon {
+            font-size: 2rem;
+        }
+
+        .cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            margin: 28px 0 20px;
+        }
+
+        .drag-card {
+            background: #ffc48a;
+            background: linear-gradient(135deg, #ffcd94, #ffbc73);
+            width: 130px;
+            padding: 20px 10px;
+            text-align: center;
+            border-radius: 50px;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #5c2e00;
+            cursor: grab;
+            transition: transform 0.1s ease, box-shadow 0.2s;
+            box-shadow: 0 12px 0 #b4622a;
+            touch-action: none;  /* 优化触摸拖动 */
+            user-select: none;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+
+        .drag-card:active {
+            cursor: grabbing;
+        }
+
+        /* 分数和状态栏 */
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            background: #ffebd2;
+            border-radius: 60px;
+            padding: 12px 20px;
+            margin-top: 20px;
+        }
+
+        .score-box {
+            background: #ffa559;
+            border-radius: 50px;
+            padding: 8px 24px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.6rem;
+        }
+
+        .message-area {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #bd6a1e;
+            background: #fff0e0;
+            padding: 8px 20px;
+            border-radius: 40px;
+        }
+
+        .next-btn {
+            background: #ffaa55;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: 0.1s linear;
+            box-shadow: 0 4px 0 #9b4e14;
+        }
+
+        .next-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #9b4e14;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 780px) {
+            body {
+                padding: 12px;
+            }
+            .knowledge-area, .game-area {
+                margin: 12px !important;
+                flex: 1 1 100%;
+            }
+            .equation {
+                font-size: 2rem;
+                padding: 8px 18px;
+            }
+            .drag-card {
+                width: 100px;
+                font-size: 1.8rem;
+                padding: 14px 0;
+            }
+            h2 {
+                font-size: 1.5rem;
+            }
+            .step p {
+                font-size: 0.95rem;
+            }
+        }
+
+        /* 克隆拖拽元素样式 */
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 8px 15px rgba(0,0,0,0.3));
+            opacity: 0.85;
+            transform: scale(1.05) rotate(2deg);
+            transition: none;
+            pointer-events: none;
+            width: 120px;
+            text-align: center;
+            background: #ffcd82;
+            border-radius: 50px;
+            padding: 18px 0;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #5c2e00;
+            font-family: monospace;
+        }
+        button {
+            font-family: inherit;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 8px;
+            color: #d99444;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="split-layout">
+        <!-- 左侧知识点讲解区 -->
+        <div class="knowledge-area">
+            <h2>
+                <span class="title-icon">🧠✨</span> 估算小讲堂
+            </h2>
+            <div class="knowledge-card">
+                <div class="step">
+                    <h3>📘 什么是估算？</h3>
+                    <p>估算就是不用精确计算，用“大约”“差不多”的整百数快速算出结果。生活中买东西、计划时间都常用哦！</p>
+                </div>
+                <div class="step">
+                    <h3>🎯 三位数怎么估？</h3>
+                    <p>✅ 看十位数：<strong>十位≥5</strong> 就进百位（比如 378 → 400）<br>
+                    ✅ <strong>十位＜5</strong> 就舍去（比如 321 → 300）<br>
+                    ✨ 再把整百数相加减 → 得到估算结果！</p>
+                    <div class="example-box">
+                        🌰 398 + 205 ≈ 400 + 200 = <strong>600</strong><br>
+                        🌰 512 - 198 ≈ 500 - 200 = <strong>300</strong>
+                    </div>
+                </div>
+                <div class="step">
+                    <h3>⭐ 小秘诀</h3>
+                    <p>先把每个数字变成离它最近的整百数，再计算，超级快！<br>游戏里要把正确答案<strong>拖拽</strong>到黄色虚线框里哟！</p>
+                </div>
+                <div class="tip">
+                    💡 拖动数字卡片 → 放到下方“⭐ 拖拽到这里 ⭐”区域 → 配对成功得分！
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧游戏区：拖拽配对估算游戏 -->
+        <div class="game-area">
+            <h2 style="border-left-color: #ffb347;">
+                <span class="title-icon">🎮🐟</span> 估算大作战 · 拖拽配对
+            </h2>
+            <!-- 题目展示区 -->
+            <div class="question-board">
+                <div class="equation" id="questionText">398 + 205</div>
+                <div style="margin-top: 12px; font-size: 1rem; color: #e67e22;">≈ ？ 把正确估算卡片拖到下方篮筐！</div>
+            </div>
+
+            <!-- 放置区域（目标区） -->
+            <div class="drop-zone" id="dropZone">
+                <p>
+                    <span class="drop-icon">🏀📥</span> 把答案拖拽到这里！ <span class="drop-icon">✨</span>
+                </p>
+            </div>
+
+            <!-- 可拖拽卡片容器 -->
+            <div class="cards-container" id="cardsContainer">
+                <!-- 动态生成三个卡片：正确结果 + 干扰项 -->
+            </div>
+
+            <!-- 得分 & 操作栏 -->
+            <div class="stats-bar">
+                <div class="message-area" id="feedbackMsg">🌟 拖拽卡片到篮筐～</div>
+                <div class="score-box">🏆 得分 : <span id="scoreValue">0</span></div>
+                <button class="next-btn" id="skipBtn">🔄 换一题</button>
+            </div>
+            <footer>✋ 按住卡片 → 拖到黄色虚线框 → 松手配对！</footer>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 游戏核心 ----------
+    // 估算规则：将三位数按十位四舍五入到整百数
+    function roundToHundred(num) {
+        if (num < 100) return 100;
+        let remainder = num % 100;
+        if (remainder >= 50) {
+            return num + (100 - remainder);
+        } else {
+            return num - remainder;
+        }
+    }
+
+    // 生成随机整数 [min,max]
+    function randomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // 生成随机三位数 (100~999)
+    function randomThreeDigit() {
+        return randomInt(100, 999);
+    }
+
+    let currentQuestion = { text: "", correctEstimate: 0 };  // 当前算式文本和正确估算值
+    let currentScore = 0;
+    let canAnswer = true;            // 防止正确后重复得分
+    let activeDrag = false;          // 标记拖拽进行中，避免冲突
+    let cloneElement = null;
+    let dragStartX = 0, dragStartY = 0;
+    let currentDragValue = null;      // 当前拖拽卡片的值
+    let dragCardElement = null;       // 原始卡片（用于视觉回馈）
+
+    // DOM 元素
+    const questionTextEl = document.getElementById("questionText");
+    const cardsContainer = document.getElementById("cardsContainer");
+    const dropZone = document.getElementById("dropZone");
+    const scoreSpan = document.getElementById("scoreValue");
+    const feedbackMsg = document.getElementById("feedbackMsg");
+    const skipBtn = document.getElementById("skipBtn");
+
+    // 生成一个随机算式（加/减法），保证减法结果非负（被减数 ≥ 减数）
+    function generateRandomEquation() {
+        const isAddition = Math.random() >= 0.5;
+        if (isAddition) {
+            let a = randomThreeDigit();
+            let b = randomThreeDigit();
+            let text = `${a} + ${b}`;
+            let estA = roundToHundred(a);
+            let estB = roundToHundred(b);
+            let correct = estA + estB;
+            return { text, correctEstimate: correct };
+        } else {
+            // 减法确保被减数不小于减数，方便小朋友理解
+            let a = randomThreeDigit();
+            let b = randomInt(100, a); // 保证 a >= b
+            let text = `${a} - ${b}`;
+            let estA = roundToHundred(a);
+            let estB = roundToHundred(b);
+            let correct = estA - estB;
+            // 防止估算出现负数（极少情况，比如 199-198 ≈ 200-200=0）但0也是合理估算值，保留0作为正确结果
+            if (correct < 0) correct = 0;
+            return { text, correctEstimate: correct };
+        }
+    }
+
+    // 生成三个选项（一个正确，两个干扰项）整百数或整百结果
+    function generateOptions(correctVal) {
+        let optionsSet = new Set();
+        optionsSet.add(correctVal);
+        // 干扰项：在正确值基础上 ±100、±200、±50 但要保证为正整数且不重复，并且不超过2000不低于0
+        let candidates = [correctVal + 100, correctVal - 100, correctVal + 200, correctVal - 200, correctVal + 50, correctVal - 50];
+        // 打乱候选，取不重复的2个不同且不等于正确值，并且>=0 最好 ≤ 2000 估算结果不会太离谱
+        for (let cand of candidates) {
+            if (optionsSet.size >= 3) break;
+            if (cand >= 0 && cand <= 2000 && !optionsSet.has(cand)) {
+                optionsSet.add(cand);
+            }
+        }
+        // 如果还不够，手动补充备用
+        if (optionsSet.size < 3) {
+            let extra = [correctVal + 300, correctVal - 150];
+            for (let e of extra) {
+                if (optionsSet.size < 3 && e >= 0 && !optionsSet.has(e)) optionsSet.add(e);
+                if (optionsSet.size >= 3) break;
+            }
+        }
+        // 最后如果还不足（极小概率），添加100
+        while (optionsSet.size < 3) optionsSet.add(100);
+        let opts = Array.from(optionsSet);
+        // 随机打乱顺序
+        for (let i = opts.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [opts[i], opts[j]] = [opts[j], opts[i]];
+        }
+        return opts;
+    }
+
+    // 刷新界面：题目 + 重新生成卡片
+    function refreshQuestion() {
+        // 重置可答题状态
+        canAnswer = true;
+        // 生成新题目
+        currentQuestion = generateRandomEquation();
+        // 重新生成选项
+        const options = generateOptions(currentQuestion.correctEstimate);
+        // 更新界面题目
+        questionTextEl.innerText = currentQuestion.text;
+
+        // 重新绘制卡片
+        renderCards(options);
+        // 普通反馈（不清除得分消息但保留温馨提醒）
+        feedbackMsg.innerHTML = "✨ 拖拽正确的估算卡片到篮筐 ✨";
+        setTimeout(() => {
+            if (feedbackMsg.innerHTML === "✨ 拖拽正确的估算卡片到篮筐 ✨") {
+                // 保持风格不变
+            }
+        }, 1500);
+    }
+
+    // 渲染可拖拽卡片，并绑定拖拽事件
+    function renderCards(options) {
+        cardsContainer.innerHTML = "";
+        options.forEach(optValue => {
+            const card = document.createElement("div");
+            card.className = "drag-card";
+            card.innerText = optValue;
+            card.setAttribute("data-value", optValue);
+            // 添加拖拽触发器 (移动端+PC)
+            card.addEventListener("touchstart", onDragStart, { passive: false });
+            card.addEventListener("mousedown", onDragStart);
+            cardsContainer.appendChild(card);
+        });
+    }
+
+    // 拖拽开始 (创建克隆体)
+    function onDragStart(e) {
+        if (!canAnswer) {
+            feedbackMsg.innerHTML = "🎉 已经答对啦！点换一题继续挑战～";
+            return;
+        }
+        e.preventDefault();
+        const targetCard = e.target.closest('.drag-card');
+        if (!targetCard) return;
+        // 获取卡片数值
+        const val = parseInt(targetCard.getAttribute("data-value"));
+        currentDragValue = val;
+        dragCardElement = targetCard;
+
+        // 记录起始点
+        let clientX, clientY;
+        if (e.type === "touchstart") {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+            e.preventDefault();
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        dragStartX = clientX;
+        dragStartY = clientY;
+
+        // 创建克隆体
+        cloneElement = document.createElement("div");
+        cloneElement.className = "drag-clone";
+        cloneElement.innerText = val;
+        cloneElement.style.left = `${clientX - 50}px`;
+        cloneElement.style.top = `${clientY - 35}px`;
+        document.body.appendChild(cloneElement);
+
+        // 绑定全局移动和结束事件
+        if (e.type === "touchstart") {
+            document.addEventListener("touchmove", onDragMove, { passive: false });
+            document.addEventListener("touchend", onDragEnd);
+        } else {
+            document.addEventListener("mousemove", onDragMove);
+            document.addEventListener("mouseup", onDragEnd);
+        }
+        activeDrag = true;
+    }
+
+    function onDragMove(e) {
+        if (!cloneElement) return;
+        e.preventDefault();
+        let clientX, clientY;
+        if (e.type === "touchmove") {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        cloneElement.style.left = `${clientX - 50}px`;
+        cloneElement.style.top = `${clientY - 35}px`;
+    }
+
+    function onDragEnd(e) {
+        if (!cloneElement) {
+            cleanDragEvents();
+            return;
+        }
+        e.preventDefault();
+        // 获取最终坐标
+        let endX, endY;
+        if (e.type === "touchend") {
+            // 对于 touchend，最后触点坐标从 changedTouches 获取
+            if (e.changedTouches && e.changedTouches.length > 0) {
+                endX = e.changedTouches[0].clientX;
+                endY = e.changedTouches[0].clientY;
+            } else {
+                endX = dragStartX;
+                endY = dragStartY;
+            }
+        } else {
+            endX = e.clientX;
+            endY = e.clientY;
+        }
+
+        // 获取放置区域边界
+        const dropRect = dropZone.getBoundingClientRect();
+        const isInsideDrop = (endX >= dropRect.left && endX <= dropRect.right && endY >= dropRect.top && endY <= dropRect.bottom);
+
+        // 移除克隆体
+        if (cloneElement) cloneElement.remove();
+        cloneElement = null;
+
+        // 处理配对逻辑
+        if (isInsideDrop && canAnswer && currentDragValue !== null) {
+            // 验证是否等于当前题目的正确估算值
+            if (currentDragValue === currentQuestion.correctEstimate) {
+                // 答对啦！
+                handleCorrect();
+            } else {
+                handleIncorrect(currentDragValue);
+            }
+        } else if (currentDragValue !== null && !isInsideDrop) {
+            // 没有拖拽到区域，提示鼓励
+            feedbackMsg.innerHTML = "🧸 要把卡片拖到黄色虚线框里面哟！再试试～";
+            setTimeout(() => {
+                if (canAnswer && feedbackMsg.innerHTML === "🧸 要把卡片拖到黄色虚线框里面哟！再试试～")
+                    feedbackMsg.innerHTML = "✨ 拖拽正确的估算卡片到篮筐 ✨";
+            }, 1200);
+        }
+
+        // 重置拖拽状态
+        currentDragValue = null;
+        dragCardElement = null;
+        cleanDragEvents();
+        activeDrag = false;
+    }
+
+    function cleanDragEvents() {
+        document.removeEventListener("touchmove", onDragMove);
+        document.removeEventListener("touchend", onDragEnd);
+        document.removeEventListener("mousemove", onDragMove);
+        document.removeEventListener("mouseup", onDragEnd);
+    }
+
+    // 正确逻辑
+    function handleCorrect() {
+        if (!canAnswer) return; // 防止重复得分
+        canAnswer = false;
+        // 增加分数
+        currentScore++;
+        scoreSpan.innerText = currentScore;
+        feedbackMsg.innerHTML = "🎉 完全正确！ +1分 🎉 新题目来啦！";
+        // 播放短暂成功感 (颜色闪烁)
+        dropZone.style.backgroundColor = "#fff0c4";
+        setTimeout(() => { dropZone.style.backgroundColor = "#ffefd5"; }, 300);
+
+        // 刷新题目（重新生成）
+        refreshQuestion();
+        // 重置可回答标志, 因为refreshQuestion里设置canAnswer = true
+        // 但是 refreshQuestion 中已经设置 canAnswer = true, 不用额外设置
+        // 额外注意 刷新时重新渲染卡片绑定事件
+    }
+
+    // 错误逻辑
+    function handleIncorrect(wrongVal) {
+        if (!canAnswer) return;
+        feedbackMsg.innerHTML = `❌ 哎呀！ ${wrongVal} 不对哟～ 再观察一下估算方法，再试试！ ❌`;
+        // 晃动放置区小提示
+        dropZone.style.transform = "translateX(4px)";
+        setTimeout(() => { dropZone.style.transform = ""; }, 150);
+        // 不清空题目，可以继续拖拽其他卡片
+        // 设置短暂提示后恢复友好文字
+        setTimeout(() => {
+            if (canAnswer && feedbackMsg.innerHTML.includes("不对哟")) {
+                feedbackMsg.innerHTML = "💪 再试一次！把正确的估算卡片拖过来～";
+                setTimeout(() => {
+                    if (canAnswer && feedbackMsg.innerHTML === "💪 再试一次！把正确的估算卡片拖过来～")
+                        feedbackMsg.innerHTML = "✨ 拖拽正确的估算卡片到篮筐 ✨";
+                }, 1800);
+            }
+        }, 1000);
+    }
+
+    // 换一题（跳过）功能，不扣分，重置当前题目
+    function skipQuestion() {
+        if (!canAnswer) {
+            // 如果当前由于正确后未刷新? 不会出现，但若卡死，强行刷新
+        }
+        // 重置答题锁
+        canAnswer = true;
+        // 刷新题目，重新生成
+        refreshQuestion();
+        feedbackMsg.innerHTML = "🌀 换新题目啦，继续挑战！🌀";
+        setTimeout(() => {
+            if (feedbackMsg.innerHTML === "🌀 换新题目啦，继续挑战！🌀")
+                feedbackMsg.innerHTML = "✨ 拖拽正确的估算卡片到篮筐 ✨";
+        }, 1500);
+    }
+
+    // 初始化游戏
+    function initGame() {
+        currentScore = 0;
+        scoreSpan.innerText = "0";
+        canAnswer = true;
+        // 生成第一组题目
+        currentQuestion = generateRandomEquation();
+        questionTextEl.innerText = currentQuestion.text;
+        const initOptions = generateOptions(currentQuestion.correctEstimate);
+        renderCards(initOptions);
+        feedbackMsg.innerHTML = "🐣 快把正确估算值拖到篮筐里！";
+    }
+
+    // 绑定跳过按钮事件
+    skipBtn.addEventListener("click", () => {
+        skipQuestion();
+    });
+
+    // 启动游戏
+    initGame();
+</script>
+</body>
+</html>

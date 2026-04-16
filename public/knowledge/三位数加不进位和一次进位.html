@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>三位数加法小课堂 | 不进位 & 一次进位 | 数学拖拽游戏</title>
+    <!-- 引入 SortableJS 轻量级拖拽库，完美支持移动端触摸拖拽 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖拽时选中文字，提升体验 */
+        }
+
+        body {
+            background: linear-gradient(145deg, #c8f0e8 0%, #b0e0d4 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 主课程卡片容器 - 浅色柔和水绿色主题 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background: #ffffffdd;
+            backdrop-filter: blur(2px);
+            border-radius: 56px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右布局，响应式：大屏并排，小屏堆叠 */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧：知识点区域 */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 260px;
+            background: #fefcf0;
+            padding: 28px 22px;
+            border-radius: 48px;
+            margin: 20px 12px 20px 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+        }
+
+        /* 右侧：游戏互动区 */
+        .game-area {
+            flex: 2;
+            min-width: 300px;
+            background: #ffffffea;
+            border-radius: 48px;
+            margin: 20px 20px 20px 12px;
+            padding: 24px 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ========= 左侧知识卡片样式 ========= */
+        .knowledge-title {
+            font-size: 1.9rem;
+            font-weight: bold;
+            color: #2c7a5e;
+            border-left: 12px solid #5bc0a6;
+            padding-left: 18px;
+            margin-bottom: 28px;
+            letter-spacing: -0.3px;
+        }
+
+        .rule-card {
+            background: #e8f9f2;
+            border-radius: 32px;
+            padding: 20px;
+            margin-bottom: 28px;
+            transition: transform 0.1s ease;
+        }
+
+        .rule-card h3 {
+            font-size: 1.6rem;
+            color: #2c6e56;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            border-bottom: 2px dashed #9ed5c2;
+            padding-bottom: 8px;
+        }
+
+        .rule-card p {
+            font-size: 1.2rem;
+            line-height: 1.45;
+            color: #2d4a3e;
+            margin: 12px 0;
+        }
+
+        .example-box {
+            background: white;
+            border-radius: 24px;
+            padding: 15px;
+            margin: 16px 0 8px;
+            font-family: 'Courier New', 'Fira Code', monospace;
+            font-weight: bold;
+            font-size: 1.3rem;
+            text-align: center;
+            box-shadow: inset 0 1px 3px #0001, 0 2px 6px #bfe1d4;
+        }
+
+        .highlight {
+            background: #ffecb3;
+            padding: 3px 8px;
+            border-radius: 40px;
+            display: inline-block;
+            color: #aa6f00;
+        }
+
+        .tip-icon {
+            background: #c0e3d8;
+            border-radius: 40px;
+            padding: 6px 12px;
+            display: inline-block;
+            font-size: 0.9rem;
+            margin-top: 12px;
+        }
+
+        /* ========= 右侧游戏样式 ========= */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 3px dotted #b8dfd0;
+        }
+        .game-header h2 {
+            font-size: 1.8rem;
+            color: #368a6e;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .score-badge {
+            background: #ffdd99;
+            padding: 8px 20px;
+            border-radius: 60px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            color: #b45f1b;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        /* 三道题目区域 grid 布局 */
+        .questions-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin: 20px 0 30px;
+        }
+
+        .question-item {
+            background: #f5fffb;
+            border-radius: 40px;
+            padding: 16px 20px;
+            box-shadow: 0 6px 14px #cfe3db;
+            transition: all 0.2s;
+        }
+
+        .equation {
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-align: center;
+            background: #fff2df;
+            border-radius: 60px;
+            padding: 12px;
+            margin-bottom: 18px;
+            font-family: monospace;
+            letter-spacing: 2px;
+            color: #2b5d49;
+        }
+
+        /* 放置槽 (答案拖拽目标区) */
+        .dropzone {
+            background: #f0f7f2;
+            border: 3px dashed #7bc0a8;
+            border-radius: 36px;
+            min-height: 85px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border 0.2s;
+            margin-top: 8px;
+            padding: 10px;
+        }
+        .dropzone--filled {
+            background: #e2f3ea;
+            border: 3px solid #3f9c7c;
+        }
+        /* 槽内放置的答案卡片样式 */
+        .answer-card-in-slot {
+            background: #a1d6c2;
+            color: #1e4a38;
+            font-size: 1.6rem;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 40px;
+            text-align: center;
+            width: 100%;
+            display: inline-block;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            font-family: monospace;
+            cursor: grab;
+        }
+        .answer-card-in-slot:active {
+            cursor: grabbing;
+        }
+
+        /* 候选区 (可拖拽卡片池) */
+        .candidates-area {
+            background: #effaf5;
+            border-radius: 48px;
+            padding: 20px 16px;
+            margin-top: 16px;
+        }
+        .candidates-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #2a765e;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .cards-pool {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: center;
+            align-items: center;
+            min-height: 100px;
+        }
+        /* 可拖拽的卡片样式 */
+        .drag-card {
+            background: #fffaec;
+            border-radius: 60px;
+            padding: 14px 24px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-align: center;
+            color: #1e5a44;
+            box-shadow: 0 8px 0 #bbd5c9;
+            cursor: grab;
+            transition: 0.1s linear;
+            width: auto;
+            min-width: 100px;
+            font-family: monospace;
+            border: 1px solid #cfe2d8;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        /* 提示按钮区域 */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 28px;
+        }
+        .btn {
+            background: #cfece2;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 40px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #1f6b52;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .btn-primary {
+            background: #56b18f;
+            color: white;
+            box-shadow: 0 4px 0 #2c6b53;
+        }
+        .btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #2c6b53;
+        }
+        .btn:active {
+            transform: scale(0.97);
+        }
+        .feedback {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #cb7b2e;
+            background: #fff1df;
+            padding: 8px;
+            border-radius: 60px;
+        }
+
+        /* 完成庆祝效果 */
+        .complete-toast {
+            background: #4cae8c;
+            color: white;
+            padding: 12px;
+            border-radius: 60px;
+            animation: bounce 0.4s ease;
+        }
+        @keyframes bounce {
+            0% { transform: scale(0.9); opacity: 0; }
+            80% { transform: scale(1.02);}
+            100% { transform: scale(1); opacity: 1;}
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 780px) {
+            body {
+                padding: 12px;
+            }
+            .knowledge-area, .game-area {
+                margin: 12px;
+                padding: 20px 16px;
+            }
+            .equation {
+                font-size: 1.4rem;
+            }
+            .drag-card {
+                font-size: 1.4rem;
+                padding: 10px 18px;
+                min-width: 80px;
+            }
+            .answer-card-in-slot {
+                font-size: 1.3rem;
+            }
+            .rule-card h3 {
+                font-size: 1.3rem;
+            }
+        }
+        /* 空状态提示 */
+        .dropzone-placeholder {
+            color: #8ebdab;
+            font-size: 1rem;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧：知识点讲解区 -->
+        <div class="knowledge-area">
+            <div class="knowledge-title">📖 加法小讲堂</div>
+            <div class="rule-card">
+                <h3>✨ 不进位加法 ✨</h3>
+                <p>个位、十位、百位分别相加，<strong class="highlight">每一位都不满10</strong>，直接写出结果。</p>
+                <div class="example-box">
+                    🌰 324 + 235 = ?<br>
+                    个位：4+5=9 &nbsp;|&nbsp; 十位：2+3=5 &nbsp;|&nbsp; 百位：3+2=5<br>
+                    🎉 结果 = <strong>559</strong>
+                </div>
+            </div>
+            <div class="rule-card">
+                <h3>🚀 一次进位加法</h3>
+                <p>只在<strong>某一位</strong>相加满10，向前一位进1，<span class="highlight">其余位不进位</span>。</p>
+                <div class="example-box">
+                    🌰 467 + 218 = ?<br>
+                    个位：7+8=15 → 写5进1<br>
+                    十位：6+1+进1=8 → 不进位<br>
+                    百位：4+2=6<br>
+                    🎉 结果 = <strong>685</strong>
+                </div>
+                <div class="tip-icon">💡 提示：一次进位只发生在个位或十位，只有一位需要“进1”哦！</div>
+            </div>
+            <div class="rule-card">
+                <h3>🎯 小挑战规则</h3>
+                <p>右边有三道加法题，把<strong>正确答案卡片</strong>拖拽到对应的白色虚线框中！<br>
+                每个框只能放一个答案，答对自动锁定。试试把卡片拖回去可以重新选择～</p>
+            </div>
+        </div>
+
+        <!-- 右侧：拖拽互动游戏区 -->
+        <div class="game-area">
+            <div class="game-header">
+                <h2>🧸 拖拖乐 · 算式配对</h2>
+                <div class="score-badge" id="scoreDisplay">✅ 0 / 3</div>
+            </div>
+            <!-- 三道题目容器 -->
+            <div class="questions-grid" id="questionsGrid">
+                <!-- 题目1: 不进位 324+235=559 -->
+                <div class="question-item" data-qid="0" data-correct-answer="559">
+                    <div class="equation">🔢 324 + 235 = <span style="font-family: monospace;">______ ?</span></div>
+                    <div class="dropzone" id="dropzone0" data-expected="559" data-filled="false">
+                        <!-- 初始占位符显示 -->
+                        <div class="dropzone-placeholder">⬅️ 把答案拖到这里</div>
+                    </div>
+                </div>
+                <!-- 题目2: 一次进位 467+218=685 -->
+                <div class="question-item" data-qid="1" data-correct-answer="685">
+                    <div class="equation">🔢 467 + 218 = <span style="font-family: monospace;">______ ?</span></div>
+                    <div class="dropzone" id="dropzone1" data-expected="685" data-filled="false">
+                        <div class="dropzone-placeholder">⬅️ 把答案拖到这里</div>
+                    </div>
+                </div>
+                <!-- 题目3: 一次进位 278+313=591 -->
+                <div class="question-item" data-qid="2" data-correct-answer="591">
+                    <div class="equation">🔢 278 + 313 = <span style="font-family: monospace;">______ ?</span></div>
+                    <div class="dropzone" id="dropzone2" data-expected="591" data-filled="false">
+                        <div class="dropzone-placeholder">⬅️ 把答案拖到这里</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可拖拽卡片池 (候选区) -->
+            <div class="candidates-area">
+                <div class="candidates-title">
+                    🃏 拖动下方数字卡片 → 放入上面的答案槽
+                    <span style="font-size:0.9rem;">🖐️ 可拖回重新放</span>
+                </div>
+                <div class="cards-pool" id="candidatesPool">
+                    <!-- 正确答案3个 + 干扰项2个 -->
+                    <div class="drag-card" data-value="559" data-correct-for="0">559</div>
+                    <div class="drag-card" data-value="685" data-correct-for="1">685</div>
+                    <div class="drag-card" data-value="591" data-correct-for="2">591</div>
+                    <div class="drag-card" data-value="478" data-correct-for="none">478</div>
+                    <div class="drag-card" data-value="712" data-correct-for="none">712</div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn" id="resetBtn">🔄 重置游戏</button>
+                    <button class="btn btn-primary" id="checkBtn">✨ 检查答案</button>
+                </div>
+                <div id="feedbackMsg" class="feedback">⭐ 拖拽卡片到正确算式下面吧！</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 初始化Sortable拖拽引擎，完美支持移动端和PC的拖拽体验 ----------
+    // 我们需要将候选区卡片和每个dropzone容器关联成同一个group，但控制放入逻辑
+    // 目标: 每个dropzone只接受匹配正确答案的卡片，且每个dropzone最多容纳一个卡片
+    // 候选区可以互相拖拽，拖入拖出自由，但是dropzone之间禁止互拖（防止混乱），同时已经放好的卡片可以拖回候选区。
+    
+    // 获取各个容器
+    const candidatesContainer = document.getElementById('candidatesPool');
+    const dropzone0 = document.getElementById('dropzone0');
+    const dropzone1 = document.getElementById('dropzone1');
+    const dropzone2 = document.getElementById('dropzone2');
+    const dropzones = [dropzone0, dropzone1, dropzone2];
+    
+    // 存储每个dropzone当前是否已经有正确的卡片（用于分数统计）
+    let filledStatus = [false, false, false];
+    // 存储每个dropzone中正确的答案数值（预期）
+    const expectedAnswers = ["559", "685", "591"];
+    
+    // 更新分数显示及完成状态
+    function updateScoreAndFeedback() {
+        const completedCount = filledStatus.filter(v => v === true).length;
+        document.getElementById('scoreDisplay').innerHTML = `✅ ${completedCount} / 3`;
+        if (completedCount === 3) {
+            const feedbackDiv = document.getElementById('feedbackMsg');
+            feedbackDiv.innerHTML = '🎉 太棒啦！全部正确！ 你掌握了三位数不进位和一次进位！ 🎉';
+            feedbackDiv.classList.add('complete-toast');
+            setTimeout(() => {
+                feedbackDiv.classList.remove('complete-toast');
+            }, 800);
+        } else {
+            const feedbackDiv = document.getElementById('feedbackMsg');
+            if (feedbackDiv.innerHTML.includes('太棒啦')) {
+                feedbackDiv.innerHTML = '⭐ 继续加油！把剩下卡片拖到正确位置吧～';
+                feedbackDiv.classList.remove('complete-toast');
+            }
+        }
+    }
+    
+    // 刷新每个dropzone的视觉表现：如果内部有卡片则显示卡片，否则显示占位符
+    function refreshDropzoneVisual(dropzone, index) {
+        const hasChild = dropzone.children.length > 0;
+        if (hasChild) {
+            dropzone.classList.add('dropzone--filled');
+            // 确保里面的卡片显示样式是答案卡样式，如果有占位符文本需要清除
+            const child = dropzone.children[0];
+            if (child && child.classList && !child.classList.contains('answer-card-in-slot')) {
+                // 理论上Sortable移动的是drag-card元素，但拖入后class需要微调样式
+                if (child.classList.contains('drag-card')) {
+                    child.classList.add('answer-card-in-slot');
+                    child.classList.remove('drag-card');
+                    // 修改一些样式保留拖拽手柄，依然可拖回
+                    child.style.cursor = 'grab';
+                }
+            }
+        } else {
+            dropzone.classList.remove('dropzone--filled');
+            // 添加回占位符元素避免空白，但要避免重复添加
+            let hasPlaceholder = false;
+            for (let i = 0; i < dropzone.childNodes.length; i++) {
+                if (dropzone.childNodes[i].nodeType === 1 && dropzone.childNodes[i].classList && dropzone.childNodes[i].classList.contains('dropzone-placeholder')) {
+                    hasPlaceholder = true;
+                    break;
+                }
+            }
+            if (!hasPlaceholder && dropzone.children.length === 0) {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'dropzone-placeholder';
+                placeholder.innerText = '⬅️ 把答案拖到这里';
+                dropzone.appendChild(placeholder);
+            }
+        }
+    }
+    
+    // 同步filledStatus状态: 检查每个dropzone内的卡片数值是否正确
+    function syncFilledStatus() {
+        for (let i = 0; i < dropzones.length; i++) {
+            const dz = dropzones[i];
+            const expected = expectedAnswers[i];
+            let isCorrectFilled = false;
+            if (dz.children.length > 0) {
+                const card = dz.children[0];
+                // 卡片可能是drag-card或answer-card-in-slot，获取其data-value或者文本内容
+                let cardValue = null;
+                if (card.getAttribute && card.getAttribute('data-value')) {
+                    cardValue = card.getAttribute('data-value');
+                } else {
+                    // 获取纯数字文本
+                    cardValue = card.innerText.trim();
+                }
+                if (cardValue === expected) {
+                    isCorrectFilled = true;
+                } else {
+                    isCorrectFilled = false;
+                }
+            } else {
+                isCorrectFilled = false;
+            }
+            filledStatus[i] = isCorrectFilled;
+        }
+        updateScoreAndFeedback();
+    }
+    
+    // 为每个dropzone设置Sortable实例, 支持从候选区拖入，也能拖回候选区, 限制放入条件: 只允许正确的卡片进入空槽，且不能重复放入已满的槽
+    // 候选区的Sortable: pull和put均为true 允许自由拖动移出移入
+    // dropzone Sortable: put需要验证拖拽的卡片是否符合期望，且当前槽为空；pull允许拖走(可拖回候选区)
+    
+    // 全局 Sortable 组名统一
+    const groupName = 'mathDragGroup';
+    
+    // 候选区 Sortable 配置
+    new Sortable(candidatesContainer, {
+        group: {
+            name: groupName,
+            pull: true,     // 可以从其他容器拖入
+            put: true       // 可以接收从其他容器拖来的元素
+        },
+        animation: 200,
+        sort: false,       // 避免卡片在候选区重新排序，保持整洁
+        touchStartThreshold: 2,
+        onEnd: function() {
+            // 每次拖拽结束，同步状态，刷新所有dropzone样式并更新分数
+            setTimeout(() => {
+                syncFilledStatus();
+                dropzones.forEach((dz, idx) => refreshDropzoneVisual(dz, idx));
+                // 额外处理：确保所有在dropzone中的卡片拥有合适样式，并清除候选区卡片样式冗余
+                document.querySelectorAll('.answer-card-in-slot').forEach(card => {
+                    if (card.parentElement && card.parentElement.classList && card.parentElement.classList.contains('dropzone')) {
+                        // 正确保留样式
+                    } else if (card.parentElement && card.parentElement.id === 'candidatesPool') {
+                        // 如果回拖到候选区需要变回drag-card样式
+                        card.classList.remove('answer-card-in-slot');
+                        card.classList.add('drag-card');
+                    }
+                });
+                document.querySelectorAll('#candidatesPool .drag-card').forEach(card => {
+                    card.style.cursor = 'grab';
+                });
+            }, 10);
+        }
+    });
+    
+    // 创建每个dropzone的自定义Sortable，精准控制放入逻辑
+    function setupDropzone(dropzoneEl, expectedValue, index) {
+        const sortableDrop = new Sortable(dropzoneEl, {
+            group: {
+                name: groupName,
+                // pull 允许把已放入的卡片拖走（移回候选区或其他地方）
+                pull: true,
+                // put 自定义函数: 决定是否允许放入
+                put: function(to, from, drag) {
+                    // drag 是被拖拽的DOM元素
+                    if (!drag) return false;
+                    // 获取卡片的值
+                    let dragValue = drag.getAttribute('data-value');
+                    if (!dragValue) {
+                        dragValue = drag.innerText.trim();
+                    }
+                    // 只有当卡片数值等于此槽期望值，且当前槽内没有子元素(空)才允许放入
+                    const hasChildren = dropzoneEl.children.length > 0 && !(dropzoneEl.children.length === 1 && dropzoneEl.children[0].classList && dropzoneEl.children[0].classList.contains('dropzone-placeholder'));
+                    // 另外防止从自身拖拽造成重复, 但 put 只会在放入时检查，需要排除已经有内容
+                    if (hasChildren) return false;
+                    // 数值匹配
+                    if (dragValue === expectedValue) {
+                        return true;
+                    }
+                    return false;
+                }
+            },
+            animation: 200,
+            sort: false,    // 槽内只有一个卡片无需排序
+            onAdd: function(evt) {
+                // 当卡片被添加进dropzone后，移除占位符，改变卡片样式
+                const dropzoneElInner = evt.to;
+                // 清除所有占位符
+                const placeholders = dropzoneElInner.querySelectorAll('.dropzone-placeholder');
+                placeholders.forEach(ph => ph.remove());
+                const draggedEl = evt.item;
+                if (draggedEl.classList.contains('drag-card')) {
+                    draggedEl.classList.remove('drag-card');
+                    draggedEl.classList.add('answer-card-in-slot');
+                }
+                // 强制刷新视觉状态
+                refreshDropzoneVisual(dropzoneEl, index);
+                syncFilledStatus();
+            },
+            onRemove: function(evt) {
+                // 当卡片从dropzone移除(拖回候选区)，恢复样式
+                const draggedEl = evt.item;
+                if (draggedEl.classList.contains('answer-card-in-slot')) {
+                    draggedEl.classList.remove('answer-card-in-slot');
+                    draggedEl.classList.add('drag-card');
+                }
+                // 如果dropzone变空，需要添加占位符
+                if (dropzoneEl.children.length === 0) {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'dropzone-placeholder';
+                    placeholder.innerText = '⬅️ 把答案拖到这里';
+                    dropzoneEl.appendChild(placeholder);
+                }
+                refreshDropzoneVisual(dropzoneEl, index);
+                syncFilledStatus();
+            },
+            onEnd: function() {
+                refreshDropzoneVisual(dropzoneEl, index);
+                syncFilledStatus();
+            }
+        });
+        return sortableDrop;
+    }
+    
+    // 初始化所有dropzone的Sortable实例
+    const dropzoneSortables = [];
+    for (let i = 0; i < dropzones.length; i++) {
+        const dz = dropzones[i];
+        const expected = expectedAnswers[i];
+        const sortableIns = setupDropzone(dz, expected, i);
+        dropzoneSortables.push(sortableIns);
+        // 初始化清除可能残留占位符/保证干净
+        if (dz.children.length === 0) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'dropzone-placeholder';
+            placeholder.innerText = '⬅️ 把答案拖到这里';
+            dz.appendChild(placeholder);
+        } else {
+            // 如果有其他内容强制检查
+            const hasRealCard = Array.from(dz.children).some(c => !c.classList || !c.classList.contains('dropzone-placeholder'));
+            if (!hasRealCard) {
+                dz.innerHTML = '';
+                const placeholder = document.createElement('div');
+                placeholder.className = 'dropzone-placeholder';
+                placeholder.innerText = '⬅️ 把答案拖到这里';
+                dz.appendChild(placeholder);
+            } else {
+                // 移除占位符如果存在卡片
+                const placeholders = dz.querySelectorAll('.dropzone-placeholder');
+                placeholders.forEach(ph => ph.remove());
+                // 确保内部卡片样式正确
+                const cardElem = dz.children[0];
+                if (cardElem && cardElem.classList && cardElem.classList.contains('drag-card')) {
+                    cardElem.classList.remove('drag-card');
+                    cardElem.classList.add('answer-card-in-slot');
+                }
+            }
+        }
+        refreshDropzoneVisual(dz, i);
+    }
+    
+    // 初始同步filled状态
+    function initialSync() {
+        for (let i=0;i<dropzones.length;i++) {
+            const dz = dropzones[i];
+            let correct = false;
+            if (dz.children.length > 0) {
+                const firstChild = dz.children[0];
+                let val = firstChild.getAttribute('data-value') || firstChild.innerText.trim();
+                if (val === expectedAnswers[i]) correct = true;
+            }
+            filledStatus[i] = correct;
+        }
+        updateScoreAndFeedback();
+    }
+    initialSync();
+    
+    // 重置游戏函数: 清空所有dropzone内容，将卡片全部移回候选区，重置样式
+    function resetGame() {
+        // 把所有在dropzone内的卡片移回候选区
+        for (let i = 0; i < dropzones.length; i++) {
+            const dz = dropzones[i];
+            while (dz.children.length > 0) {
+                const child = dz.children[0];
+                if (child.classList && (child.classList.contains('answer-card-in-slot') || child.classList.contains('drag-card'))) {
+                    // 恢复样式并移到候选池
+                    child.classList.remove('answer-card-in-slot');
+                    child.classList.add('drag-card');
+                    candidatesContainer.appendChild(child);
+                } else {
+                    // 占位符直接移除
+                    dz.removeChild(child);
+                }
+            }
+            // 重新添加占位符
+            const placeholder = document.createElement('div');
+            placeholder.className = 'dropzone-placeholder';
+            placeholder.innerText = '⬅️ 把答案拖到这里';
+            dz.appendChild(placeholder);
+            refreshDropzoneVisual(dz, i);
+        }
+        // 确保候选区的所有卡片样式都是drag-card
+        Array.from(candidatesContainer.children).forEach(card => {
+            if (card.classList.contains('answer-card-in-slot')) {
+                card.classList.remove('answer-card-in-slot');
+                card.classList.add('drag-card');
+            }
+            if (!card.classList.contains('drag-card') && card.classList) {
+                card.classList.add('drag-card');
+            }
+        });
+        // 重置状态数组
+        filledStatus.fill(false);
+        updateScoreAndFeedback();
+        document.getElementById('feedbackMsg').innerHTML = '⭐ 已重置！重新拖拽配对试一试吧～';
+        setTimeout(() => {
+            if(document.getElementById('feedbackMsg').innerHTML.includes('重置')) {
+                // 不覆盖成功后的消息，自然保留三秒后可选
+            }
+        }, 1500);
+    }
+    
+    // 检查答案并高亮未完成题目 (友好提示)
+    function checkAnswers() {
+        let allCorrect = true;
+        for (let i = 0; i < dropzones.length; i++) {
+            if (!filledStatus[i]) {
+                allCorrect = false;
+                const questionDiv = dropzones[i].closest('.question-item');
+                if (questionDiv) {
+                    questionDiv.style.backgroundColor = "#fff0e0";
+                    setTimeout(() => {
+                        if (questionDiv) questionDiv.style.backgroundColor = "";
+                    }, 600);
+                }
+            }
+        }
+        if (allCorrect) {
+            document.getElementById('feedbackMsg').innerHTML = '🎉 完美！所有算式都配对成功！你已经是加法小英雄 🎉';
+            document.getElementById('feedbackMsg').classList.add('complete-toast');
+            setTimeout(() => {
+                const fb = document.getElementById('feedbackMsg');
+                if(fb) fb.classList.remove('complete-toast');
+            }, 1200);
+        } else {
+            document.getElementById('feedbackMsg').innerHTML = '🧸 还没完成全部配对哟！继续拖动卡片到正确的算式下～ 再试试看！';
+        }
+    }
+    
+    // 绑定按钮事件
+    document.getElementById('resetBtn').addEventListener('click', resetGame);
+    document.getElementById('checkBtn').addEventListener('click', checkAnswers);
+    
+    // 补充一个额外的移动端/触摸优化，防止拖拽时页面滚动
+    document.querySelectorAll('.drag-card, .answer-card-in-slot').forEach(el => {
+        el.addEventListener('touchstart', (e) => {
+            // 仅阻止轻微滚动干扰，但不影响拖拽库内部逻辑
+        }, { passive: false });
+    });
+    
+    // 最终确保初始显示占位符统一
+    setTimeout(() => {
+        dropzones.forEach((dz, idx) => refreshDropzoneVisual(dz, idx));
+        syncFilledStatus();
+    }, 50);
+</script>
+</body>
+</html>

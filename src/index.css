@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-primary: #4CAF50;
+  --color-secondary: #2196F3;
+  --color-accent: #FFC107;
+  --color-app-bg: #F0F9F1;
+  --color-text-dark: #2C3E50;
+  --color-text-light: #7F8C8D;
+}
+
+@layer base {
+  body {
+    @apply antialiased text-text-dark bg-app-bg;
+  }
+}
+
+/* Custom scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-200 rounded-full hover:bg-gray-300 transition-colors;
+}

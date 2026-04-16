@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小冒险 | 认识10以内的数字</title>
+    <!-- 引入 SortableJS 轻量级拖拽库，完美支持移动端拖拽 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升触摸拖拽体验 */
+        }
+
+        body {
+            background: linear-gradient(145deg, #d4eaff 0%, #b0d4f0 100%);
+            font-family: 'Comic Neue', 'Segoe UI Emoji', 'Segoe UI', 'Comic Neue', 'Chalkboard SE', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主课程卡片容器 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 56px;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255,255,240,0.6);
+            backdrop-filter: blur(2px);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右两栏布局，移动端自适应折叠 */
+        .dual-panel {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧：知识点区域 (淡雅奶白) */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 240px;
+            background: #fefcf0;
+            padding: 24px 20px;
+            border-radius: 48px 0 0 48px;
+            box-shadow: inset 0 0 0 1px #fff9e8, 4px 0 12px rgba(0, 0, 0, 0.02);
+        }
+
+        /* 右侧：游戏互动区域 */
+        .game-area {
+            flex: 2;
+            min-width: 280px;
+            background: #fffef7;
+            padding: 24px 22px;
+            border-radius: 0 48px 48px 0;
+            box-shadow: inset 0 0 0 1px #ffffff, -4px 0 12px rgba(0, 0, 0, 0.02);
+        }
+
+        /* 响应式：小于800px时改为上下布局，圆角调整 */
+        @media (max-width: 780px) {
+            .knowledge-area {
+                border-radius: 48px 48px 0 0;
+            }
+            .game-area {
+                border-radius: 0 0 48px 48px;
+            }
+            .dual-panel {
+                flex-direction: column;
+            }
+            body {
+                padding: 12px;
+            }
+        }
+
+        /* 知识点标题 */
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2c6e9e;
+            background: #e2f0fa;
+            display: inline-block;
+            padding: 5px 20px;
+            border-radius: 60px;
+            margin-bottom: 24px;
+            letter-spacing: -0.3px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+        }
+
+        .game-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #4a8bb7;
+            background: #eef4fc;
+            display: inline-block;
+            padding: 5px 20px;
+            border-radius: 60px;
+            margin-bottom: 12px;
+        }
+
+        /* 数字网格知识点 */
+        .numbers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+            gap: 16px 12px;
+            margin-top: 10px;
+        }
+
+        .digit-card {
+            background: white;
+            border-radius: 32px;
+            padding: 12px 6px;
+            text-align: center;
+            box-shadow: 0 8px 14px rgba(99, 140, 179, 0.12);
+            transition: transform 0.2s ease;
+            border: 1px solid #cae3f2;
+        }
+        .digit-card:hover {
+            transform: translateY(-3px);
+        }
+        .big-number {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #ff914d;
+            background: #fff2e6;
+            display: inline-block;
+            width: 52px;
+            line-height: 52px;
+            border-radius: 30px;
+            margin-bottom: 8px;
+            font-family: monospace;
+        }
+        .quantity-icons {
+            font-size: 1.2rem;
+            letter-spacing: 3px;
+            color: #f7b05e;
+            word-break: keep-all;
+        }
+        .digit-card p {
+            font-size: 0.8rem;
+            color: #5f7f9e;
+            margin-top: 6px;
+        }
+
+        /* 右边游戏区样式 */
+        .game-description {
+            background: #eef3fc;
+            border-radius: 40px;
+            padding: 12px 16px;
+            margin: 15px 0 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .desc-text {
+            font-size: 1rem;
+            color: #2c5a7a;
+            font-weight: 500;
+            background: #fff0cf;
+            padding: 6px 16px;
+            border-radius: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+        .cute-btn {
+            background: #ffcf9a;
+            border: none;
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 8px 22px;
+            border-radius: 60px;
+            color: #3b2c1f;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            box-shadow: 0 3px 0 #b97f48;
+            transform: translateY(-2px);
+        }
+        .cute-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #b97f48;
+        }
+        .cute-btn.reset-btn {
+            background: #b9d8f0;
+            color: #2c577c;
+            box-shadow: 0 3px 0 #7fa2c2;
+        }
+
+        /* 排序卡片容器 (可拖拽排序区域) */
+        .sortable-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin: 20px 0 10px;
+            min-height: 360px;
+            background: #fef5e7;
+            border-radius: 64px;
+            padding: 28px 20px;
+            transition: all 0.2s;
+            border: 2px dashed #cfe2f0;
+        }
+        /* 拖拽卡片样式 */
+        .number-card {
+            width: 90px;
+            height: 100px;
+            background: linear-gradient(135deg, #ffffff, #f9f3e2);
+            border-radius: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 15px 20px rgba(0, 0, 0, 0.08);
+            cursor: grab;
+            transition: all 0.15s ease;
+            border: 2px solid #ffd9a5;
+            backdrop-filter: blur(2px);
+        }
+        .number-card:active {
+            cursor: grabbing;
+        }
+        .number-card .card-number {
+            font-size: 3.2rem;
+            font-weight: bold;
+            color: #ff8c42;
+            line-height: 1;
+            font-family: 'Comic Neue', monospace;
+        }
+        .number-card .card-stars {
+            font-size: 1rem;
+            color: #ffbc6e;
+            letter-spacing: 2px;
+        }
+        /* 拖拽时的幽灵样式 */
+        .sortable-drag {
+            opacity: 0.6;
+            background: #ffe5bf;
+            transform: scale(0.98);
+        }
+
+        /* 提示消息 */
+        .message-area {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 1.3rem;
+            font-weight: bold;
+            background: #fff1d6;
+            border-radius: 60px;
+            padding: 12px;
+            transition: 0.2s;
+        }
+        .success-msg {
+            background: #c8e8b5;
+            color: #2b6e2f;
+            box-shadow: 0 0 0 2px #aad48c;
+        }
+        .wrong-msg {
+            background: #ffe0c0;
+            color: #c95a0f;
+        }
+
+        /* 可爱装饰 */
+        .emoji-big {
+            font-size: 1.2rem;
+            vertical-align: middle;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #88a9c4;
+            padding: 15px 0 8px;
+            border-top: 1px solid #e2e9f0;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 550px) {
+            .number-card {
+                width: 70px;
+                height: 85px;
+            }
+            .number-card .card-number {
+                font-size: 2.5rem;
+            }
+            .sortable-grid {
+                gap: 12px;
+                padding: 20px 12px;
+            }
+            .section-title, .game-title {
+                font-size: 1.4rem;
+            }
+            .cute-btn {
+                padding: 5px 16px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="dual-panel">
+        <!-- 左侧知识点区域 -->
+        <div class="knowledge-area">
+            <div class="section-title">
+                📖 数字小课堂 · 0～10
+            </div>
+            <div class="numbers-grid" id="knowledgeGrid">
+                <!-- 动态生成0-10数字及对应数量表示 (星星emoji) -->
+            </div>
+            <div style="margin-top: 20px; background: #eaf4e8; border-radius: 28px; padding: 10px 12px; text-align: center; font-size: 0.9rem; color:#4c6a7e;">
+                💡 小提示：数字像小魔法师，每个数字代表不同数量的物品～ 看一看每个数字有几颗⭐️！
+            </div>
+        </div>
+
+        <!-- 右侧互动游戏区域 -->
+        <div class="game-area">
+            <div class="game-title">
+                🧸 拖拽排序大挑战
+            </div>
+            <div class="game-description">
+                <span class="desc-text">
+                    🖐️ 按住卡片 &nbsp;➡&nbsp; 拖拽移动 &nbsp;➡&nbsp; 从小到大排序
+                </span>
+                <div class="btn-group">
+                    <button class="cute-btn reset-btn" id="shuffleBtn">🎲 打乱顺序</button>
+                </div>
+            </div>
+            <!-- 可拖拽排序容器 -->
+            <div id="sortableList" class="sortable-grid"></div>
+            <!-- 消息反馈区 -->
+            <div id="gameMessage" class="message-area wrong-msg">
+                🌟 拖动卡片，按 0,1,2,...10 排好顺序吧！
+            </div>
+            <div style="font-size:0.8rem; text-align:center; margin-top:12px; color:#86aec9;">
+                ✨ 正确顺序：0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 ✨
+            </div>
+        </div>
+    </div>
+    <footer>
+        🧸 动动小手，拖拽数字卡片，排成正确的队伍～ 每拖拽一次都会自动检查哦！
+    </footer>
+</div>
+
+<script>
+    // 定义0~10的数字数组
+    const NUMBERS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let sortableInstance = null;     // Sortable 实例
+    let currentCardOrder = [];       // 存储当前卡片数据值顺序（备用，但主要根据dom验证）
+
+    // ---------- 左侧知识点渲染 (带数量图示，可爱风格) ----------
+    function renderKnowledge() {
+        const container = document.getElementById('knowledgeGrid');
+        if (!container) return;
+        container.innerHTML = '';
+        NUMBERS.forEach(num => {
+            const card = document.createElement('div');
+            card.className = 'digit-card';
+            // 数量图示：星星或者圆点组合，每个数字显示num个⭐ (0则显示✨空白)
+            let starString = '';
+            if (num === 0) {
+                starString = '✨ 没有星星 ✨';
+            } else {
+                // 用星星emoji重复num次 最大10个
+                starString = '⭐'.repeat(num);
+            }
+            // 对于大数字10，星星较多换行美观一点
+            if (num > 6) {
+                starString = starString.slice(0, 6) + '<span style="font-size:0.9rem;">…</span>' + '⭐'.repeat(num-6);
+            }
+            card.innerHTML = `
+                <div class="big-number">${num}</div>
+                <div class="quantity-icons">${starString}</div>
+                <p>${num === 0 ? '零个' : num + '个'}</p>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // 随机打乱数组 (Fisher-Yates)
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    // 根据数字数组渲染右侧卡片 (生成DOM)
+    function renderGameCards(orderArray) {
+        const container = document.getElementById('sortableList');
+        if (!container) return;
+        container.innerHTML = '';
+        orderArray.forEach(num => {
+            const card = document.createElement('div');
+            card.className = 'number-card';
+            card.setAttribute('data-value', num);
+            // 增加一点可爱星星装饰，数量根据数字的大小显示，但只作为装饰
+            let starsDecor = '';
+            if (num === 0) starsDecor = '✨';
+            else if (num <= 3) starsDecor = '🌟'.repeat(1);
+            else if (num <= 6) starsDecor = '🌟'.repeat(2);
+            else starsDecor = '🌟🌟🌟';
+            card.innerHTML = `
+                <div class="card-number">${num}</div>
+                <div class="card-stars">${starsDecor}</div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // 获取当前卡片DOM顺序对应的数字数组 (按视觉顺序从左到右)
+    function getCurrentOrderFromDOM() {
+        const container = document.getElementById('sortableList');
+        if (!container) return [];
+        const cards = container.querySelectorAll('.number-card');
+        const order = [];
+        cards.forEach(card => {
+            const val = parseInt(card.getAttribute('data-value'), 10);
+            if (!isNaN(val)) order.push(val);
+        });
+        return order;
+    }
+
+    // 检查排序是否正确 (与标准顺序 NUMBERS 比较)
+    function checkOrderAndShowMessage() {
+        const currentOrder = getCurrentOrderFromDOM();
+        let isCorrect = true;
+        if (currentOrder.length !== NUMBERS.length) {
+            isCorrect = false;
+        } else {
+            for (let i = 0; i < NUMBERS.length; i++) {
+                if (currentOrder[i] !== NUMBERS[i]) {
+                    isCorrect = false;
+                    break;
+                }
+            }
+        }
+        const msgDiv = document.getElementById('gameMessage');
+        if (isCorrect) {
+            msgDiv.innerHTML = '🎉🎉 太棒啦！排序完全正确！ 数字队伍排整齐啦！ 🎉🎉 <span style="font-size:1.2rem;">🏆🌟</span>';
+            msgDiv.className = 'message-area success-msg';
+            // 额外添加一阵小小的庆祝动画闪烁
+            const grid = document.getElementById('sortableList');
+            grid.style.transition = '0.2s';
+            grid.style.boxShadow = '0 0 0 3px #b3e0a0';
+            setTimeout(() => { if(grid) grid.style.boxShadow = ''; }, 500);
+        } else {
+            msgDiv.innerHTML = '🧸 再试试看～ 把数字宝宝们按从小到大的顺序排排队：0,1,2,3,4,5,6,7,8,9,10 🧸';
+            msgDiv.className = 'message-area wrong-msg';
+        }
+    }
+
+    // 重新初始化Sortable实例 (销毁旧的，创建新的)
+    function initSortable() {
+        const container = document.getElementById('sortableList');
+        if (!container) return;
+        // 如果已经存在实例则销毁
+        if (sortableInstance) {
+            sortableInstance.destroy();
+            sortableInstance = null;
+        }
+        // 新建拖拽实例，完美支持触摸拖拽
+        sortableInstance = new Sortable(container, {
+            animation: 300,          // 动画时长
+            ghostClass: 'sortable-drag',   // 拖拽时幽灵样式
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            handle: '.number-card',  // 拖拽把手就是整个卡片
+            touchStartThreshold: 2,  // 提升触屏灵敏度
+            onEnd: function() {
+                // 拖拽结束后自动检查顺序正确性
+                checkOrderAndShowMessage();
+            }
+        });
+    }
+
+    // 重置游戏: 打乱顺序并重新渲染卡片, 保留sortable实例刷新
+    function resetGameWithShuffle() {
+        // 1. 生成随机顺序数组
+        const shuffled = shuffleArray([...NUMBERS]);
+        // 2. 重新渲染卡片到容器
+        renderGameCards(shuffled);
+        // 3. 重新初始化 Sortable (因为DOM重新生成了)
+        initSortable();
+        // 4. 更新消息为非成功状态
+        const msgDiv = document.getElementById('gameMessage');
+        msgDiv.innerHTML = '✨ 顺序已打乱！ 快拖动卡片，按 0→1→2...10 正确排序吧 ✨';
+        msgDiv.className = 'message-area wrong-msg';
+        // 额外清除高亮
+        const grid = document.getElementById('sortableList');
+        if(grid) grid.style.boxShadow = '';
+    }
+
+    // 额外辅助：让小朋友点击打乱按钮后刷新
+    function attachEvents() {
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        if (shuffleBtn) {
+            shuffleBtn.addEventListener('click', () => {
+                resetGameWithShuffle();
+            });
+        }
+    }
+
+    // 添加首次加载时的默认随机顺序 (不一定是完全有序，提供趣味性)
+    function initGame() {
+        // 为了让第一次不直接正确，制造一个随机顺序，但确保不是全对（增加挑战）
+        let initialOrder = [...NUMBERS];
+        // 随机打乱但不完全一致，避免一进来就正确而少了挑战乐趣，但如果是随机偶尔全对也是可能，不过概率极低
+        do {
+            initialOrder = shuffleArray([...NUMBERS]);
+        } while (JSON.stringify(initialOrder) === JSON.stringify(NUMBERS)); // 避免一上来就正确，无挑战，但为了教学，偶尔正确也没关系，我们稍微避免一下（约99%打乱）
+        // 渲染卡片
+        renderGameCards(initialOrder);
+        // 初始化拖拽
+        initSortable();
+        // 最初检查一次消息 (肯定不正确，展示鼓励)
+        checkOrderAndShowMessage();
+    }
+
+    // 知识点渲染 & 页面启动
+    renderKnowledge();
+    initGame();
+    attachEvents();
+
+    // 移动端辅助优化: 避免页面滚动时拖拽冲突 (Sortable已经做了preventDefault, 再加一些保险)
+    document.body.addEventListener('touchmove', function(e) {
+        // 如果拖拽的目标是.number-card内的元素或者拖拽过程中，不额外处理，Sortable内部会处理，无干扰
+    }, { passive: false });
+
+    // 响应式下确保拖拽区域滚动不影响拖拽 (为了更友好，不用额外操作)
+    // 增加一点动态提示: 当正确排序后，展示额外小奖杯
+    // 为了更好的视觉，增加自动适应: 在正确排序时显示烟花效果（简单文字闪烁）
+    // 覆盖checkOrderAndShowMessage增加一个额外彩蛋音效无需音频，简洁
+    // 同时左侧知识点 和右侧卡片数据一致，孩子能直观比对数量
+</script>
+</body>
+</html>
