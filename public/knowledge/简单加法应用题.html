@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小能手：加法应用题 | 拖拖乐超市</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 标题3号 + 内容5号 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',
+                        '3xl': '1.875rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        @keyframes correctFlash {
+            0% { background-color: #dcfce7; }
+            100% { background-color: #f0fdf4; }
+        }
+        .correct-animation {
+            animation: correctFlash 0.4s ease-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        .no-tap-highlight {
+            -webkit-touch-callout: none;
+        }
+        .number-card {
+            transition: transform 0.1s;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 简单加法应用题 —— 拖拽数字配对游戏
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 辅助函数：随机生成加法应用题 ----------
+        // 生成两个加数，和不超过20（适合低年级），同时生成描述文本
+        const generateQuestion = () => {
+            // 随机决定场景类型（增加趣味）
+            const scenarios = [
+                { name: "🍎 苹果", unit: "个" },
+                { name: "🍬 糖果", unit: "颗" },
+                { name: "🐱 小猫", unit: "只" },
+                { name: "📚 书本", unit: "本" },
+                { name: "✏️ 铅笔", unit: "支" },
+                { name: "🍪 饼干", unit: "块" },
+                { name: "🎈 气球", unit: "个" },
+                { name: "🧸 玩具熊", unit: "只" },
+                { name: "🚗 玩具车", unit: "辆" },
+                { name: "⭐ 星星贴纸", unit: "张" }
+            ];
+            const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+            // 第一个加数 1~15，第二个加数 1~15，和不超过20
+            let a = Math.floor(Math.random() * 12) + 1; // 1~12
+            let b = Math.floor(Math.random() * (20 - a)) + 1;
+            if (a + b > 20) {
+                // 微调
+                b = Math.min(b, 20 - a);
+                if (b < 1) b = 1;
+            }
+            const sum = a + b;
+            
+            // 构造题目文本（不同句型）
+            const templates = [
+                `小丽有 ${a} ${scenario.name}，妈妈又给了她 ${b} ${scenario.name}，她现在一共有多少${scenario.name}？`,
+                `商店里有 ${a} ${scenario.name}，又运来了 ${b} ${scenario.name}，现在商店里一共有多少${scenario.name}？`,
+                `树上有 ${a} 只小鸟，又飞来了 ${b} 只，现在树上一共有多少只小鸟？`,
+                `小明有 ${a} ${scenario.name}，小红有 ${b} ${scenario.name}，他们两人一共有多少${scenario.name}？`,
+                `第一组有 ${a} 人，第二组有 ${b} 人，两组一共有多少人？`,
+                `盒子里有 ${a} ${scenario.name}，再放入 ${b} ${scenario.name}，盒子里一共有多少${scenario.name}？`
+            ];
+            const template = templates[Math.floor(Math.random() * templates.length)];
+            // 替换场景中的名称（若不是通用小鸟则替换）
+            let questionText = template;
+            if (template.includes("小鸟")) {
+                questionText = template;
+            } else {
+                // 通用替换
+                questionText = template.replace(/苹果/g, scenario.name).replace(/糖果/g, scenario.name).replace(/小猫/g, scenario.name).replace(/书本/g, scenario.name).replace(/铅笔/g, scenario.name).replace(/饼干/g, scenario.name).replace(/气球/g, scenario.name).replace(/玩具熊/g, scenario.name).replace(/玩具车/g, scenario.name).replace(/星星贴纸/g, scenario.name);
+                // 确保单位正确
+                questionText = questionText.replace(/个/g, scenario.unit).replace(/颗/g, scenario.unit).replace(/只/g, scenario.unit).replace(/本/g, scenario.unit).replace(/支/g, scenario.unit).replace(/块/g, scenario.unit).replace(/辆/g, scenario.unit).replace(/张/g, scenario.unit);
+            }
+            
+            // 生成干扰项（正确结果附近，且为正数，不重复）
+            let distractors = new Set();
+            distractors.add(sum);
+            while(distractors.size < 4) {
+                let offset = Math.floor(Math.random() * 5) - 2; // -2..2
+                let candidate = sum + offset;
+                if (candidate < 1) candidate = sum + 1;
+                if (candidate === sum) continue;
+                if (candidate > 30) candidate = sum - 1;
+                distractors.add(candidate);
+            }
+            let options = Array.from(distractors);
+            // 打乱顺序
+            for (let i = options.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [options[i], options[j]] = [options[j], options[i]];
+            }
+            
+            return {
+                id: Date.now() + Math.random(),
+                questionText: questionText,
+                correctAnswer: sum,
+                options: options,
+            };
+        };
+        
+        // ---------- 主游戏组件: 拖拽配对加法应用题 ----------
+        const AdditionGame = () => {
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            const [score, setScore] = useState(0);
+            const [answered, setAnswered] = useState(false);
+            const [message, setMessage] = useState("🐣 拖拽正确的数字卡片到答案区，解决加法应用题！");
+            const [highlightDrop, setHighlightDrop] = useState(false);
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            const [options, setOptions] = useState([]);
+            
+            // 加载新题目
+            const loadNewQuestion = () => {
+                const newQ = generateQuestion();
+                setCurrentQuestion(newQ);
+                setOptions([...newQ.options]);
+                setAnswered(false);
+                setMessage(`✨ 新题目！${newQ.questionText} 拖拽正确数字到下方区域 ✨`);
+                setHighlightDrop(false);
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                loadNewQuestion();
+            };
+            
+            // 初始化
+            useEffect(() => {
+                loadNewQuestion();
+            }, []);
+            
+            // 处理拖拽放置到答案区
+            const handleDropOnZone = (e) => {
+                e.preventDefault();
+                setHighlightDrop(false);
+                if (answered) {
+                    setMessage("本题已答对，请点击「换一题」继续挑战！");
+                    return;
+                }
+                if (!currentQuestion) return;
+                
+                let dragData;
+                try {
+                    const rawData = e.dataTransfer.getData("text/plain");
+                    if (!rawData) return;
+                    dragData = JSON.parse(rawData);
+                } catch(err) {
+                    setMessage("请从右侧数字卡片上拖拽～");
+                    return;
+                }
+                const { numberValue } = dragData;
+                if (numberValue === undefined) return;
+                
+                if (numberValue === currentQuestion.correctAnswer) {
+                    setAnswered(true);
+                    setScore(prev => prev + 1);
+                    setMessage(`🎉 完全正确！ ${currentQuestion.questionText} 答案是 ${currentQuestion.correctAnswer}。 +1分 🎉`);
+                    const zoneElem = document.getElementById('answer-dropzone');
+                    if (zoneElem) {
+                        zoneElem.classList.add('correct-animation');
+                        setTimeout(() => zoneElem.classList.remove('correct-animation'), 500);
+                    }
+                } else {
+                    setMessage(`❌ 不对哦！ ${numberValue} 不是正确答案。再算一算：${currentQuestion.questionText} 要把两个数加起来。`);
+                    const zoneElem = document.getElementById('answer-dropzone');
+                    if (zoneElem) {
+                        zoneElem.style.backgroundColor = "#fee2e2";
+                        setTimeout(() => zoneElem.style.backgroundColor = "", 400);
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterZone = () => setHighlightDrop(true);
+            const onDragLeaveZone = () => setHighlightDrop(false);
+            
+            // 数字卡片拖拽开始
+            const onNumberDragStart = (e, num) => {
+                if (answered) {
+                    e.preventDefault();
+                    setMessage("本题已完成，请换题后再拖拽。");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ numberValue: num }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onNumberDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            if (!currentQuestion) return <div className="text-white text-2xl">加载题目中...</div>;
+            
+            // 辅助显示题目中的数字（高亮加数）
+            const highlightNumbers = (text) => {
+                // 简单高亮数字
+                return text.replace(/(\d+)/g, '<span class="font-bold text-red-600 bg-yellow-100 px-1 rounded">$1</span>');
+            };
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                ➕ 加法应用题小课堂
+                                <span className="text-lg bg-amber-200 px-3 py-0.5 rounded-full">合并与增加</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-5 text-base md:text-lg text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">🍎</span>
+                                <span><strong className="text-purple-700">加法</strong> 就是把两个或几个数合并成一个数的运算，表示“一共”、“总共”的意思。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 解题步骤</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>✨ 读题，找出“一共”、“总共”、“原来有…又…”等关键词。</li>
+                                    <li>✨ 确定两个部分的数量，用加法列式。</li>
+                                    <li>✨ 计算得数，写上单位。</li>
+                                </ul>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p>💡 例子：<br/>小明有5个苹果，妈妈给他3个，一共8个。<br/>5 + 3 = 8</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧸 常见生活场景：</p>
+                                <p>✔ 合并物品（文具、水果）<br/>✔ 人数增加（又来了一些人）<br/>✔ 购物添置（又买了东西）</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 右边有加法应用题，拖拽正确的数字卡片到下方的“答案放置区”，配对正确就能得分！点击【换一题】挑战新题目。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧游戏互动区 */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5" id="game-area">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 加法应用题 · 拖拖乐
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽数字</span>
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-amber-100 rounded-full px-4 py-1 text-xl font-bold text-amber-800">
+                                    🏆 得分: {score}
+                                </div>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-base"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 题目卡片 */}
+                        <div className="bg-purple-100/90 rounded-2xl p-4 shadow-md">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-3xl">📖</span>
+                                <h4 className="text-2xl font-bold text-purple-800">应用题</h4>
+                            </div>
+                            <p className="text-xl md:text-2xl font-medium text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: highlightNumbers(currentQuestion.questionText) }}></p>
+                            <div className="mt-3 bg-white/60 rounded-xl p-2 text-sm text-purple-700">
+                                💡 想一想：要把哪两个数加起来？
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-amber-50 rounded-xl p-2 text-center text-amber-800 font-medium text-base shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 答案放置区（拖拽目标） */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2">📦 答案放置区（拖拽正确数字到这里）</h4>
+                            <div 
+                                id="answer-dropzone"
+                                onDragOver={onDragOver}
+                                onDrop={handleDropOnZone}
+                                onDragEnter={onDragEnterZone}
+                                onDragLeave={onDragLeaveZone}
+                                className={`border-4 border-dashed rounded-2xl p-6 transition-all duration-200 flex flex-col items-center justify-center min-h-[100px] ${
+                                    highlightDrop ? 'drop-zone-active bg-yellow-50' : 'border-purple-300 bg-white/50'
+                                } ${answered ? 'bg-green-100 border-green-400' : ''}`}
+                            >
+                                {answered ? (
+                                    <div className="text-center">
+                                        <span className="text-3xl">✅ 已答对！</span>
+                                        <p className="text-xl text-green-700 mt-1">正确答案：{currentQuestion.correctAnswer}</p>
+                                        <p className="text-sm text-gray-600">点击「换一题」继续挑战</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <span className="text-2xl font-semibold text-purple-600">⬅️ 拖拽数字答案到这里</span>
+                                        <p className="text-md text-gray-500 mt-2">把正确的数字卡片拖到此区域</p>
+                                        <div className="mt-2 text-sm bg-purple-50 inline-block px-3 py-1 rounded-full">✨ 拖拽卡片松手即可 ✨</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 可拖拽数字卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🔢 数字卡片（拖拽到上方放置区）</h4>
+                            <div className="flex flex-wrap gap-3 justify-center items-center min-h-[120px] bg-white/40 rounded-2xl p-4 custom-scroll">
+                                {options.map((num, idx) => (
+                                    <div
+                                        key={`opt_${currentQuestion.id}_${idx}`}
+                                        draggable="true"
+                                        onDragStart={(e) => onNumberDragStart(e, num)}
+                                        onDragEnd={onNumberDragEnd}
+                                        className="number-card bg-gradient-to-br from-cyan-200 to-blue-200 w-24 h-24 rounded-xl flex flex-col items-center justify-center shadow-md cursor-grab active:cursor-grabbing transition hover:scale-110"
+                                    >
+                                        <span className="text-4xl font-bold text-blue-800">{num}</span>
+                                        <span className="text-xs text-gray-600 mt-1">拖拽</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 拖拽数字卡片到上方「答案放置区」松手，系统会自动判断对错！</p>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：先读懂题目，找出两个部分的数量，再拖拽正确的结果。</span>
+                            <button onClick={() => setMessage("💡 提示：加法就是把两个数合并起来，求一共多少。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {/* 得分与鼓励 */}
+                        <div className="flex justify-center gap-4 text-sm font-medium text-purple-800">
+                            <div className="bg-white/50 rounded-full px-3 py-1">✅ 已答对 {score} 道题</div>
+                            <div className="bg-white/50 rounded-full px-3 py-1">🎯 继续挑战，成为加法小能手！</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // 根组件
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🧸 加法应用题大挑战 · 拖拖乐超市 🛒
+                        </h1>
+                        <p className="text-white/90 text-lg md:text-xl mt-2 font-medium">拖拽数字卡片，解决生活中的加法问题！</p>
+                    </div>
+                    <AdditionGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 拖拽正确的答案数字到放置区，答对得分～ 点击【换一题】挑战更多应用题 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

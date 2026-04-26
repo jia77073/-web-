@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>长方体和正方体体积·第二课时 | 统一公式与逆向挑战</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义全局样式：淡紫色主题 + 大字体 + 拖拽友好 -->
+    <style>
+        /* 主题色淡紫渐变 */
+        body {
+            background: linear-gradient(145deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, sans-serif;
+        }
+        /* 滚动条可爱风格 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f0e2f7;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a67cac;
+            border-radius: 20px;
+        }
+        /* 拖拽卡片时的半透明效果 */
+        .drag-card-active {
+            opacity: 0.5;
+            cursor: grabbing !important;
+        }
+        /* 放置区高亮反馈 */
+        .drop-highlight {
+            background-color: #f9ebff !important;
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px #b38fcc;
+            transition: all 0.1s ease;
+        }
+        /* 配对成功动画 */
+        .matched-pulse {
+            animation: matchGlow 0.4s ease;
+        }
+        @keyframes matchGlow {
+            0% { background-color: #c8e6c9; border-color: #81c784; }
+            100% { background-color: #e8f5e9; border-color: #a5d6a7; }
+        }
+        /* 胜利彩蛋跳动 */
+        @keyframes bounceWin {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-6px); }
+        }
+        .win-bounce {
+            animation: bounceWin 0.5s ease;
+        }
+        /* 字体大小整体加大：基础文字使用大号 (约6号=24px左右) */
+        .text-super {
+            font-size: 1.55rem;
+            line-height: 2rem;
+        }
+        @media (min-width: 768px) {
+            .text-super {
+                font-size: 1.75rem;
+                line-height: 2.2rem;
+            }
+        }
+        /* 移动端长按拖拽优化，禁止选中 */
+        .drag-card, .drop-zone {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        /* 模拟底面积示意小图标 */
+        .base-demo {
+            background: #e2c7f0;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="p-3 md:p-6 min-h-screen flex items-center justify-center">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+    // 第二课时：统一体积公式 V = Sh，公式变形，逆向计算综合应用 + 拖拽配对游戏
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ---------- 游戏数据：逆向挑战问题集 ----------
+    // 每个问题包含：描述，期望匹配的答案文本，提示，底面积/体积/高等元素
+    const questionsData = [
+        { 
+            id: 0, 
+            title: "📦 逆向求高", 
+            desc: "一个长方体储物箱，体积是 240 dm³，底面积是 48 dm²。它的高是多少分米？", 
+            correctAnswer: "5 dm", 
+            hint: "h = V ÷ S",
+            formula: "高 = 体积 ÷ 底面积"
+        },
+        { 
+            id: 1, 
+            title: "📐 求底面积", 
+            desc: "一个长方体水池，体积是 150 m³，水深（高）是 5 m。水池的底面积是多少平方米？", 
+            correctAnswer: "30 m²", 
+            hint: "S = V ÷ h",
+            formula: "底面积 = 体积 ÷ 高"
+        },
+        { 
+            id: 2, 
+            title: "🧊 正方体逆向", 
+            desc: "一个正方体木箱，体积是 216 cm³。它的底面积是多少平方厘米？（提示：正方体底面积=棱长×棱长）", 
+            correctAnswer: "36 cm²", 
+            hint: "先求棱长 a³=216 → a=6 → 底面积=6×6",
+            formula: "正方体底面积 = a²"
+        },
+        { 
+            id: 3, 
+            title: "🏠 生活应用", 
+            desc: "工人铺沙坑，沙坑体积是 12 m³，底面积是 8 m²。沙坑里沙子的厚度（高）是多少米？", 
+            correctAnswer: "1.5 m", 
+            hint: "h = V ÷ S = 12 ÷ 8 = 1.5",
+            formula: "高 = 体积 ÷ 底面积"
+        }
+    ];
+
+    // 答案卡片数据 (打乱顺序用)
+    const cardsData = [
+        { id: 0, label: "5 dm", matchId: 0, emoji: "📏" },
+        { id: 1, label: "30 m²", matchId: 1, emoji: "📐" },
+        { id: 2, label: "36 cm²", matchId: 2, emoji: "🧩" },
+        { id: 3, label: "1.5 m", matchId: 3, emoji: "⏳" }
+    ];
+
+    // 主组件
+    const VolumeUnifiedGame = () => {
+        // 记录每个问题是否已配对成功
+        const [matchedQuestions, setMatchedQuestions] = useState({});
+        // 剩余可拖拽的卡片列表
+        const [remainingCards, setRemainingCards] = useState([]);
+        // 游戏胜利标志
+        const [gameWin, setGameWin] = useState(false);
+        // 全局反馈信息
+        const [feedbackMsg, setFeedbackMsg] = useState("🐣 把正确答案卡片拖到对应的挑战区！长按或拖拽卡片即可配对～");
+        // 高亮放置区id
+        const [highlightZoneId, setHighlightZoneId] = useState(null);
+        
+        // 初始化/重置游戏
+        const initGame = useCallback(() => {
+            const initialMatched = {};
+            questionsData.forEach(q => { initialMatched[q.id] = false; });
+            setMatchedQuestions(initialMatched);
+            // 打乱剩余卡片顺序，增加趣味
+            const shuffled = [...cardsData];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setRemainingCards(shuffled);
+            setGameWin(false);
+            setFeedbackMsg("✨ 新回合！拖动右边卡片到左边对应的体积问题框，练习逆向公式 ✨");
+            setHighlightZoneId(null);
+        }, []);
+        
+        // 检查全部配对
+        useEffect(() => {
+            const allMatched = Object.values(matchedQuestions).every(v => v === true);
+            if (allMatched && remainingCards.length === 0 && !gameWin) {
+                setGameWin(true);
+                setFeedbackMsg("🎉 完美通关！你已掌握统一体积公式 V=Sh 及逆向变形！🎉");
+            } else if (allMatched && remainingCards.length === 0 && gameWin) {
+                // 已胜利状态保持
+            }
+        }, [matchedQuestions, remainingCards, gameWin]);
+        
+        // ----- 拖拽处理函数 -----
+        const handleDragStart = (e, card) => {
+            // 检查卡片是否还在剩余卡片中
+            if (!remainingCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                e.dataTransfer.effectAllowed = "none";
+                setFeedbackMsg("⛔ 这张卡片已经配对过了！不能重复拖拽哦 ⛔");
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, matchId: card.matchId, label: card.label }));
+            e.dataTransfer.effectAllowed = "copy";
+            // 自定义拖拽图像
+            const dragIcon = document.createElement('div');
+            dragIcon.textContent = `${card.emoji} ${card.label}`;
+            dragIcon.style.position = "absolute";
+            dragIcon.style.top = "-1000px";
+            dragIcon.style.background = "#b28bcb";
+            dragIcon.style.padding = "8px";
+            dragIcon.style.borderRadius = "20px";
+            dragIcon.style.color = "white";
+            dragIcon.style.fontWeight = "bold";
+            document.body.appendChild(dragIcon);
+            e.dataTransfer.setDragImage(dragIcon, 0, 0);
+            setTimeout(() => document.body.removeChild(dragIcon), 0);
+            if (e.target && e.target.classList) {
+                e.target.classList.add('drag-card-active');
+            }
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target && e.target.classList) {
+                e.target.classList.remove('drag-card-active');
+            }
+            setHighlightZoneId(null);
+        };
+        
+        // 放置区高亮
+        const handleDragOver = (e, zoneId) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (highlightZoneId !== zoneId) {
+                setHighlightZoneId(zoneId);
+            }
+        };
+        
+        const handleDragLeave = () => {
+            setHighlightZoneId(null);
+        };
+        
+        // 放置处理：配对逻辑
+        const handleDrop = (e, targetQuestion) => {
+            e.preventDefault();
+            setHighlightZoneId(null);
+            // 如果该问题已经配对，不能再放
+            if (matchedQuestions[targetQuestion.id]) {
+                setFeedbackMsg(`🔁 挑战“${targetQuestion.title}”已完成配对！无需重复 🔁`);
+                return;
+            }
+            
+            let dragData;
+            try {
+                const raw = e.dataTransfer.getData("text/plain");
+                dragData = JSON.parse(raw);
+            } catch (err) {
+                setFeedbackMsg("拖拽出了一点小问题，再试一次吧~");
+                return;
+            }
+            if (!dragData) return;
+            
+            const { cardId, matchId, label } = dragData;
+            // 验证卡片是否还在剩余中
+            const cardExists = remainingCards.some(c => c.id === cardId);
+            if (!cardExists) {
+                setFeedbackMsg("这张卡片已经被配对过了！请使用其他卡片。");
+                return;
+            }
+            
+            // 判断配对是否正确 (卡片匹配id 等于 问题id)
+            const isCorrect = (matchId === targetQuestion.id);
+            if (isCorrect) {
+                // 配对成功！
+                setMatchedQuestions(prev => ({ ...prev, [targetQuestion.id]: true }));
+                // 从剩余卡片中移除该卡片
+                const newRemaining = remainingCards.filter(c => c.id !== cardId);
+                setRemainingCards(newRemaining);
+                setFeedbackMsg(`🎈 完美配对！ ${targetQuestion.desc} → 答案 ${label}，运用${targetQuestion.formula} 🎈`);
+                // 动画效果
+                const zoneEl = document.getElementById(`qzone-${targetQuestion.id}`);
+                if (zoneEl) {
+                    zoneEl.classList.add('matched-pulse');
+                    setTimeout(() => zoneEl.classList.remove('matched-pulse'), 400);
+                }
+            } else {
+                // 配对错误: 给出正确答案提示
+                const correctAns = questionsData.find(q => q.id === targetQuestion.id)?.correctAnswer || "???";
+                setFeedbackMsg(`❌ 配对错误！ “${targetQuestion.desc}” 正确答案是 ${correctAns}，再试试逆向公式吧！❌`);
+            }
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            initGame();
+        };
+        
+        // 初始化
+        useEffect(() => {
+            initGame();
+        }, [initGame]);
+        
+        const totalQuestions = questionsData.length;
+        const matchedCount = Object.values(matchedQuestions).filter(v => v === true).length;
+        
+        return (
+            <div className="w-full rounded-3xl shadow-2xl p-4 md:p-5 bg-white/30 backdrop-blur-sm border border-white/40">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧：统一公式 & 逆向知识点区域 ========= */}
+                    <div className="lg:w-2/5 bg-white/85 rounded-2xl p-5 md:p-6 shadow-xl backdrop-blur-sm border border-purple-100 overflow-y-auto max-h-[85vh] lg:max-h-none">
+                        <div className="border-l-8 border-[#a67cac] pl-4 mb-4">
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-[#5e3a63]">📐 体积统一公式 V = S h</h1>
+                            <p className="text-xl text-gray-700 mt-1 font-semibold">五年级·第二课时 | 逆向思维 & 综合应用</p>
+                        </div>
+                        
+                        {/* 1. 底面积概念与统一公式 */}
+                        <div className="bg-gradient-to-r from-[#f7effb] to-white p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800 flex items-center gap-2">🧩 认识底面积 · 统一公式</h2>
+                            <div className="flex flex-wrap gap-4 mt-2 items-center justify-between">
+                                <div className="bg-purple-100 p-3 rounded-xl text-center flex-1">
+                                    <div className="text-4xl mb-1">📦</div>
+                                    <p className="font-bold">底面积 S = 长 × 宽<br/>(正方体 S = a × a)</p>
+                                </div>
+                                <div className="text-3xl font-black text-purple-500">→</div>
+                                <div className="bg-purple-100 p-3 rounded-xl text-center flex-1">
+                                    <div className="text-4xl mb-1">⚡</div>
+                                    <p className="font-bold text-xl">体积 V = S × h</p>
+                                    <p className="text-sm">(h 是高)</p>
+                                </div>
+                            </div>
+                            <p className="mt-3 text-lg">对于长方体和正方体，<strong className="text-purple-700">体积 = 底面积 × 高</strong>，这是万能钥匙！</p>
+                        </div>
+                        
+                        {/* 2. 公式变形 (逆向) */}
+                        <div className="bg-white/80 p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">🔄 公式变形 · 逆向思维</h2>
+                            <div className="grid grid-cols-2 gap-3 mt-3 text-center">
+                                <div className="bg-amber-50 rounded-xl p-3">
+                                    <p className="font-black text-xl">已知 V, S</p>
+                                    <p className="text-2xl font-mono">h = V ÷ S</p>
+                                    <p className="text-sm">高 = 体积 ÷ 底面积</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3">
+                                    <p className="font-black text-xl">已知 V, h</p>
+                                    <p className="text-2xl font-mono">S = V ÷ h</p>
+                                    <p className="text-sm">底面积 = 体积 ÷ 高</p>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-center bg-purple-50 p-2 rounded-lg">
+                                💡 <strong>解题关键：</strong>找准已知量，选择正确的变形公式！
+                            </div>
+                        </div>
+                        
+                        {/* 3. 综合应用例题 (生活场景) */}
+                        <div className="bg-[#faf0ff] p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">🏡 生活应用题 · 举一反三</h2>
+                            <div className="space-y-3 mt-2 text-lg">
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例1：</span>一个长方体沙坑，体积是 18 m³，底面积 6 m²，沙坑深多少米？</p>
+                                    <p className="text-purple-700 text-base">解：h = V ÷ S = 18 ÷ 6 = 3 (m)</p>
+                                </div>
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例2：</span>一个长方体水箱，体积 360 L (即 360 dm³)，高 8 dm，求水箱的底面积。</p>
+                                    <p className="text-purple-700 text-base">解：S = V ÷ h = 360 ÷ 8 = 45 (dm²)</p>
+                                </div>
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例3：</span>正方体体积 125 cm³，底面积是多少？</p>
+                                    <p className="text-purple-700 text-base">解：棱长 a = 5 cm (因为 5³=125)，底面积 = 5×5 = 25 cm²</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 4. 解题小锦囊 */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">🧠 逆向解题三步法</h2>
+                            <ul className="list-disc list-inside mt-2 text-lg space-y-1">
+                                <li>① 写出体积公式 V = S × h</li>
+                                <li>② 根据已知量选择变形：求高则 h=V÷S；求底面积则 S=V÷h</li>
+                                <li>③ 代入数据计算并带上单位</li>
+                            </ul>
+                            <div className="mt-3 text-center bg-green-50 rounded-xl p-2 text-green-800 font-bold">
+                                🌟 右侧小游戏，挑战逆向配对！将正确答案拖到挑战区～
+                            </div>
+                        </div>
+                        <div className="mt-4 text-sm text-center text-purple-600 bg-white/60 rounded-full py-2">✨ V = Sh 万能公式，灵活变形闯关 ✨</div>
+                    </div>
+                    
+                    {/* ========= 右侧互动游戏区域：拖拽配对 (抓娃娃/扭蛋风格) ========= */}
+                    <div className="lg:w-3/5 bg-[#faf3ff]/95 rounded-2xl p-5 md:p-6 shadow-lg border-2 border-[#CBAACB] flex flex-col">
+                        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+                            <h2 className="text-2xl md:text-3xl font-black text-[#6b3f74] flex items-center gap-2">
+                                🎮 逆向配对·抓抓乐 <span className="text-lg bg-white/70 px-3 py-1 rounded-full">拖拽卡片配对</span>
+                            </h2>
+                            <button 
+                                onClick={resetGame}
+                                className="bg-gradient-to-r from-[#a17bb5] to-[#cba3db] hover:from-[#8f68a3] hover:to-[#b887cf] text-white font-bold py-2 px-5 rounded-full shadow-md transition transform active:scale-95 text-lg"
+                            >
+                                🔄 新的一局
+                            </button>
+                        </div>
+                        
+                        {/* 反馈消息栏 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-bold text-lg transition-all ${feedbackMsg.includes('完美') || feedbackMsg.includes('🎈') ? 'bg-green-100 text-green-800 border border-green-300' : (feedbackMsg.includes('错误') || feedbackMsg.includes('⛔') ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')}`}>
+                            {feedbackMsg}
+                        </div>
+                        
+                        {/* 进度条 */}
+                        <div className="w-full bg-purple-200 rounded-full h-3 mb-3">
+                            <div className="bg-purple-600 h-3 rounded-full transition-all duration-300" style={{ width: `${(matchedCount / totalQuestions) * 100}%` }}></div>
+                        </div>
+                        <p className="text-right text-purple-700 text-sm font-medium">配对进度: {matchedCount}/{totalQuestions}</p>
+                        
+                        {/* 挑战问题区域 (放置区) */}
+                        <div className="space-y-4 mb-6 mt-2 max-h-[420px] overflow-y-auto pr-1">
+                            {questionsData.map(q => {
+                                const isMatched = matchedQuestions[q.id];
+                                const isHighlight = highlightZoneId === q.id;
+                                return (
+                                    <div
+                                        key={q.id}
+                                        id={`qzone-${q.id}`}
+                                        className={`drop-zone relative bg-white rounded-2xl p-4 border-2 transition-all ${isMatched ? 'border-green-400 bg-green-50/90' : (isHighlight ? 'border-purple-500 bg-purple-50 drop-highlight' : 'border-purple-200')}`}
+                                        onDragOver={(e) => handleDragOver(e, q.id)}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, q)}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="text-xl font-black text-purple-800 flex items-center gap-2">
+                                                    {q.title} 
+                                                    {!isMatched && <span className="text-sm bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">待配对</span>}
+                                                    {isMatched && <span className="text-sm bg-green-200 text-green-800 px-2 py-0.5 rounded-full">✓ 已配对</span>}
+                                                </div>
+                                                <p className="text-base md:text-lg text-gray-700 mt-1">{q.desc}</p>
+                                                <div className="mt-2 text-sm text-purple-600 bg-purple-50 inline-block px-2 py-1 rounded-full">
+                                                    💡 提示：{q.hint} &nbsp;|&nbsp; {q.formula}
+                                                </div>
+                                                {isMatched && (
+                                                    <div className="mt-2 inline-flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
+                                                        ✅ 正确答案：{q.correctAnswer}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-4xl ml-2">{q.id === 0 ? '📏' : (q.id === 1 ? '📐' : (q.id === 2 ? '🧊' : '🏠'))}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽卡片区（答案扭蛋） */}
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <p className="text-xl font-bold text-purple-800 flex items-center gap-2">🎴 答案扭蛋卡片 (拖拽配对)</p>
+                                <span className="bg-purple-200 rounded-full px-3 py-1 text-sm font-bold">剩余: {remainingCards.length}</span>
+                            </div>
+                            
+                            {remainingCards.length === 0 && !gameWin && (
+                                <div className="text-center py-6 bg-yellow-50 rounded-2xl border border-yellow-300 text-yellow-700 font-bold text-xl">
+                                    ✨ 太厉害了！全部配对正确！点击[新的一局]继续挑战 ✨
+                                </div>
+                            )}
+                            
+                            {remainingCards.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {remainingCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable="true"
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-[#e8d3fc] to-white rounded-2xl p-3 text-center shadow-md cursor-grab active:cursor-grabbing border-2 border-purple-300 hover:shadow-xl transform transition hover:-translate-y-1"
+                                        >
+                                            <div className="text-3xl mb-1">{card.emoji}</div>
+                                            <div className="font-black text-xl md:text-2xl text-purple-800">{card.label}</div>
+                                            <div className="text-xs text-purple-500 mt-1">✨ 拖拽配对 ✨</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 玩法说明 */}
+                            <div className="mt-5 bg-[#e9d4f0] rounded-xl p-3 text-center text-purple-800 text-base flex flex-wrap justify-center gap-2 items-center">
+                                <span className="font-bold">🐣 如何拖拉拽互动：</span>
+                                <span>👉 手指长按右边答案卡片 → 拖到左边对应的挑战区 → 松开配对！</span>
+                                <span className="text-sm bg-white rounded-full px-2 py-0.5">练习逆向公式，匹配正确答案</span>
+                            </div>
+                        </div>
+                        
+                        {/* 胜利彩蛋 */}
+                        {gameWin && (
+                            <div className="mt-5 p-4 bg-gradient-to-r from-green-200 to-emerald-200 rounded-2xl text-center win-bounce">
+                                <div className="text-5xl mb-2">🏆✨📦🧠</div>
+                                <p className="font-extrabold text-2xl text-emerald-800">恭喜成为体积逆向高手！ 掌握 V=Sh 变形，生活应用全不怕！</p>
+                                <button onClick={resetGame} className="mt-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow">🏅 再玩一次 🏅</button>
+                            </div>
+                        )}
+                        
+                        {/* 底部知识点联系 */}
+                        <div className="mt-3 text-right text-sm text-purple-600 flex justify-end items-center gap-1">
+                            <span>📌 统一公式 V = S × h &nbsp;|&nbsp; h = V ÷ S &nbsp;|&nbsp; S = V ÷ h</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-center mt-5 text-sm text-purple-900/80 bg-white/30 rounded-full py-2 px-4 mx-auto w-fit">
+                    🌟 逆向思维小英雄：已知体积和底面积 → 求高；已知体积和高 → 求底面积！万能变形，闯关成功 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染根组件
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<VolumeUnifiedGame />);
+</script>
+</body>
+</html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+    <title>除法探险岛 · 除数是一位数 | 拖拽小游戏</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 自定义竖式精确对齐 + 玻璃蓝点缀，彻底清除多余空格 */
+        body {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            font-family: 'Segoe UI', 'Quicksand', system-ui, 'PingFang SC', 'Noto Sans', sans-serif;
+        }
+        /* 竖式容器专用样式 - 无多余内外边距 */
+        .vertical-division {
+            font-family: 'Courier New', 'SF Mono', 'Consolas', monospace;
+            font-weight: 700;
+            display: inline-block;
+            background: #fffef7;
+            border-radius: 28px;
+            padding: 18px 16px 18px 20px;
+            box-shadow: inset 0 1px 4px #efe0d3, 0 8px 0 #c2a07e;
+            border: 1px solid #eedbc8;
+        }
+        .digit-cell {
+            width: 2.8rem;
+            text-align: center;
+            font-size: 2.1rem;
+            line-height: 1.2;
+            color: #2d4a3b;
+            display: inline-block;
+        }
+        /* 关键修复：所有行无额外边距，横线上下无空隙 */
+        .ld-row {
+            display: flex;
+            align-items: flex-end;
+            margin: 0;
+            padding: 0;
+            line-height: 1;
+        }
+        /* 横线行特殊处理：高度完全由横线本身决定 */
+        .ld-line-row {
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 0;
+        }
+        .ld-placeholder {
+            width: 56px;
+            flex-shrink: 0;
+        }
+        .ld-divisor {
+            width: 56px;
+            text-align: right;
+            padding-right: 12px;
+            font-size: 2.1rem;
+            color: #bc6c25;
+        }
+        .bracket-col {
+            border-left: 3px solid #a77b58;
+        }
+        .top-line {
+            height: 3px;
+            background: #a77b58;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .step-line {
+            height: 2px;
+            background: #9f7e63;
+            width: calc(2.8rem * 3);
+            border-radius: 2px;
+            margin: 0;
+            display: inline-block;
+        }
+        /* 拖拽槽位样式 */
+        .slot-digit {
+            background: #fff2df;
+            border-radius: 16px;
+            box-shadow: inset 0 1px 3px #bcae8e, 0 2px 6px rgba(0,0,0,0.1);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.8rem;
+            height: 3rem;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1f6392;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .slot-digit.filled {
+            background: #d9e8f5;
+            color: #1b4e6e;
+        }
+        .slot-digit.empty-slot {
+            background: #fff1e0;
+            border: 2px dashed #6c8faa;
+        }
+        .drag-card {
+            background: #ffe3b5;
+            border-radius: 28px;
+            box-shadow: 0 8px 0 #bf9b6a;
+            cursor: grab;
+            transition: 0.05s linear;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4f3b1c;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        @media (max-width: 680px) {
+            .digit-cell { width: 2rem; font-size: 1.7rem; }
+            .slot-digit { width: 2rem; height: 2.6rem; font-size: 1.6rem; }
+            .drag-card { width: 55px; height: 55px; font-size: 1.6rem; }
+            .ld-placeholder, .ld-divisor { width: 42px; }
+            .step-line { width: calc(2rem * 3); }
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            border-radius: 48px;
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+        button:active {
+            transform: translateY(2px);
+        }
+        /* 确保空数字格不产生额外间距 */
+        .digit-cell:empty::before {
+            content: "";
+            display: inline-block;
+        }
+        /* 左侧静态竖式容器也使用相同样式 */
+        .static-vertical {
+            display: inline-block;
+            text-align: left;
+        }
+    </style>
+</head>
+<body class="p-5 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // 生成随机题目：三位数除以一位数，商为两位数（10~99）
+        const generateRandomQuestion = () => {
+            while (true) {
+                const divisor = Math.floor(Math.random() * 8) + 2; // 2~9
+                const dividend = Math.floor(Math.random() * 900) + 100; // 100~999
+                const quotient = Math.floor(dividend / divisor);
+                const remainder = dividend % divisor;
+                if (quotient >= 10 && quotient <= 99) {
+                    const tens = Math.floor(quotient / 10);
+                    const ones = quotient % 10;
+                    return { dividend, divisor, quotient, remainder, tensDigit: tens, onesDigit: ones };
+                }
+            }
+        };
+
+        // 竖式组件 - 完全消除多余空格，横线上下无空隙（用于右侧动态游戏）
+        const VerticalDivision = ({ dividend, divisor, quotient, remainder, userTens, userOnes, onDropToSlot }) => {
+            const qTens = Math.floor(quotient / 10);
+            const qOnes = quotient % 10;
+            const product1 = divisor * qTens;
+            const firstTwoDigits = Math.floor(dividend / 10);
+            const firstRemainder = firstTwoDigits - product1;
+            const fallDownDigit = dividend % 10;
+            const product2 = divisor * qOnes;
+            const finalRemainder = remainder;
+
+            // 辅助渲染三个数字位（百、十、个），空位用空字符串
+            const renderDigits = (digits, highlightRemainder = false) => {
+                const arr = [];
+                for (let i = 0; i < 3; i++) {
+                    let val = digits[i] !== undefined && digits[i] !== '' ? digits[i] : '';
+                    const isRemainder = (highlightRemainder && i === 2 && val === remainder && remainder !== 0);
+                    arr.push(
+                        <div key={i} className="digit-cell" style={{color: isRemainder ? '#c3512c' : '#2d4a3b'}}>
+                            {val === '' ? '' : val}
+                        </div>
+                    );
+                }
+                return arr;
+            };
+
+            // 商的行（带拖拽槽位）
+            const quotientRow = (
+                <div className="ld-row">
+                    <div className="ld-placeholder"></div>
+                    <div className="flex">
+                        <div className="digit-cell"></div> {/* 百位空 */}
+                        <div className="digit-cell flex justify-center items-center">
+                            <div 
+                                className={`slot-digit ${userTens !== null ? 'filled' : 'empty-slot'}`}
+                                data-slot="tens"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => { e.preventDefault(); const val = e.dataTransfer.getData("text/plain"); if(val && !isNaN(parseInt(val))) onDropToSlot('tens', parseInt(val)); }}
+                            >
+                                {userTens !== null ? userTens : '?'}
+                            </div>
+                        </div>
+                        <div className="digit-cell flex justify-center items-center">
+                            <div 
+                                className={`slot-digit ${userOnes !== null ? 'filled' : 'empty-slot'}`}
+                                data-slot="ones"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => { e.preventDefault(); const val = e.dataTransfer.getData("text/plain"); if(val && !isNaN(parseInt(val))) onDropToSlot('ones', parseInt(val)); }}
+                            >
+                                {userOnes !== null ? userOnes : '?'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // 除数 + 被除数
+            const mainRow = (
+                <div className="ld-row">
+                    <div className="ld-divisor">{divisor}</div>
+                    <div className="bracket-col">
+                        <div className="top-line"></div>
+                        <div className="flex">
+                            {renderDigits([Math.floor(dividend/100), Math.floor((dividend%100)/10), dividend%10])}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // 第一步乘积
+            const product1Row = (
+                <div className="ld-row">
+                    <div className="ld-placeholder"></div>
+                    <div className="flex">
+                        {renderDigits([Math.floor(product1/100) || '', Math.floor((product1%100)/10) || '', product1%10])}
+                    </div>
+                </div>
+            );
+
+            // 横线行 - 无任何上下边距
+            const lineRow = (
+                <div className="ld-row ld-line-row">
+                    <div className="ld-placeholder"></div>
+                    <div className="step-line"></div>
+                </div>
+            );
+
+            // 第一次减法后余数+落下的数字
+            const afterSubRow = (
+                <div className="ld-row">
+                    <div className="ld-placeholder"></div>
+                    <div className="flex">
+                        {renderDigits(['', firstRemainder !== 0 ? firstRemainder : '', fallDownDigit])}
+                    </div>
+                </div>
+            );
+
+            // 第二步乘积
+            const product2Row = (
+                <div className="ld-row">
+                    <div className="ld-placeholder"></div>
+                    <div className="flex">
+                        {renderDigits(['', Math.floor(product2/10) || '', product2%10])}
+                    </div>
+                </div>
+            );
+
+            // 最终余数
+            const finalRemainderRow = (
+                <div className="ld-row">
+                    <div className="ld-placeholder"></div>
+                    <div className="flex">
+                        {renderDigits(['', '', finalRemainder], true)}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="vertical-division w-full overflow-x-auto text-center">
+                    <div className="inline-block text-left">
+                        {quotientRow}
+                        {mainRow}
+                        {product1Row}
+                        {lineRow}
+                        {afterSubRow}
+                        {product2Row}
+                        {lineRow}
+                        {finalRemainderRow}
+                    </div>
+                </div>
+            );
+        };
+
+        // 横式组件（带拖拽槽位）
+        const HorizontalDivision = ({ dividend, divisor, quotient, remainder, userTens, userOnes, onDropToSlot }) => {
+            return (
+                <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-6 text-center shadow-md border border-white/60">
+                    <div className="text-3xl md:text-4xl font-mono font-bold flex flex-wrap justify-center items-center gap-2 md:gap-4">
+                        <span className="bg-amber-50 px-4 py-2 rounded-2xl">{dividend}</span>
+                        <span>÷</span>
+                        <span className="bg-amber-50 px-4 py-2 rounded-2xl">{divisor}</span>
+                        <span>=</span>
+                        <div className="flex gap-2 items-center">
+                            <div 
+                                className={`slot-digit w-16 h-16 text-3xl flex items-center justify-center ${userTens !== null ? 'filled' : 'empty-slot'}`}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => { e.preventDefault(); const val = e.dataTransfer.getData("text/plain"); if(val && !isNaN(parseInt(val))) onDropToSlot('tens', parseInt(val)); }}
+                            >
+                                {userTens !== null ? userTens : '?'}
+                            </div>
+                            <div 
+                                className={`slot-digit w-16 h-16 text-3xl flex items-center justify-center ${userOnes !== null ? 'filled' : 'empty-slot'}`}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => { e.preventDefault(); const val = e.dataTransfer.getData("text/plain"); if(val && !isNaN(parseInt(val))) onDropToSlot('ones', parseInt(val)); }}
+                            >
+                                {userOnes !== null ? userOnes : '?'}
+                            </div>
+                        </div>
+                        {remainder !== 0 && <span className="text-xl ml-1">…… {remainder}</span>}
+                    </div>
+                </div>
+            );
+        };
+
+        // 主应用组件
+        const App = () => {
+            const [question, setQuestion] = useState(() => generateRandomQuestion());
+            const [userTens, setUserTens] = useState(null);
+            const [userOnes, setUserOnes] = useState(null);
+            const [mode, setMode] = useState('vertical'); // 'vertical' or 'horizontal'
+            const [feedback, setFeedback] = useState('✨ 把数字卡片拖拽到「?」槽位，填好商之后检查答案！');
+            const [feedbackType, setFeedbackType] = useState('info');
+
+            const refreshQuestion = () => {
+                const newQ = generateRandomQuestion();
+                setQuestion(newQ);
+                setUserTens(null);
+                setUserOnes(null);
+                setFeedback('✨ 新题目来啦！拖拽数字填入商的位置～');
+                setFeedbackType('info');
+            };
+
+            const resetSlots = () => {
+                setUserTens(null);
+                setUserOnes(null);
+                setFeedback('🧹 已清空填空，重新拖拽试试看！');
+                setFeedbackType('info');
+            };
+
+            const checkAnswer = () => {
+                if (userTens === null || userOnes === null) {
+                    setFeedback('⚠️ 请把商的十位和个位都填完整再检查哟！');
+                    setFeedbackType('warn');
+                    return;
+                }
+                const correctTens = question.tensDigit;
+                const correctOnes = question.onesDigit;
+                if (userTens === correctTens && userOnes === correctOnes) {
+                    setFeedback(`🎉 完全正确！ ${question.dividend} ÷ ${question.divisor} = ${question.quotient} 余 ${question.remainder}， 商是 ${correctTens}${correctOnes} ！ 太厉害了 🎉`);
+                    setFeedbackType('success');
+                } else {
+                    setFeedback(`❌ 不对哦，商应该是 ${correctTens}${correctOnes}，再计算一次吧！ 提示：${question.dividend} ÷ ${question.divisor} 从高位除起～`);
+                    setFeedbackType('error');
+                }
+            };
+
+            const showHint = () => {
+                setFeedback(`💡 小提示：${question.dividend} ÷ ${question.divisor}，先看被除数前两位${Math.floor(question.dividend/10)}，${question.divisor} × ${question.tensDigit} = ${question.divisor * question.tensDigit}，余数落个位得${question.remainder === 0 ? '整除' : `余${question.remainder}`}，所以商 = ${question.quotient}`);
+                setFeedbackType('hint');
+            };
+
+            const handleDropToSlot = (slot, value) => {
+                if (slot === 'tens') setUserTens(value);
+                else setUserOnes(value);
+                setFeedback(`✅ 已将数字 ${value} 填入${slot === 'tens' ? '十位' : '个位'}，继续检查答案吧！`);
+                setFeedbackType('info');
+                setTimeout(() => {
+                    if(feedback !== '🎉 完全正确！...') setFeedbackType('info');
+                }, 1500);
+            };
+
+            const onDragStartNumber = (e, num) => {
+                e.dataTransfer.setData("text/plain", num.toString());
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target.style) e.target.style.opacity = '0.6';
+                setTimeout(() => { if(e.target) e.target.style.opacity = ''; }, 0);
+            };
+
+            const onDragEndNumber = (e) => {
+                if(e.target) e.target.style.opacity = '';
+            };
+
+            const getFeedbackBg = () => {
+                if (feedbackType === 'success') return 'bg-green-100 border-green-300 text-green-800';
+                if (feedbackType === 'error') return 'bg-red-100 border-red-300 text-red-700';
+                if (feedbackType === 'warn') return 'bg-amber-100 border-amber-300 text-amber-800';
+                if (feedbackType === 'hint') return 'bg-sky-100 border-sky-300 text-sky-800';
+                return 'bg-indigo-50 border-indigo-200 text-indigo-800';
+            };
+
+            // 内联SVG图标
+            const BookIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>);
+            const RefreshIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>);
+            const CartIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6h11l-1.5-6m-6 0h6" /></svg>);
+
+            return (
+                <div className="glass-card p-5 md:p-7 shadow-2xl">
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        {/* 左侧知识点区域 - 新增静态标准竖式 */}
+                        <div className="lg:w-2/5 bg-white/40 backdrop-blur-sm rounded-3xl p-5 shadow-md border border-white/60">
+                            <div className="flex items-center gap-2 border-b border-amber-200 pb-3 mb-4">
+                                <BookIcon />
+                                <h2 className="text-2xl font-bold text-sky-800">📘 除数是一位数·知识点</h2>
+                            </div>
+                            <div className="space-y-3 text-gray-700">
+                                <div className="bg-amber-50/80 rounded-2xl p-4">
+                                    <p className="font-bold text-amber-800">🌟 笔算规则：</p>
+                                    <ul className="list-disc list-inside space-y-1 mt-2 text-sm md:text-base">
+                                        <li>从被除数的高位除起，除到哪一位商就写在那一位上面</li>
+                                        <li>如果某一位不够除，就多看一位，商写在更低位上</li>
+                                        <li>每次除得的余数必须比除数小，落下下一位继续除</li>
+                                    </ul>
+                                </div>
+                                {/* 标准竖式范例 428 ÷ 5 = 85 …… 3 */}
+                                <div className="mt-2">
+                                    <div className="text-center font-bold text-amber-700 mb-2">📐 标准竖式 · 428 ÷ 5 = 85 …… 3</div>
+                                    <div className="division-demo text-center">
+                                        <div className="vertical-division inline-block">
+                                            <div className="static-vertical">
+                                                {/* 商行 */}
+                                                <div className="ld-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="flex">
+                                                        <div className="digit-cell"></div>      {/* 百位空 */}
+                                                        <div className="digit-cell">8</div>     {/* 十位商8 */}
+                                                        <div className="digit-cell">5</div>     {/* 个位商5 */}
+                                                    </div>
+                                                </div>
+                                                {/* 除数 + 被除数行 */}
+                                                <div className="ld-row">
+                                                    <div className="ld-divisor">5</div>
+                                                    <div className="bracket-col">
+                                                        <div className="top-line"></div>
+                                                        <div className="flex">
+                                                            <div className="digit-cell">4</div>
+                                                            <div className="digit-cell">2</div>
+                                                            <div className="digit-cell">8</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {/* 第一步乘积 40 */}
+                                                <div className="ld-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="flex">
+                                                        <div className="digit-cell">4</div>
+                                                        <div className="digit-cell">0</div>
+                                                        <div className="digit-cell"></div>
+                                                    </div>
+                                                </div>
+                                                {/* 横线（第四行，无多余空格） */}
+                                                <div className="ld-row ld-line-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="step-line"></div>
+                                                </div>
+                                                {/* 第一次余2并落下8得28 */}
+                                                <div className="ld-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="flex">
+                                                        <div className="digit-cell"></div>
+                                                        <div className="digit-cell">2</div>
+                                                        <div className="digit-cell">8</div>
+                                                    </div>
+                                                </div>
+                                                {/* 第二步乘积 25 */}
+                                                <div className="ld-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="flex">
+                                                        <div className="digit-cell"></div>
+                                                        <div className="digit-cell">2</div>
+                                                        <div className="digit-cell">5</div>
+                                                    </div>
+                                                </div>
+                                                {/* 横线（第七行，无多余空格） */}
+                                                <div className="ld-row ld-line-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="step-line"></div>
+                                                </div>
+                                                {/* 最终余数3 */}
+                                                <div className="ld-row">
+                                                    <div className="ld-placeholder"></div>
+                                                    <div className="flex">
+                                                        <div className="digit-cell"></div>
+                                                        <div className="digit-cell"></div>
+                                                        <div className="digit-cell remainder-digit">3</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-white/60 rounded-2xl p-3 text-center text-sm mt-3">
+                                    <CartIcon className="inline mr-1 text-teal-600" /> 小提示：数字卡片可以<strong>拖拽</strong>到右侧商的位置（?处）！试一试～
+                                </div>
+                            </div>
+                            <div className="mt-5 p-3 bg-gradient-to-r from-cyan-50 to-sky-50 rounded-2xl text-xs text-slate-600">
+                                💡 被除数三位数，除数一位数，商是两位数。拖动数字填满十位和个位，点“检查答案”！
+                            </div>
+                        </div>
+                        
+                        {/* 右侧游戏区 */}
+                        <div className="lg:w-3/5 bg-white/40 backdrop-blur-sm rounded-3xl p-5 shadow-md border border-white/60">
+                            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                                <h3 className="text-xl font-bold text-teal-800 flex items-center gap-1"><CartIcon /> 拖拽大挑战</h3>
+                                <div className="flex gap-2">
+                                    <button onClick={refreshQuestion} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-full shadow-md transition-all flex items-center gap-1"><RefreshIcon /> 换一题</button>
+                                    <button onClick={() => setMode(mode === 'vertical' ? 'horizontal' : 'vertical')} className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition-all">{mode === 'vertical' ? '📐 切换横式' : '📏 切换竖式'}</button>
+                                </div>
+                            </div>
+                            <div className="bg-white/30 rounded-2xl p-3 mb-4 text-center font-medium">
+                                当前题目：<span className="bg-amber-100 px-3 py-1 rounded-full text-lg font-mono">{question.dividend} ÷ {question.divisor}</span>
+                            </div>
+                            {/* 动态展示竖式或横式 */}
+                            <div className="flex justify-center my-4">
+                                {mode === 'vertical' ? (
+                                    <VerticalDivision 
+                                        dividend={question.dividend} divisor={question.divisor} quotient={question.quotient} remainder={question.remainder}
+                                        userTens={userTens} userOnes={userOnes} onDropToSlot={handleDropToSlot}
+                                    />
+                                ) : (
+                                    <HorizontalDivision 
+                                        dividend={question.dividend} divisor={question.divisor} quotient={question.quotient} remainder={question.remainder}
+                                        userTens={userTens} userOnes={userOnes} onDropToSlot={handleDropToSlot}
+                                    />
+                                )}
+                            </div>
+                            
+                            {/* 可拖拽数字卡片区 0-9 */}
+                            <div className="mt-6">
+                                <p className="text-sm text-center text-slate-600 mb-2">👇 按住数字卡片拖拽到上方的「?」槽位 (支持鼠标/手指)</p>
+                                <div className="flex flex-wrap justify-center gap-3 p-3 bg-amber-50/50 rounded-3xl">
+                                    {[0,1,2,3,4,5,6,7,8,9].map(num => (
+                                        <div 
+                                            key={num}
+                                            className="drag-card"
+                                            draggable="true"
+                                            onDragStart={(e) => onDragStartNumber(e, num)}
+                                            onDragEnd={onDragEndNumber}
+                                            data-value={num}
+                                        >
+                                            {num}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* 按钮组 */}
+                            <div className="flex flex-wrap justify-center gap-3 mt-6">
+                                <button onClick={checkAnswer} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-6 rounded-full shadow-md transition-all">✨ 检查答案 ✨</button>
+                                <button onClick={resetSlots} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-5 rounded-full shadow-md transition-all">🧽 清空填空</button>
+                                <button onClick={showHint} className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-5 rounded-full shadow-md transition-all">💡 提示一下</button>
+                            </div>
+                            
+                            {/* 反馈区域 */}
+                            <div className={`mt-5 p-3 rounded-2xl border transition-all ${getFeedbackBg()}`}>
+                                <p className="font-medium text-center">{feedback}</p>
+                            </div>
+                            <div className="text-center text-xs text-slate-500 mt-3">
+                                🖱️ 拖拽方法：按住数字卡片 → 拖到商的位置（?处）→ 松开即填入。完美配合竖式计算！
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-center text-xs text-slate-400 mt-6 border-t border-white/40 pt-4">
+                        🧸 除法探险岛 · 除数是一位数专项练习 | 拖动数字卡片完成商填空
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

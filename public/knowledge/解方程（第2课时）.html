@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>📐 解方程·第2课时 | 淡绿代数工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号 + 淡绿主题 */
+    body {
+      font-size: 1.3rem;
+      background: linear-gradient(135deg, #e6f5e6 0%, #c8e0c8 100%);
+    }
+    .equation-card {
+      transition: all 0.2s ease;
+    }
+    .check-btn {
+      transition: all 0.15s;
+    }
+    .feedback-area {
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+    .step-highlight {
+      background: #dcfce7;
+      border-left: 6px solid #2e7d32;
+    }
+    input, button {
+      font-size: 1.1rem;
+    }
+    .correct-badge {
+      background-color: #22c55e;
+      color: white;
+    }
+    .wrong-badge {
+      background-color: #ef4444;
+      color: white;
+    }
+    .lavender-soft-bg {
+      background-image: radial-gradient(circle at 15% 30%, rgba(100, 150, 100, 0.08) 2%, transparent 2.5%);
+      background-size: 55px 55px;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-5 font-sans lavender-soft-bg">
+
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 解方程·第2课时 (x ± a = b) =======================
+  // 加法方程列表: x + a = b   (10道)
+  const ADDITION_EQUATIONS = [
+    { id: "add1", text: "x + 2 = 7", correct: 5 },
+    { id: "add2", text: "x + 5 = 12", correct: 7 },
+    { id: "add3", text: "x + 8 = 15", correct: 7 },
+    { id: "add4", text: "x + 3 = 9", correct: 6 },
+    { id: "add5", text: "x + 7 = 18", correct: 11 },
+    { id: "add6", text: "x + 4 = 11", correct: 7 },
+    { id: "add7", text: "x + 6 = 14", correct: 8 },
+    { id: "add8", text: "x + 9 = 19", correct: 10 },
+    { id: "add9", text: "x + 10 = 20", correct: 10 },
+    { id: "add10", text: "x + 1 = 6", correct: 5 }
+  ];
+  
+  // 减法方程列表: x - a = b   (10道)
+  const SUBTRACTION_EQUATIONS = [
+    { id: "sub1", text: "x - 3 = 4", correct: 7 },
+    { id: "sub2", text: "x - 5 = 7", correct: 12 },
+    { id: "sub3", text: "x - 2 = 8", correct: 10 },
+    { id: "sub4", text: "x - 6 = 3", correct: 9 },
+    { id: "sub5", text: "x - 4 = 9", correct: 13 },
+    { id: "sub6", text: "x - 7 = 5", correct: 12 },
+    { id: "sub7", text: "x - 8 = 6", correct: 14 },
+    { id: "sub8", text: "x - 9 = 12", correct: 21 },
+    { id: "sub9", text: "x - 10 = 15", correct: 25 },
+    { id: "sub10", text: "x - 1 = 4", correct: 5 }
+  ];
+
+  // 生成单个方程的数据结构 (用户输入，检验反馈等)
+  const buildEquationState = (eqList, type) => {
+    return eqList.map(eq => ({
+      id: eq.id,
+      text: eq.text,
+      correct: eq.correct,
+      type: type,        // 'add' or 'sub'
+      userAnswer: "",
+      feedbackMsg: null,
+      isCorrect: null,
+      showModelCheck: false   // 是否显示标准检验过程
+    }));
+  };
+
+  // 生成检验过程的函数 (根据方程文本, 用户输入的值)
+  const generateVerification = (equationText, userValue, correctValue, isUserCorrect) => {
+    // 提取方程左右部分: 例如 "x + 2 = 7"  => left: "x+2", right: "7"
+    let leftPart = equationText.split('=')[0].trim();
+    let rightPart = equationText.split('=')[1].trim();
+    // 将用户输入的数值代入左边表达式 (替换 x)
+    let leftExpr = leftPart.replace(/x/gi, userValue.toString());
+    let leftEval;
+    try {
+      // 安全计算: 只支持整数加减法
+      leftEval = eval(leftExpr);
+    } catch(e) {
+      leftEval = "?";
+    }
+    const rightVal = parseInt(rightPart);
+    const isValid = (leftEval === rightVal);
+    const status = isValid ? "正确" : "错误";
+    const correctHint = !isValid ? ` (正确解应为 ${correctValue})` : "";
+    
+    let msg = `📝 检验：将 x = ${userValue} 代入原方程 ${equationText}，左边 = ${leftExpr} = ${leftEval}，右边 = ${rightVal}。`;
+    if (isValid) {
+      msg += ` 左边 = 右边 ✅，所以 x = ${userValue} 是方程的解。`;
+    } else {
+      msg += ` 左边 ≠ 右边 ❌，因此 x = ${userValue} 不是方程的解${correctHint}。`;
+    }
+    return msg;
+  };
+  
+  // 生成标准答案的检验展示 (用于辅助学习)
+  const generateStandardCheck = (equationText, correctVal) => {
+    let leftPart = equationText.split('=')[0].trim();
+    let rightPart = equationText.split('=')[1].trim();
+    let leftExpr = leftPart.replace(/x/gi, correctVal.toString());
+    let leftEval;
+    try {
+      leftEval = eval(leftExpr);
+    } catch(e) {
+      leftEval = "?";
+    }
+    const rightVal = parseInt(rightPart);
+    return `⭐ 标准检验：将 x = ${correctVal} 代入方程，左边 = ${leftExpr} = ${leftEval}，右边 = ${rightVal}，左边 = 右边，所以 x = ${correctVal} 是原方程的解。`;
+  };
+
+  // ---------- 单个方程组件 ----------
+  const EquationItem = ({ equation, onCheck, onShowAnswer, onAnswerChange }) => {
+    const { id, text, correct, userAnswer, feedbackMsg, isCorrect } = equation;
+    
+    return (
+      <div className="bg-white/90 rounded-2xl p-4 shadow-md border border-emerald-300 equation-card hover:shadow-lg transition">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
+          <span className="text-2xl font-mono font-bold text-emerald-800">{text}</span>
+          {isCorrect !== null && (
+            <span className={`text-xs px-3 py-1 rounded-full font-bold ${isCorrect ? 'correct-badge' : 'wrong-badge'}`}>
+              {isCorrect ? '✓ 解正确' : '✗ 解错误'}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <input 
+            type="number"
+            value={userAnswer}
+            onChange={(e) => onAnswerChange(id, e.target.value)}
+            placeholder="输入 x 的值"
+            className="flex-1 min-w-[120px] border-2 border-emerald-400 rounded-xl px-3 py-2 text-lg bg-white focus:ring-2 focus:ring-emerald-300 outline-none"
+          />
+          <button 
+            onClick={() => onCheck(id)}
+            className="check-btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded-xl shadow-md transition"
+          >
+            🔍 检验
+          </button>
+          <button 
+            onClick={() => onShowAnswer(id)}
+            className="check-btn bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-xl shadow-md transition"
+          >
+            📖 显示答案
+          </button>
+        </div>
+        {feedbackMsg && (
+          <div className={`mt-3 p-3 rounded-xl text-sm font-medium ${isCorrect ? 'bg-green-100 text-green-800 border-l-4 border-green-600' : 'bg-amber-50 text-amber-800 border-l-4 border-amber-500'}`}>
+            {feedbackMsg}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ---------- 主组件: 解方程第2课时 ----------
+  const EquationLesson2 = () => {
+    // 合并状态
+    const [addEquations, setAddEquations] = React.useState(() => buildEquationState(ADDITION_EQUATIONS, 'add'));
+    const [subEquations, setSubEquations] = React.useState(() => buildEquationState(SUBTRACTION_EQUATIONS, 'sub'));
+    
+    // 统计正确数量
+    const totalCount = addEquations.length + subEquations.length;
+    const correctCount = [...addEquations, ...subEquations].filter(eq => eq.isCorrect === true).length;
+    
+    // 更新某个方程的用户答案
+    const handleAnswerChange = (id, value, type) => {
+      if (type === 'add') {
+        setAddEquations(prev => prev.map(eq => eq.id === id ? { ...eq, userAnswer: value, feedbackMsg: null, isCorrect: null } : eq));
+      } else {
+        setSubEquations(prev => prev.map(eq => eq.id === id ? { ...eq, userAnswer: value, feedbackMsg: null, isCorrect: null } : eq));
+      }
+    };
+    
+    // 检验逻辑 (生成检验信息)
+    const handleCheck = (id, type) => {
+      let equationList, setter;
+      if (type === 'add') {
+        equationList = addEquations;
+        setter = setAddEquations;
+      } else {
+        equationList = subEquations;
+        setter = setSubEquations;
+      }
+      const targetEq = equationList.find(eq => eq.id === id);
+      if (!targetEq) return;
+      const userVal = parseFloat(targetEq.userAnswer);
+      if (isNaN(userVal)) {
+        // 未输入数字提示
+        const newList = equationList.map(eq => 
+          eq.id === id ? { ...eq, feedbackMsg: "⚠️ 请输入一个数值解再进行检验！", isCorrect: null } : eq
+        );
+        setter(newList);
+        return;
+      }
+      const isMatch = (userVal === targetEq.correct);
+      const verificationMsg = generateVerification(targetEq.text, userVal, targetEq.correct, isMatch);
+      const newList = equationList.map(eq => 
+        eq.id === id ? { ...eq, feedbackMsg: verificationMsg, isCorrect: isMatch } : eq
+      );
+      setter(newList);
+    };
+    
+    // 显示正确答案 + 自动填充并执行检验 (展示标准过程)
+    const handleShowAnswer = (id, type) => {
+      let equationList, setter;
+      if (type === 'add') {
+        equationList = addEquations;
+        setter = setAddEquations;
+      } else {
+        equationList = subEquations;
+        setter = setSubEquations;
+      }
+      const targetEq = equationList.find(eq => eq.id === id);
+      if (!targetEq) return;
+      const correctVal = targetEq.correct;
+      const stdCheckMsg = generateStandardCheck(targetEq.text, correctVal);
+      // 更新userAnswer 为正确值，并且展示标准检验信息（以及正确状态）
+      const newList = equationList.map(eq => 
+        eq.id === id ? { 
+          ...eq, 
+          userAnswer: correctVal.toString(), 
+          feedbackMsg: stdCheckMsg, 
+          isCorrect: true 
+        } : eq
+      );
+      setter(newList);
+    };
+    
+    // 重置所有方程（清空所有答案和检验）
+    const resetAll = () => {
+      setAddEquations(buildEquationState(ADDITION_EQUATIONS, 'add'));
+      setSubEquations(buildEquationState(SUBTRACTION_EQUATIONS, 'sub'));
+    };
+    
+    // 只重置当前进度（不清除正确答案展示，但重置所有用户输入和检验）
+    const clearAllProgress = () => {
+      setAddEquations(prev => prev.map(eq => ({ ...eq, userAnswer: "", feedbackMsg: null, isCorrect: null })));
+      setSubEquations(prev => prev.map(eq => ({ ...eq, userAnswer: "", feedbackMsg: null, isCorrect: null })));
+    };
+    
+    return (
+      <div className="space-y-8 pb-8">
+        {/* 页眉区域 */}
+        <div className="text-center bg-white/70 backdrop-blur-sm rounded-3xl p-5 shadow-lg border border-emerald-300">
+          <div className="flex justify-center items-center gap-3 flex-wrap">
+            <span className="text-5xl">📐</span>
+            <h1 className="text-4xl font-extrabold text-green-900">解方程 · 第2课时</h1>
+            <span className="text-3xl">⚖️</span>
+          </div>
+          <p className="text-xl text-green-800 mt-1 font-medium">形如 <span className="bg-emerald-200 px-3 py-1 rounded-full font-mono">x + a = b</span> 与 <span className="bg-emerald-200 px-3 py-1 rounded-full font-mono">x - a = b</span> 的方程解法</p>
+          <div className="flex justify-center gap-6 mt-3 flex-wrap">
+            <div className="bg-emerald-100 px-4 py-1 rounded-full text-emerald-800 font-bold text-base">✨ 等式性质: 两边同加减</div>
+            <div className="bg-emerald-100 px-4 py-1 rounded-full text-emerald-800 font-bold text-base">📝 每题都要写出检验过程</div>
+          </div>
+        </div>
+        
+        {/* 进度总览 + 操作栏 */}
+        <div className="bg-emerald-50/80 rounded-2xl p-4 flex flex-wrap justify-between items-center gap-3 shadow-sm border border-emerald-200">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🏆</span>
+            <span className="font-bold text-green-800 text-xl">掌握进度: {correctCount} / {totalCount}</span>
+            <div className="w-40 bg-emerald-200 rounded-full h-3 overflow-hidden">
+              <div className="bg-emerald-600 h-3 rounded-full transition-all duration-300" style={{ width: `${(correctCount/totalCount)*100}%` }}></div>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={clearAllProgress} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-5 rounded-full text-base transition">🔄 清空所有检验</button>
+            <button onClick={resetAll} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-full text-base transition">🆕 重置全部练习</button>
+          </div>
+        </div>
+        
+        {/* 加法方程区域 */}
+        <div className="bg-white/40 rounded-3xl p-5 backdrop-blur-sm border border-emerald-300 shadow-md">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-4xl">➕</span>
+            <h2 className="text-3xl font-extrabold text-green-800">第一关 · 形如 x + a = b 的方程</h2>
+            <span className="text-sm bg-green-200 px-3 py-1 rounded-full">等式两边同时减去 a</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {addEquations.map(eq => (
+              <EquationItem 
+                key={eq.id}
+                equation={eq}
+                onCheck={(id) => handleCheck(id, 'add')}
+                onShowAnswer={(id) => handleShowAnswer(id, 'add')}
+                onAnswerChange={(id, val) => handleAnswerChange(id, val, 'add')}
+              />
+            ))}
+          </div>
+        </div>
+        
+        {/* 减法方程区域 */}
+        <div className="bg-white/40 rounded-3xl p-5 backdrop-blur-sm border border-emerald-300 shadow-md">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-4xl">➖</span>
+            <h2 className="text-3xl font-extrabold text-green-800">第二关 · 形如 x - a = b 的方程</h2>
+            <span className="text-sm bg-green-200 px-3 py-1 rounded-full">等式两边同时加上 a</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {subEquations.map(eq => (
+              <EquationItem 
+                key={eq.id}
+                equation={eq}
+                onCheck={(id) => handleCheck(id, 'sub')}
+                onShowAnswer={(id) => handleShowAnswer(id, 'sub')}
+                onAnswerChange={(id, val) => handleAnswerChange(id, val, 'sub')}
+              />
+            ))}
+          </div>
+        </div>
+        
+        {/* 总结：解加减方程的步骤 */}
+        <div className="step-highlight bg-emerald-50 rounded-2xl p-6 shadow-lg border border-emerald-400">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-4xl">📚</span>
+            <h3 className="text-2xl font-extrabold text-emerald-900">📖 解形如 x ± a = b 的方程步骤总结</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-2">
+            <div className="bg-white p-4 rounded-xl shadow-sm">
+              <div className="text-2xl font-bold text-emerald-700">步骤①</div>
+              <p className="text-base font-medium mt-1">识别方程类型：如果是 <span className="font-mono bg-emerald-100 px-2 rounded">x + a = b</span> ，则两边同时<strong className="text-emerald-800">减去 a</strong>；如果是 <span className="font-mono bg-emerald-100 px-2 rounded">x - a = b</span> ，则两边同时<strong className="text-emerald-800">加上 a</strong>。</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm">
+              <div className="text-2xl font-bold text-emerald-700">步骤②</div>
+              <p className="text-base font-medium mt-1">化简求出 x 的值：<br/> x + a = b → x = b - a &nbsp;&nbsp;|&nbsp;&nbsp; x - a = b → x = b + a</p>
+              <p className="text-sm text-gray-600 mt-1">利用等式性质，使左边只剩 x。</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm">
+              <div className="text-2xl font-bold text-emerald-700">步骤③</div>
+              <p className="text-base font-medium mt-1">检验：将求出的 x 值代入原方程，看左边是否等于右边。<br/> <span className="text-emerald-700">检验过程必须书写完整！</span> 这是确保解正确的关键。</p>
+            </div>
+          </div>
+          <div className="mt-5 bg-emerald-200/70 rounded-xl p-3 text-center text-emerald-900 font-bold text-lg">
+            💡 核心口诀：“加法就用减法解，减法就用加法解；求出答案要检验，代入验证保正确。”
+          </div>
+        </div>
+        
+        {/* 附加：示例示范区域 */}
+        <div className="bg-gradient-to-r from-[#d9f0da] to-[#bde0bd] rounded-2xl p-4 border border-emerald-400">
+          <div className="flex gap-2 items-center">
+            <span className="text-2xl">✨</span>
+            <span className="font-bold text-emerald-800 text-xl">示范案例：</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 text-base">
+            <div className="bg-white/70 p-3 rounded-xl">
+              <span className="font-mono font-bold">x + 5 = 12</span> 解：两边同时减去5 → x = 12 - 5 → <strong>x = 7</strong><br/>
+              检验：左边 = 7+5=12，右边=12 ✅
+            </div>
+            <div className="bg-white/70 p-3 rounded-xl">
+              <span className="font-mono font-bold">x - 4 = 9</span> 解：两边同时加上4 → x = 9 + 4 → <strong>x = 13</strong><br/>
+              检验：左边 = 13-4=9，右边=9 ✅
+            </div>
+          </div>
+          <p className="text-center text-green-800 text-sm mt-2">🎯 每个方程右侧都有「检验」和「显示答案」按钮，检验后会生成完整检验过程，帮助你规范书写。</p>
+        </div>
+        
+        {/* 学习小贴士 */}
+        <div className="text-center text-emerald-800 bg-emerald-100/70 py-2 rounded-full text-base">
+          🌟 完成全部20道方程并理解检验过程，你就能熟练掌握解简单加减方程！下一课时学习更复杂的方程类型。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用入口 ----------
+  const App = () => {
+    return (
+      <div className="w-full">
+        <EquationLesson2 />
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

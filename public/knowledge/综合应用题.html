@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学特工队 | 应用题闯关 + 拖拽排序大冒险</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 轻量拖拽库 (完美支持移动端拖拽排序) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        /* 自定义样式 */
+        body {
+            background: linear-gradient(145deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .game-card {
+            transition: transform 0.2s ease, box-shadow 0.2s;
+        }
+        .sort-number-card {
+            background: #FFEFD5;
+            border-radius: 2rem;
+            box-shadow: 0 8px 0 #c29b4a;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .sort-number-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.5;
+            background: #fcd34d;
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .sort-number-card {
+                width: 4rem;
+                height: 4rem;
+                font-size: 1.5rem;
+            }
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(165, 90, 190, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 应用题题库 (融合加减乘除多步混合、和差倍、归一归总、行程、购物、单位换算)
+        const questionBank = [
+            { text: "📚 文具店促销：一支钢笔12元，一个笔记本比钢笔便宜4元。小明买了2支钢笔和3个笔记本，一共要付多少钱？", answer: 48, solution: "🔍 分步列式：① 笔记本价格：12 - 4 = 8 (元)；② 2支钢笔：12 × 2 = 24 (元)；③ 3个笔记本：8 × 3 = 24 (元)；④ 总价：24 + 24 = 48 (元)。综合算式：12×2 + (12-4)×3 = 24 + 24 = 48元。" },
+            { text: "🍎 水果店运来苹果和梨，苹果有45千克，梨的重量是苹果的3倍少15千克。梨有多少千克？苹果和梨一共多少千克？", answer: 165, solution: "🔍 ① 梨：45 × 3 - 15 = 135 - 15 = 120 (千克)；② 总重量：45 + 120 = 165 (千克)。综合算式：45 + (45×3 - 15) = 45 + 120 = 165千克。" },
+            { text: "🚗 一辆汽车3小时行驶了240千米。照这样的速度，从A城到B城相距560千米，需要行驶几小时？", answer: 7, solution: "🔍 归一法：① 速度：240 ÷ 3 = 80 (千米/时)；② 所需时间：560 ÷ 80 = 7 (小时)。综合算式：560 ÷ (240÷3) = 560 ÷ 80 = 7小时。" },
+            { text: "🧸 玩具店搞活动，买3个玩偶送1个。每个玩偶原价25元，明明想要8个玩偶，最少需要付多少钱？", answer: 150, solution: "🔍 买3送1，相当于每4个为一组付3个的钱。8个玩偶需要2组：每组花费25×3=75元；总花费：75×2=150元。综合算式：25×3×(8÷4)=75×2=150元。" },
+            { text: "🏃‍♂️ 小东和小亮从学校同时出发，小东每分钟走65米，小亮每分钟走55米，相背而行，8分钟后两人相距多少米？", answer: 960, solution: "🔍 速度和：65+55=120(米/分)，8分钟距离：120×8=960(米)。综合算式：(65+55)×8=120×8=960米。" },
+            { text: "🥚 食堂运来鸡蛋和鸭蛋共320个，鸡蛋的数量是鸭蛋的3倍。鸡蛋和鸭蛋各有多少个？", answer: 240, solution: "🔍 和倍问题：鸭蛋为1份，鸡蛋3份，总数4份→鸭蛋：320÷4=80(个)，鸡蛋：80×3=240(个)。综合算式：鸡蛋=320÷(3+1)×3=80×3=240个。" },
+            { text: "📏 一根绳子长3米6分米，剪成同样长的4段，每段长多少分米？ (注意单位换算)", answer: 9, solution: "🔍 单位换算：3米6分米 = 36分米；每段长：36÷4=9(分米)。综合算式：(3×10+6)÷4 = 36÷4=9分米。" },
+            { text: "🎁 六一儿童节，商店促销“买3个魔方送1个”，每个魔方原价18元。小智要买16个魔方，最少需要付多少元？", answer: 216, solution: "🔍 买3送1 → 每4个为一组付3个的钱。16个需要4组：每组花费18×3=54元；总花费54×4=216元。综合算式：18×3×(16÷4)=54×4=216元。" },
+            { text: "🧃 超市促销：果汁买5送1，每盒果汁原价8元。小胖需要24盒果汁，最少要花多少元？", answer: 160, solution: "🔍 买5送1，即每6盒为一组付5盒的钱。24盒需要4组：每组花费8×5=40元；总价40×4=160元。综合算式：8×5×(24÷6)=40×4=160元。" },
+            { text: "⏱️ 某工程队修一条路，前5天每天修120米，后4天每天修150米，这条路全长多少米？", answer: 1200, solution: "🔍 前5天：120×5=600米；后4天：150×4=600米；总长：600+600=1200米。综合算式：120×5+150×4=600+600=1200米。" },
+            { text: "🐟 鱼缸里有红金鱼和黄金鱼共84条，其中红金鱼是黄金鱼的3倍少4条。黄金鱼有多少条？", answer: 22, solution: "🔍 设黄金鱼为x条，红金鱼为3x-4，总x+3x-4=84 → 4x=88 → x=22。黄金鱼22条，红金鱼62条。" }
+        ];
+
+        // ----------------------------- 拖拽排序游戏组件 (独立React组件，不受应用题刷新影响)
+        const SortingGame = () => {
+            const [numbers, setNumbers] = React.useState([]);
+            const [feedbackMsg, setFeedbackMsg] = React.useState('🎈 拖拽卡片，按从小到大重新排序吧！');
+            const [feedbackType, setFeedbackType] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            // 生成随机不重复数字 (5或6个，范围1~20)
+            const generateRandomNumbers = () => {
+                const count = 5 + Math.floor(Math.random() * 2);
+                let nums = [];
+                while(nums.length < count) {
+                    let rand = Math.floor(Math.random() * 20) + 1;
+                    if(!nums.includes(rand)) nums.push(rand);
+                }
+                // 随机打乱顺序
+                for(let i = nums.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [nums[i], nums[j]] = [nums[j], nums[i]];
+                }
+                return nums;
+            };
+
+            // 刷新数字组
+            const refreshNumbers = () => {
+                const newNumbers = generateRandomNumbers();
+                setNumbers(newNumbers);
+                setFeedbackMsg('✨ 全新数字组！快拖拽排序吧～ 从小到大排列它们！');
+                setFeedbackType('info');
+            };
+
+            // 检查排序是否正确 (升序)
+            const checkOrder = () => {
+                if (!containerRef.current) return;
+                const items = containerRef.current.querySelectorAll('.sort-number-card');
+                if (!items.length) return;
+                const currentOrder = Array.from(items).map(item => parseInt(item.getAttribute('data-number'), 10));
+                let isAscending = true;
+                for (let i = 0; i < currentOrder.length - 1; i++) {
+                    if (currentOrder[i] > currentOrder[i+1]) {
+                        isAscending = false;
+                        break;
+                    }
+                }
+                if (isAscending) {
+                    setFeedbackMsg('🎉 完美排序！数字从小到大排列正确！你真是排序大师！ +🌟 数学力暴涨！');
+                    setFeedbackType('success');
+                    // 简单动画效果
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setFeedbackMsg('🤔 顺序不对哦，再试试拖拽卡片，让数字从小到大（最小→最大）排列吧！加油～');
+                    setFeedbackType('error');
+                }
+            };
+
+            // 初始化Sortable实例
+            React.useEffect(() => {
+                if (containerRef.current && numbers.length > 0) {
+                    // 如果已有实例则销毁
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                    }
+                    const listElement = containerRef.current.querySelector('#sortable-list');
+                    if (listElement) {
+                        sortableRef.current = new Sortable(listElement, {
+                            animation: 250,
+                            ghostClass: 'sortable-drag',
+                            handle: '.sort-number-card',
+                            touchStartThreshold: 2,
+                            // 拖拽结束不需要额外操作，因为检查排序时会读取DOM顺序
+                        });
+                    }
+                }
+                // 组件卸载时销毁Sortable
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [numbers]); // numbers变化时重新绑定Sortable
+
+            // 初始加载数据
+            React.useEffect(() => {
+                setNumbers(generateRandomNumbers());
+            }, []);
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·数字特工队</h2>
+                    </div>
+                    <p className="text-gray-700 text-base mb-3 bg-purple-50 p-2 rounded-xl">
+                        👆 <strong>拖拉拽互动玩法</strong>：下方数字卡片<strong>按住拖拽</strong>重新排序！按照<strong>从小到大</strong>的顺序排列，点击「检查排序」获得勋章✨  
+                        点击「✨ 新数字组」可刷新数字，每次挑战不同数列。
+                    </p>
+                    <div className="bg-gradient-to-br from-[#F9F0FF] to-white rounded-2xl p-4 shadow-inner flex-1">
+                        <div ref={containerRef} className="min-h-[280px]">
+                            <ul id="sortable-list" className="flex flex-wrap justify-center gap-4 p-3 bg-purple-50/50 rounded-2xl min-h-[200px]">
+                                {numbers.map((num, idx) => (
+                                    <li key={idx} className="sort-number-card w-20 h-20 md:w-24 md:h-24 flex items-center justify-center text-3xl md:text-4xl font-black text-amber-800 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-2xl shadow-md cursor-grab transition-all hover:scale-105" data-number={num}>
+                                        {num}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-4 mt-6">
+                            <button onClick={checkOrder} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-lg">🔍 检查排序</button>
+                            <button onClick={refreshNumbers} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-lg">✨ 新数字组</button>
+                        </div>
+                        <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                            feedbackType === 'success' ? 'bg-green-100 text-green-700' : 
+                            feedbackType === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                        }`}>
+                            {feedbackMsg}
+                        </div>
+                        <div className="mt-3 text-center text-xs text-purple-400">💡 提示：拖拽卡片上下移动，排成最小→最大的顺序哟！</div>
+                    </div>
+                    <div className="mt-4 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 小游戏结合数学：通过比较数字大小，强化数感和顺序思维，与应用题中的“比较多少”“倍数关系”相呼应！
+                    </div>
+                </div>
+            );
+        };
+
+        // ----------------------------- 应用题主组件
+        const App = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            // 随机抽取新题目
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * questionBank.length);
+                const newQuestion = { ...questionBank[randomIndex] };
+                setCurrentQ(newQuestion);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (questionBank.length > 0) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = Number(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案哟～ 再试试看！");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = (Math.abs(answerNum - currentQ.answer) < 0.01);
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！太厉害了！ 👏 解题小天才！");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！再仔细审题～ 正确答案是 ${currentQ.answer}。我们一起来看看步骤吧。`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNextQuestion = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">加载神奇题库中...</div>;
+
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧：应用题训练区 */}
+                    <div className="flex-1 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100">
+                        <div className="border-b-4 border-purple-300 pb-3 mb-4 flex items-center gap-2">
+                            <span className="text-4xl">🧙‍♂️</span>
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">数学特工·应用题训练营</h1>
+                        </div>
+                        <div className="bg-gradient-to-r from-[#EADDF0] to-[#F5E9FF] rounded-2xl p-4 mb-5 shadow-inner">
+                            <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 解题秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">中低年级必看</span></h2>
+                            <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                                <li>🔍 <span className="font-semibold">审题三要素</span>：找已知条件、找问题、圈单位（米/千克/元）</li>
+                                <li>🧩 <span className="font-semibold">数量关系</span>：和差→大数=(和+差)÷2；倍数→画图；归一→先求单一量</li>
+                                <li>📐 <span className="font-semibold">列式技巧</span>：分步列式更清晰，综合算式需注意运算顺序（先乘除后加减）</li>
+                                <li>✨ <span className="font-semibold">单位换算口诀</span>：大化小乘进率，小化大除以进率（1米=10分米=100厘米）</li>
+                            </ul>
+                        </div>
+                        <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-amber-400 shadow-md mb-5">
+                            <div className="flex justify-between items-start flex-wrap gap-2">
+                                <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 当前挑战</span>
+                                <button onClick={handleNextQuestion} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                    🔄 换一题
+                                </button>
+                            </div>
+                            <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                                {currentQ.text}
+                            </div>
+                            <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                                <input 
+                                    type="number" 
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    placeholder="输入你的答案"
+                                    className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                                />
+                                <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                    ✅ 提交闯关
+                                </button>
+                            </div>
+                        </div>
+                        {feedback && (
+                            <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                                <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                                <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                            </div>
+                        )}
+                        {showSolution && (
+                            <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                                <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 解题步骤 & 综合算式</p>
+                                <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                                <div className="mt-2 text-purple-600 text-sm italic">⭐ 学会分步思考，再试试综合列式！</div>
+                            </div>
+                        )}
+                        <div className="mt-5 text-center text-gray-500 text-sm">
+                            💪 混合运算·和差倍·归一·行程·单位换算·购物计价 → 统统拿下！
+                        </div>
+                    </div>
+
+                    {/* 右侧：独立拖拽排序游戏组件 */}
+                    <div className="flex-1">
+                        <SortingGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染React应用
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<App />);
+    </script>
+</body>
+</html>

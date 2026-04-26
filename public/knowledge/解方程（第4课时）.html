@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>解方程·第4课时 | 两步方程探险岛</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫主题 */
+    body {
+      font-size: 1.3rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    /* 自定义滚动条 */
+    .scroll-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scroll-panel::-webkit-scrollbar-track {
+      background: #f1e4f0;
+      border-radius: 8px;
+    }
+    .scroll-panel::-webkit-scrollbar-thumb {
+      background: #aa7bc0;
+      border-radius: 8px;
+    }
+    /* 拖拽卡片效果 */
+    .drag-step {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-step:active {
+      cursor: grabbing;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.01);
+      border: 2px dashed #9b6bc0;
+    }
+    .step-slot {
+      transition: all 0.2s;
+    }
+    .btn-fun {
+      transition: 0.2s;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    input, button {
+      font-size: 1rem;
+    }
+    .equation-badge {
+      background: #f0e6ff;
+      border-radius: 2rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 解方程第4课时 · 两步方程 ax±b=c (整数+小数混合) =======================
+  // ---------- 题库：两步方程 (ax + b = c 和 ax - b = c) 含小数/整数 共15道用于练习区----------
+  const buildTwoStepEquations = () => {
+    const equations = [
+      // ax + b = c 类型 (整数)
+      { text: "2x + 3 = 11", correct: 4, type: "ax+b=c", stepHint: "先两边减3，再两边除以2" },
+      { text: "3x + 5 = 20", correct: 5, type: "ax+b=c", stepHint: "先两边减5，再两边除以3" },
+      { text: "4x + 7 = 31", correct: 6, type: "ax+b=c", stepHint: "先两边减7，再两边除以4" },
+      { text: "5x + 2 = 27", correct: 5, type: "ax+b=c", stepHint: "先两边减2，再两边除以5" },
+      { text: "6x + 8 = 50", correct: 7, type: "ax+b=c", stepHint: "先两边减8，再两边除以6" },
+      // ax - b = c 类型 (整数)
+      { text: "2x - 3 = 9", correct: 6, type: "ax-b=c", stepHint: "先两边加3，再两边除以2" },
+      { text: "3x - 4 = 14", correct: 6, type: "ax-b=c", stepHint: "先两边加4，再两边除以3" },
+      { text: "5x - 6 = 19", correct: 5, type: "ax-b=c", stepHint: "先两边加6，再两边除以5" },
+      { text: "7x - 5 = 30", correct: 5, type: "ax-b=c", stepHint: "先两边加5，再两边除以7" },
+      { text: "4x - 9 = 15", correct: 6, type: "ax-b=c", stepHint: "先两边加9，再两边除以4" },
+      // 含小数两步方程
+      { text: "2.5x + 3 = 13", correct: 4, type: "ax+b=c", stepHint: "先两边减3，再两边除以2.5" },
+      { text: "1.2x - 2 = 4", correct: 5, type: "ax-b=c", stepHint: "先两边加2，再两边除以1.2" },
+      { text: "0.5x + 1.5 = 5", correct: 7, type: "ax+b=c", stepHint: "先两边减1.5，再两边除以0.5" },
+      { text: "3x + 2.5 = 13.5", correct: 3.6666666667, correctDisplay: "11/3 ≈ 3.67", stepHint: "先两边减2.5，再两边除以3", approx: true },
+      { text: "4x - 1.2 = 7.8", correct: 2.25, correctDisplay: "2.25", stepHint: "先两边加1.2，再两边除以4" }
+    ];
+    return equations.map((eq, idx) => ({
+      id: `eq-${idx}`,
+      text: eq.text,
+      correct: eq.correct,
+      correctDisplay: eq.correctDisplay || (eq.correct % 1 === 0 ? eq.correct : eq.correct.toFixed(2)),
+      type: eq.type,
+      stepHint: eq.stepHint,
+      approx: eq.approx || false,
+      userAnswer: "",
+      feedback: null,
+      isCorrect: null,
+      showSteps: false   // 是否展示解题思路
+    }));
+  };
+  
+  const FULL_EQUATIONS = buildTwoStepEquations();  // 共15道
+  
+  // 浮点比较
+  const isFloatEqual = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+  
+  // 生成详细检验信息，包含“先算什么，再算什么”思路
+  const generateDetailedFeedback = (eqText, userVal, correctVal, stepHint) => {
+    let [leftRaw, rightRaw] = eqText.split('=').map(s => s.trim());
+    let leftExpr = leftRaw.replace(/x/gi, `(${userVal})`);
+    let leftEval;
+    try { leftEval = eval(leftExpr); } catch(e) { leftEval = "?"; }
+    const rightVal = parseFloat(rightRaw);
+    const isValid = isFloatEqual(leftEval, rightVal);
+    let msg = `📐 检验：将 x = ${userVal} 代入 ${eqText}，左边 = ${leftExpr} = ${leftEval}，右边 = ${rightVal}。`;
+    if (isValid) {
+      msg += ` ✅ 左边=右边，解正确！\n💡 解题思路：${stepHint}`;
+    } else {
+      msg += ` ❌ 左边≠右边，解错误。正确解应是 ${correctVal}。\n💡 正确思路：${stepHint}`;
+    }
+    return { msg, isValid };
+  };
+  
+  // ---------- 左侧练习组件: 两步方程练习区 (ax±b=c, 含小数) ----------
+  const PracticePanel = () => {
+    const [eqList, setEqList] = React.useState(() => FULL_EQUATIONS);
+    
+    const handleAnswerChange = (id, value) => {
+      setEqList(prev => prev.map(eq => 
+        eq.id === id ? { ...eq, userAnswer: value, feedback: null, isCorrect: null, showSteps: false } : eq
+      ));
+    };
+    
+    const handleCheck = (id) => {
+      setEqList(prev => prev.map(eq => {
+        if (eq.id !== id) return eq;
+        const userVal = parseFloat(eq.userAnswer);
+        if (isNaN(userVal)) {
+          return { ...eq, feedback: "📛 请输入数字后再检验哟！", isCorrect: null };
+        }
+        const { msg, isValid } = generateDetailedFeedback(eq.text, userVal, eq.correctDisplay, eq.stepHint);
+        return { ...eq, feedback: msg, isCorrect: isValid, showSteps: true };
+      }));
+    };
+    
+    const handleShowAnswer = (id) => {
+      setEqList(prev => prev.map(eq => {
+        if (eq.id !== id) return eq;
+        const correctValNum = eq.correct;
+        const { msg } = generateDetailedFeedback(eq.text, correctValNum, eq.correctDisplay, eq.stepHint);
+        return { 
+          ...eq, 
+          userAnswer: eq.correctDisplay.toString(), 
+          feedback: msg, 
+          isCorrect: true,
+          showSteps: true
+        };
+      }));
+    };
+    
+    const resetAllProgress = () => {
+      setEqList(prev => prev.map(eq => ({ ...eq, userAnswer: "", feedback: null, isCorrect: null, showSteps: false })));
+    };
+    
+    const totalCount = eqList.length;
+    const correctCount = eqList.filter(eq => eq.isCorrect === true).length;
+    
+    // 分组显示
+    const axbPlus = eqList.filter(eq => eq.type === "ax+b=c");
+    const axbMinus = eqList.filter(eq => eq.type === "ax-b=c");
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb]">
+        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+          <h3 className="text-2xl font-extrabold text-purple-800">📝 两步方程·练兵场</h3>
+          <div className="flex gap-3 items-center">
+            <span className="bg-purple-200 px-3 py-1 rounded-full text-base font-bold">✅ 已掌握 {correctCount}/{totalCount}</span>
+            <button onClick={resetAllProgress} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-1.5 px-4 rounded-full text-sm transition shadow">🔄 全部重置</button>
+          </div>
+        </div>
+        <div className="max-h-[540px] overflow-y-auto scroll-panel pr-1">
+          {/* ax+b=c 区块 */}
+          <div className="mb-5">
+            <div className="bg-purple-100 rounded-xl p-2 mb-2 font-bold text-purple-900 text-lg">✨ 类型一：ax + b = c (先减后除)</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {axbPlus.map(eq => (
+                <EquationCard key={eq.id} eq={eq} onAnswerChange={handleAnswerChange} onCheck={handleCheck} onShowAnswer={handleShowAnswer} />
+              ))}
+            </div>
+          </div>
+          {/* ax-b=c 区块 */}
+          <div className="mb-2">
+            <div className="bg-rose-100 rounded-xl p-2 mb-2 font-bold text-purple-900 text-lg">✨ 类型二：ax - b = c (先加后除)</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {axbMinus.map(eq => (
+                <EquationCard key={eq.id} eq={eq} onAnswerChange={handleAnswerChange} onCheck={handleCheck} onShowAnswer={handleShowAnswer} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 text-center text-sm text-purple-700 bg-purple-50 p-2 rounded-xl">
+          💡 小贴士：解两步方程时，先处理加减（消去常数项），再处理乘除（系数化为1）。
+        </div>
+      </div>
+    );
+  };
+  
+  // 单个方程卡片组件
+  const EquationCard = ({ eq, onAnswerChange, onCheck, onShowAnswer }) => {
+    return (
+      <div className="bg-white rounded-xl p-3 shadow border border-purple-200">
+        <div className="font-mono font-bold text-xl text-purple-800">{eq.text}</div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <input 
+            type="number" step="any" value={eq.userAnswer}
+            onChange={(e) => onAnswerChange(eq.id, e.target.value)}
+            placeholder="x = ?"
+            className="flex-1 min-w-[100px] border border-purple-300 rounded-lg px-2 py-1.5 text-base bg-gray-50 focus:ring-2 focus:ring-purple-300"
+          />
+          <button onClick={() => onCheck(eq.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">🔍 检验</button>
+          <button onClick={() => onShowAnswer(eq.id)} className="bg-purple-400 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm shadow">📖 答案+思路</button>
+        </div>
+        {eq.feedback && (
+          <div className={`mt-2 text-sm p-2 rounded-lg whitespace-pre-line ${eq.isCorrect ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+            {eq.feedback}
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // ---------- 右侧互动游戏：解题步骤拖拽排序（两步方程解题顺序）----------
+  // 游戏机制：展示一个两步方程，下方显示两个打乱的步骤卡片（先算什么，再算什么）。
+  // 小朋友需要按照正确的顺序拖拽卡片到“第一步”、“第二步”的槽位中。配对正确后得分并进入下一题。
+  // 共5个关卡，包含整数、小数两步方程，每题展示解题思路拖拽排序。
+  const StepOrderGame = () => {
+    // 游戏关卡题库
+    const levelData = [
+      { eq: "2x + 3 = 11", steps: ["两边同时减去3", "两边同时除以2"], first: "两边同时减去3", second: "两边同时除以2" },
+      { eq: "3x - 5 = 10", steps: ["两边同时加上5", "两边同时除以3"], first: "两边同时加上5", second: "两边同时除以3" },
+      { eq: "4x + 2.5 = 14.5", steps: ["两边同时减去2.5", "两边同时除以4"], first: "两边同时减去2.5", second: "两边同时除以4" },
+      { eq: "5x - 1.2 = 8.8", steps: ["两边同时加上1.2", "两边同时除以5"], first: "两边同时加上1.2", second: "两边同时除以5" },
+      { eq: "1.5x + 4 = 10", steps: ["两边同时减去4", "两边同时除以1.5"], first: "两边同时减去4", second: "两边同时除以1.5" }
+    ];
+    
+    const [currentLevel, setCurrentLevel] = React.useState(0);
+    const [score, setScore] = React.useState(0);
+    const [gameComplete, setGameComplete] = React.useState(false);
+    const [step1Slot, setStep1Slot] = React.useState(null);   // 已放置的第一步内容
+    const [step2Slot, setStep2Slot] = React.useState(null);   // 已放置的第二步内容
+    const [remainingCards, setRemainingCards] = React.useState([]); // 未放置的步骤卡片
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [dragOverSlot, setDragOverSlot] = React.useState(null);
+    
+    // 初始化关卡
+    const initLevel = (levelIdx) => {
+      const level = levelData[levelIdx];
+      if (!level) return;
+      // 打乱步骤顺序
+      const shuffled = [...level.steps];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      setRemainingCards(shuffled.map((step, idx) => ({ id: `step-${Date.now()}-${idx}`, text: step })));
+      setStep1Slot(null);
+      setStep2Slot(null);
+      setFeedbackMsg("");
+      setDragOverSlot(null);
+    };
+    
+    React.useEffect(() => {
+      if (!gameComplete && currentLevel < levelData.length) {
+        initLevel(currentLevel);
+      }
+    }, [currentLevel, gameComplete]);
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, cardText) => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardText }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    // 拖拽悬停槽位
+    const onDragOverSlotFunc = (e, slotName) => {
+      e.preventDefault();
+      setDragOverSlot(slotName);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlot(null);
+    
+    // 放置到槽位
+    const onDropToSlot = (e, slotName) => {
+      e.preventDefault();
+      setDragOverSlot(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragged;
+      try { dragged = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardText } = dragged;
+      // 检查卡片是否还在remainingCards中
+      const cardExists = remainingCards.find(c => c.id === cardId);
+      if (!cardExists) {
+        setFeedbackMsg("⏳ 这张卡片已经用过了！");
+        setTimeout(() => setFeedbackMsg(""), 1000);
+        return;
+      }
+      // 检查槽位是否已被占用
+      if ((slotName === "step1" && step1Slot) || (slotName === "step2" && step2Slot)) {
+        setFeedbackMsg("⚠️ 这个步骤槽位已经有卡片了，不能重复放置～");
+        setTimeout(() => setFeedbackMsg(""), 1200);
+        return;
+      }
+      // 验证当前放置的步骤是否符合该关卡的正确顺序
+      const level = levelData[currentLevel];
+      const isFirstCorrect = (slotName === "step1" && cardText === level.first);
+      const isSecondCorrect = (slotName === "step2" && cardText === level.second);
+      if ((slotName === "step1" && !isFirstCorrect) || (slotName === "step2" && !isSecondCorrect)) {
+        setFeedbackMsg(`❌ 顺序错误！“${cardText}” 不是正确的${slotName === "step1" ? "第一步" : "第二步"}。再想想解题顺序～`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        return;
+      }
+      // 放置正确
+      if (slotName === "step1") setStep1Slot(cardText);
+      else setStep2Slot(cardText);
+      // 从剩余卡片中移除
+      setRemainingCards(prev => prev.filter(c => c.id !== cardId));
+      setFeedbackMsg(`✅ 正确！${slotName === "step1" ? "第一步" : "第二步"}放置成功！`);
+      
+      // 检查是否两个槽位都已满
+      const newStep1 = slotName === "step1" ? cardText : step1Slot;
+      const newStep2 = slotName === "step2" ? cardText : step2Slot;
+      if ((slotName === "step1" && step2Slot) || (slotName === "step2" && step1Slot) || (newStep1 && newStep2)) {
+        // 验证最终顺序完全正确
+        if (newStep1 === level.first && newStep2 === level.second) {
+          setScore(prev => prev + 1);
+          setFeedbackMsg("🎉 太棒了！解题步骤完全正确！进入下一关～");
+          setTimeout(() => {
+            if (currentLevel + 1 < levelData.length) {
+              setCurrentLevel(prev => prev + 1);
+            } else {
+              setGameComplete(true);
+            }
+          }, 1200);
+        } else {
+          setFeedbackMsg("❓ 顺序好像还是不对，试试重新开始这一关？");
+        }
+      }
+    };
+    
+    const resetCurrentLevel = () => {
+      initLevel(currentLevel);
+      setFeedbackMsg("🔄 已重置本关，重新拖拽排序吧！");
+    };
+    
+    const restartGame = () => {
+      setCurrentLevel(0);
+      setScore(0);
+      setGameComplete(false);
+      initLevel(0);
+    };
+    
+    const currentLevelData = levelData[currentLevel];
+    const levelProgress = `${currentLevel+1}/${levelData.length}`;
+    
+    if (gameComplete) {
+      return (
+        <div className="bg-white/90 rounded-3xl p-6 shadow-xl border border-[#cbaacb] text-center">
+          <div className="text-6xl mb-3">🏆🎉</div>
+          <h3 className="text-3xl font-extrabold text-purple-800">恭喜通关！</h3>
+          <p className="text-xl text-purple-700 mt-2">你已掌握两步方程解题顺序，成为解方程小英雄！</p>
+          <button onClick={restartGame} className="mt-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-2 px-6 rounded-full text-lg shadow btn-fun">🌟 再来一次</button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🧩 步骤小英雄 · 拖拽排序</h3>
+          <div className="flex gap-2">
+            <span className="bg-purple-200 px-3 py-1 rounded-full text-base font-bold">⭐ 得分 {score}/{levelData.length}</span>
+            <span className="bg-amber-200 px-3 py-1 rounded-full text-base">第 {levelProgress} 关</span>
+            <button onClick={resetCurrentLevel} className="bg-gray-400 hover:bg-gray-500 text-white px-3 py-1 rounded-full text-sm">🔄 重玩本关</button>
+          </div>
+        </div>
+        
+        {/* 当前方程卡片 */}
+        <div className="bg-gradient-to-r from-purple-200 to-fuchsia-100 rounded-2xl p-4 text-center mb-4">
+          <div className="text-sm text-purple-700 font-semibold">📌 当前方程</div>
+          <div className="font-mono font-bold text-3xl text-purple-900 my-1">{currentLevelData?.eq}</div>
+          <div className="text-sm text-purple-600">🤔 想一想：应该先做什么？再做什么？</div>
+        </div>
+        
+        {/* 步骤槽位 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div 
+            onDragOver={(e) => onDragOverSlotFunc(e, "step1")}
+            onDragLeave={onDragLeaveSlot}
+            onDrop={(e) => onDropToSlot(e, "step1")}
+            className={`step-slot border-4 border-dashed rounded-2xl p-3 min-h-[100px] transition ${dragOverSlot === "step1" ? 'drag-over bg-purple-100' : 'border-purple-300 bg-purple-50/40'}`}
+          >
+            <div className="font-bold text-purple-800 text-center">🔽 第一步 (先算)</div>
+            {step1Slot ? (
+              <div className="bg-purple-200 text-purple-900 rounded-xl p-2 text-center font-semibold text-lg mt-1">{step1Slot}</div>
+            ) : (
+              <div className="text-center text-purple-400 text-sm mt-3">⬅️ 将正确的第一步卡片拖拽至此</div>
+            )}
+          </div>
+          <div 
+            onDragOver={(e) => onDragOverSlotFunc(e, "step2")}
+            onDragLeave={onDragLeaveSlot}
+            onDrop={(e) => onDropToSlot(e, "step2")}
+            className={`step-slot border-4 border-dashed rounded-2xl p-3 min-h-[100px] transition ${dragOverSlot === "step2" ? 'drag-over bg-purple-100' : 'border-purple-300 bg-purple-50/40'}`}
+          >
+            <div className="font-bold text-purple-800 text-center">🔽 第二步 (再算)</div>
+            {step2Slot ? (
+              <div className="bg-purple-200 text-purple-900 rounded-xl p-2 text-center font-semibold text-lg mt-1">{step2Slot}</div>
+            ) : (
+              <div className="text-center text-purple-400 text-sm mt-3">⬅️ 将正确的第二步卡片拖拽至此</div>
+            )}
+          </div>
+        </div>
+        
+        {/* 可拖拽的步骤卡片池 */}
+        <div className="mt-2">
+          <div className="text-center font-bold text-purple-700 mb-2">📦 拖拽下方卡片到上面的步骤槽位（顺序要正确哦）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {remainingCards.map(card => (
+              <div 
+                key={card.id}
+                draggable={true}
+                onDragStart={(e) => onDragStart(e, card.id, card.text)}
+                onDragEnd={onDragEnd}
+                className="drag-step bg-gradient-to-br from-amber-300 to-amber-400 text-white font-bold rounded-xl py-3 px-5 shadow-md hover:shadow-lg text-center cursor-grab active:cursor-grabbing"
+              >
+                {card.text}
+              </div>
+            ))}
+            {remainingCards.length === 0 && !step1Slot && !step2Slot && <div className="text-gray-500">✨ 等待新关卡～</div>}
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 游戏规则：将正确的解题步骤按顺序拖拽到“第一步”“第二步”槽位。全部正确即可过关！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 知识点卡片：两步方程核心要点 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-4xl">🧠</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">两步方程·解题秘籍</h2>
+        </div>
+        <div className="space-y-3 text-base text-purple-900">
+          <div className="bg-white/60 rounded-xl p-3">
+            <p className="font-bold text-lg">🔑 核心思路：</p>
+            <p>解形如 <span className="font-mono bg-purple-200 px-1 rounded">ax + b = c</span> 或 <span className="font-mono bg-purple-200 px-1 rounded">ax - b = c</span> 的方程时，</p>
+            <p className="mt-1">✨ <strong>第一步：</strong> 利用等式性质1，消去常数项（加b就减b，减b就加b）。</p>
+            <p>✨ <strong>第二步：</strong> 利用等式性质2，两边同时除以系数 a，得到 x 的值。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-500 p-3 rounded-xl">
+            <p className="font-bold">📌 举例说明：</p>
+            <p>🌰 <span className="font-mono">2x + 3 = 11</span> → 先两边减3得 <span className="font-mono">2x = 8</span> → 再两边除以2得 <span className="font-mono">x = 4</span></p>
+            <p>🌰 <span className="font-mono">3x - 5 = 10</span> → 先两边加5得 <span className="font-mono">3x = 15</span> → 再两边除以3得 <span className="font-mono">x = 5</span></p>
+            <p>🌰 <span className="font-mono">1.5x + 4 = 10</span> → 先两边减4得 <span className="font-mono">1.5x = 6</span> → 再两边除以1.5得 <span className="font-mono">x = 4</span></p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            🎯 解两步方程的口诀：“先加减，后乘除，逆运算，要记住！”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局：左侧知识点+练习区，右侧游戏区 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域 */}
+        <div className="flex-1 xl:w-3/5 space-y-6">
+          <KnowledgeCard />
+          <PracticePanel />
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <StepOrderGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

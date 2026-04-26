@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>工程问题工作室 · 合作效率大挑战</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 紫色主题 & 拖拽克隆样式 */
+        body {
+            background: linear-gradient(145deg, #f3e8ff 0%, #e5d5ff 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', system-ui, -apple-system, sans-serif;
+        }
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 15px 25px rgba(139, 79, 255, 0.4));
+            transform: rotate(2deg) scale(1.1);
+            pointer-events: none;
+            background: linear-gradient(135deg, #ffffff, #fee67b);
+            border-radius: 2.5rem;
+            padding: 0.5rem 1rem;
+            border: 3px solid #a855f7;
+            color: #4c1d95;
+            font-size: 1.8rem;
+            font-weight: 900;
+            text-align: center;
+            min-width: 100px;
+            box-shadow: 0 20px 25px -12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .no-select {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button, .drag-card, .drop-zone {
+            touch-action: manipulation;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #ede9fe;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c084fc;
+            border-radius: 10px;
+        }
+        .card-shine {
+            transition: all 0.2s ease;
+        }
+    </style>
+</head>
+<body class="p-3 md:p-5">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback } = React;
+
+        // ---------- 工程问题题库（单位“1”，效率，合作，轮流，中途停工，分段，增减人员）----------
+        const PROJECT_QUESTIONS = [
+            {
+                id: 1,
+                title: "🏗️ 基础合作工程",
+                scenario: "修一条公路，甲队单独修需要 12 天完成，乙队单独修需要 18 天完成。两队合作需要多少天完成？",
+                hint: "将工作总量看作单位“1”，工效 = 1÷时间，合作效率 = 甲效率 + 乙效率",
+                known: "甲效率 = 1/12，乙效率 = 1/18，合作效率 = 5/36",
+                correctValue: 7.2,
+                displayValue: "7.2",
+                unit: "天",
+                distractors: [6, 7.5, 8, 9],
+                explanation: "合作时间 = 1 ÷ (1/12+1/18) = 1 ÷ (5/36) = 36/5 = 7.2 天。"
+            },
+            {
+                id: 2,
+                title: "👷 中途停工问题",
+                scenario: "一件工作，甲单独做 20 天完成，乙单独做 30 天完成。先由甲做了 5 天后，乙加入合作，还需几天完成？",
+                hint: "先算剩余工作量：总工作量 1 - 甲5天工作量，再除以合作效率",
+                known: "甲效率1/20，乙效率1/30，合作效率1/12；甲5天做1/4，剩余3/4",
+                correctValue: 9,
+                displayValue: "9",
+                unit: "天",
+                distractors: [6, 8, 10, 12],
+                explanation: "剩余=1-5/20=3/4，合作效率=1/20+1/30=1/12，时间=(3/4)÷(1/12)=9天。"
+            },
+            {
+                id: 3,
+                title: "🔄 交替轮流工作",
+                scenario: "一项工程，甲单独做需 8 小时，乙单独做需 12 小时。如果甲、乙轮流做，甲先做1小时，乙接着做1小时，如此交替，完成全部工程共需要多少小时？",
+                hint: "每2小时为一个周期完成 (1/8+1/12)=5/24，计算完整周期后剩余少量工作量。",
+                known: "每周期2小时完成5/24，4个周期(8小时)完成20/24=5/6，剩余1/6由甲做，需要 (1/6)÷(1/8)=4/3小时≈1.333小时，合计≈9.333小时",
+                correctValue: 9.333,
+                displayValue: "9.33",
+                unit: "小时",
+                distractors: [9, 9.5, 10, 8.5],
+                explanation: "每2小时完成5/24，4周期（8小时）完成20/24=5/6，剩1/6，甲再干4/3小时≈1.33小时，总约9.33小时。"
+            },
+            {
+                id: 4,
+                title: "📈 增减人员 / 分段施工",
+                scenario: "一项工程，原计划20人30天完成。先由15人做了10天后，为了赶工增加了10人，还需多少天完成？（每人效率相同）",
+                hint: "把工作总量设为“1”，每人每天效率 = 1/(20×30)=1/600；先算已做量，再算剩余量除以新人数效率。",
+                known: "每人效率1/600；15人10天完成15×10×1/600=1/4；剩余3/4；新人数25人，每天25/600=1/24",
+                correctValue: 18,
+                displayValue: "18",
+                unit: "天",
+                distractors: [15, 16, 20, 22],
+                explanation: "总量=600份，已做15×10=150份，剩450份，新人数25人，每天25份，还需450÷25=18天。"
+            },
+            {
+                id: 5,
+                title: "🤝 合作+单独做结合",
+                scenario: "一项工程，甲乙合作6天完成，甲单独做15天完成。如果乙先单独做4天，剩下的由甲单独做，甲需要多少天完成？",
+                hint: "先求乙效率：合作效率1/6 - 甲效率1/15 = 1/10，乙单独做4天完成4/10=2/5，剩余3/5由甲完成。",
+                known: "甲效=1/15，合作效=1/6，乙效=1/10；乙4天做2/5，剩余3/5",
+                correctValue: 9,
+                displayValue: "9",
+                unit: "天",
+                distractors: [7, 8, 10, 12],
+                explanation: "乙效率=1/6-1/15=1/10，乙先做4天完成4/10=0.4，剩余0.6，甲需要0.6÷(1/15)=9天。"
+            }
+        ];
+
+        // 拖拽 Hook (鼠标+触屏)
+        function useDragAndDrop({ onDropSuccess }) {
+            const [dragging, setDragging] = useState(false);
+            const dragItemRef = useRef(null);       // { value, element }
+            const currentCloneRef = useRef(null);
+            const startPos = useRef({ x: 0, y: 0 });
+            
+            const startDrag = useCallback((e, itemValue, elementDOM) => {
+                e.preventDefault();
+                let clientX, clientY;
+                if (e.touches) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                    e.preventDefault();
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                dragItemRef.current = { value: itemValue, element: elementDOM };
+                startPos.current = { x: clientX, y: clientY };
+                
+                // 克隆体
+                const cloneDiv = document.createElement('div');
+                cloneDiv.className = 'drag-clone';
+                // 显示数字，若为小数保留合适格式
+                const showText = typeof itemValue === 'number' ? (Number.isInteger(itemValue) ? itemValue : itemValue.toFixed(2)) : itemValue;
+                cloneDiv.innerText = showText;
+                document.body.appendChild(cloneDiv);
+                cloneDiv.style.left = `${clientX - 50}px`;
+                cloneDiv.style.top = `${clientY - 35}px`;
+                currentCloneRef.current = cloneDiv;
+                setDragging(true);
+                
+                const onMove = (moveEvent) => {
+                    if (!currentCloneRef.current) return;
+                    let moveX, moveY;
+                    if (moveEvent.touches) {
+                        moveX = moveEvent.touches[0].clientX;
+                        moveY = moveEvent.touches[0].clientY;
+                        moveEvent.preventDefault();
+                    } else {
+                        moveX = moveEvent.clientX;
+                        moveY = moveEvent.clientY;
+                    }
+                    currentCloneRef.current.style.left = `${moveX - 50}px`;
+                    currentCloneRef.current.style.top = `${moveY - 35}px`;
+                };
+                
+                const onEnd = (endEvent) => {
+                    if (currentCloneRef.current) {
+                        currentCloneRef.current.remove();
+                        currentCloneRef.current = null;
+                    }
+                    // 获取释放点下方的目标
+                    let targetEl = null;
+                    if (endEvent.changedTouches) {
+                        const touch = endEvent.changedTouches[0];
+                        targetEl = document.elementsFromPoint(touch.clientX, touch.clientY)[0];
+                    } else {
+                        targetEl = document.elementsFromPoint(endEvent.clientX, endEvent.clientY)[0];
+                    }
+                    const dropZone = targetEl?.closest('[data-dropzone="true"]');
+                    if (dropZone && dragItemRef.current) {
+                        const expectedVal = parseFloat(dropZone.getAttribute('data-expected'));
+                        const droppedNum = dragItemRef.current.value;
+                        // 浮点数容差比较
+                        const isMatch = Math.abs(expectedVal - droppedNum) < 0.001;
+                        if (isMatch) {
+                            onDropSuccess?.(true, droppedNum);
+                        } else {
+                            onDropSuccess?.(false, droppedNum);
+                        }
+                    } else {
+                        if (dragItemRef.current) onDropSuccess?.(false, dragItemRef.current.value);
+                    }
+                    setDragging(false);
+                    dragItemRef.current = null;
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onEnd);
+                    window.removeEventListener('touchmove', onMove);
+                    window.removeEventListener('touchend', onEnd);
+                    window.removeEventListener('touchcancel', onEnd);
+                };
+                
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onEnd);
+                window.addEventListener('touchmove', onMove, { passive: false });
+                window.addEventListener('touchend', onEnd);
+                window.addEventListener('touchcancel', onEnd);
+            }, [onDropSuccess]);
+            
+            const cleanup = useCallback(() => {
+                if (currentCloneRef.current) {
+                    currentCloneRef.current.remove();
+                    currentCloneRef.current = null;
+                }
+                setDragging(false);
+                dragItemRef.current = null;
+            }, []);
+            
+            useEffect(() => {
+                return cleanup;
+            }, [cleanup]);
+            
+            return { startDrag, dragging };
+        }
+        
+        // 可拖拽卡片组件 (显示数字，支持小数)
+        function DragCard({ value, onDragStart, disabled }) {
+            const cardRef = useRef(null);
+            const handleDragStart = (e) => {
+                if (disabled) return;
+                if (cardRef.current) {
+                    onDragStart(e, value, cardRef.current);
+                }
+            };
+            // 格式化显示
+            const displayText = typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(2)) : value;
+            return (
+                <div
+                    ref={cardRef}
+                    className={`drag-card bg-gradient-to-br from-amber-100 to-yellow-200 border-3 border-purple-500 rounded-2xl w-28 h-28 md:w-28 md:h-28 flex items-center justify-center text-3xl md:text-4xl font-black text-purple-800 shadow-xl cursor-grab active:cursor-grabbing transition-all hover:scale-105 hover:shadow-2xl ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : ''}`}
+                    onMouseDown={!disabled ? handleDragStart : undefined}
+                    onTouchStart={!disabled ? handleDragStart : undefined}
+                    style={{ touchAction: 'none' }}
+                >
+                    {displayText}
+                </div>
+            );
+        }
+        
+        // 右侧互动游戏组件
+        function EngineeringGame({ currentQuestion, onCorrect, onWrong, resetKey }) {
+            const [feedback, setFeedback] = useState(null);
+            const [hasAnswered, setHasAnswered] = useState(false);
+            const [selectedNum, setSelectedNum] = useState(null);
+            
+            useEffect(() => {
+                setFeedback(null);
+                setHasAnswered(false);
+                setSelectedNum(null);
+            }, [currentQuestion, resetKey]);
+            
+            const handleDropResult = (isCorrect, droppedNum) => {
+                if (hasAnswered) {
+                    setFeedback({ type: 'info', msg: '🎯 本题已完成！点击“换一题”继续挑战新工程~' });
+                    return;
+                }
+                setSelectedNum(droppedNum);
+                if (isCorrect) {
+                    setFeedback({ type: 'success', msg: `✨ 完美！ ${currentQuestion.explanation}`, correctVal: droppedNum });
+                    setHasAnswered(true);
+                    onCorrect();
+                } else {
+                    // 显示实际丢弃的值和正确答案
+                    const correctValFormatted = typeof currentQuestion.correctValue === 'number' ? (Number.isInteger(currentQuestion.correctValue) ? currentQuestion.correctValue : currentQuestion.correctValue.toFixed(2)) : currentQuestion.correctValue;
+                    setFeedback({ type: 'error', msg: `❌ 答案不对哦！你选了 ${typeof droppedNum === 'number' ? droppedNum.toFixed(2) : droppedNum}，正确答案是 ${correctValFormatted} ${currentQuestion.unit}。💡 提示：${currentQuestion.hint}` });
+                    onWrong();
+                }
+            };
+            
+            const { startDrag, dragging } = useDragAndDrop({ onDropSuccess: handleDropResult });
+            
+            // 构建选项池：正确答案 + 干扰项，打乱顺序
+            const allOptions = React.useMemo(() => {
+                let opts = [...currentQuestion.distractors, currentQuestion.correctValue];
+                opts = [...new Set(opts.map(v => parseFloat(v.toFixed?.(3) || v)))];
+                for (let i = opts.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [opts[i], opts[j]] = [opts[j], opts[i]];
+                }
+                return opts;
+            }, [currentQuestion]);
+            
+            return (
+                <div className="flex flex-col h-full">
+                    {/* 题目卡片 */}
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4 mb-5 shadow-md border-l-[12px] border-purple-600">
+                        <div className="flex items-center gap-2 text-purple-900 font-black text-2xl mb-2">
+                            <span className="text-3xl">📐</span> {currentQuestion.title}
+                        </div>
+                        <div className="text-base md:text-lg text-gray-800 font-medium bg-white/80 p-4 rounded-xl shadow-inner leading-relaxed">
+                            {currentQuestion.scenario}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                            <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full font-mono">📌 {currentQuestion.hint}</span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 border-t border-purple-200 pt-2">
+                            🧠 思路点拨：{currentQuestion.known}
+                        </div>
+                    </div>
+                    
+                    {/* 投放区 (工程师答题台) */}
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-2 flex-wrap">
+                            <span className="font-black text-purple-800 text-xl flex items-center gap-2">
+                                🧩 拖拽答案到【答案盒子】
+                            </span>
+                            <span className="bg-purple-200 px-3 py-1 rounded-full text-sm font-semibold">单位：{currentQuestion.unit}</span>
+                        </div>
+                        <div 
+                            data-dropzone="true"
+                            data-expected={currentQuestion.correctValue}
+                            className={`drop-zone w-full min-h-[130px] bg-gradient-to-br from-purple-100 to-fuchsia-50 border-4 border-dashed rounded-3xl flex items-center justify-center transition-all shadow-inner ${feedback?.type === 'success' ? 'border-green-500 bg-green-100' : 'border-purple-400'} ${!hasAnswered ? 'hover:bg-purple-50' : ''}`}
+                        >
+                            {feedback?.type === 'success' ? (
+                                <div className="text-center p-4">
+                                    <div className="text-6xl mb-2">🏆🏗️</div>
+                                    <div className="text-3xl font-black text-green-700">{typeof currentQuestion.correctValue === 'number' ? (Number.isInteger(currentQuestion.correctValue) ? currentQuestion.correctValue : currentQuestion.correctValue.toFixed(2)) : currentQuestion.correctValue} {currentQuestion.unit}</div>
+                                    <div className="text-sm text-green-600 font-bold mt-1">✔️ 正确！工程圆满完成！</div>
+                                </div>
+                            ) : (
+                                <div className="text-center p-4 text-purple-700 font-semibold">
+                                    {hasAnswered ? (
+                                        <span>✅ 已完成本题，按「换一题」继续挑战</span>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className="text-4xl">🧙‍♂️🔧</span>
+                                            <span>⬇️ 把下方正确的数字拖拽到这里</span>
+                                            <span className="text-xs bg-white/60 px-2 py-0.5 rounded-full">放手即提交答案</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {feedback && feedback.type !== 'success' && feedback.type !== 'info' && (
+                            <div className="mt-3 text-red-800 bg-red-100 p-3 rounded-xl text-sm font-medium flex items-start gap-2">
+                                <span>⚠️</span> {feedback.msg}
+                            </div>
+                        )}
+                        {feedback?.type === 'success' && (
+                            <div className="mt-2 text-green-800 bg-green-100 p-2 rounded-xl text-sm">
+                                🎉 {feedback.msg}
+                            </div>
+                        )}
+                        {feedback?.type === 'info' && (
+                            <div className="mt-2 text-blue-700 bg-blue-100 p-2 rounded-xl text-sm">
+                                💡 {feedback.msg}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* 卡片池 */}
+                    <div>
+                        <div className="font-extrabold text-purple-800 mb-3 flex items-center gap-2">
+                            🃟 选择正确的数字卡片拖拽（工程小工具）
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-4 p-3 bg-white/60 rounded-2xl min-h-[160px]">
+                            {allOptions.map((num, idx) => (
+                                <DragCard 
+                                    key={idx}
+                                    value={num}
+                                    onDragStart={startDrag}
+                                    disabled={hasAnswered}
+                                />
+                            ))}
+                        </div>
+                        {dragging && <div className="text-sm text-center text-purple-600 mt-3 animate-pulse font-bold">🚀 拖拽中…… 放到紫色虚线区 ~</div>}
+                    </div>
+                </div>
+            );
+        }
+        
+        // 主应用
+        function App() {
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [attemptCount, setAttemptCount] = useState(0);
+            const [gameResetKey, setGameResetKey] = useState(0);
+            const [flashSuccess, setFlashSuccess] = useState(false);
+            
+            const currentQuestion = PROJECT_QUESTIONS[currentIndex % PROJECT_QUESTIONS.length];
+            
+            const handleCorrect = () => {
+                setScore(prev => prev + 1);
+                setFlashSuccess(true);
+                setTimeout(() => setFlashSuccess(false), 1000);
+            };
+            
+            const handleWrong = () => {
+                setAttemptCount(prev => prev + 1);
+            };
+            
+            const nextQuestion = () => {
+                setCurrentIndex(prev => (prev + 1) % PROJECT_QUESTIONS.length);
+                setGameResetKey(prev => prev + 1);
+            };
+            
+            const resetStats = () => {
+                setScore(0);
+                setAttemptCount(0);
+                setGameResetKey(prev => prev + 1);
+            };
+            
+            return (
+                <div className="min-h-screen">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                        {/* 左侧知识点区域：单位1、效率、模型 */}
+                        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-300 flex flex-col">
+                            <div className="bg-gradient-to-r from-purple-800 to-fuchsia-700 px-6 py-5">
+                                <h1 className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg tracking-tight">
+                                    🧰 工程问题 · 建模工坊
+                                </h1>
+                                <p className="text-purple-100 text-base mt-1 font-medium">单位“1” · 工作效率 · 合作与分段</p>
+                            </div>
+                            <div className="p-5 space-y-5 text-gray-800 flex-1">
+                                {/* 核心概念 */}
+                                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-2xl border-l-[10px] border-purple-600">
+                                    <div className="text-2xl font-black text-purple-900 flex items-center gap-2">⚙️ 核心公式· 工程铁三角</div>
+                                    <div className="mt-3 grid gap-3">
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <div className="font-mono text-xl font-bold text-purple-700">📌 工作总量 = 工作效率 × 工作时间</div>
+                                            <div className="text-base">总量通常看作“1” ，效率 = 1 ÷ 单独时间</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <div className="font-mono text-xl font-bold text-purple-700">🤝 合作效率 = 各人效率之和</div>
+                                            <div className="text-sm text-gray-600">合作时间 = 1 ÷ (效率和)</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <div className="font-mono text-xl font-bold text-purple-700">🔄 分段/轮流思路</div>
+                                            <div className="text-sm text-gray-600">先算已做工作量 → 剩余工作量 ÷ 对应效率</div>
+                                        </div>
+                                        <div className="bg-amber-50 p-3 rounded-xl text-sm italic">
+                                            💡 模型化思维：无论修路、搬砖、写作业，把总任务抽象成“1”，效率用分数表示，就能轻松解合作、停工、增减人员等问题。
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-fuchsia-50 p-4 rounded-2xl">
+                                    <div className="font-black text-purple-800 text-xl flex items-center gap-2">🎯 解题黄金步骤</div>
+                                    <ul className="list-disc list-inside space-y-1.5 mt-2 text-sm md:text-base">
+                                        <li>1️⃣ 设工作总量为单位“1” 或 合适公倍数</li>
+                                        <li>2️⃣ 求每个人的工作效率（单独完成时间的倒数）</li>
+                                        <li>3️⃣ 根据合作、轮流、停工列出工作总量方程</li>
+                                        <li>4️⃣ 用“剩余工作量÷效率”求解未知时间</li>
+                                    </ul>
+                                </div>
+                                
+                                {/* 战绩积分 */}
+                                <div className="flex justify-between items-center bg-purple-100 p-3 rounded-xl">
+                                    <div>
+                                        <span className="font-bold text-purple-800">🏆 解题成功</span>
+                                        <span className="ml-2 text-3xl font-black text-purple-900">{score}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-purple-800">📋 尝试次数</span>
+                                        <span className="ml-2 text-xl font-bold text-purple-700">{attemptCount}</span>
+                                    </div>
+                                    <button 
+                                        onClick={resetStats}
+                                        className="bg-white text-purple-700 border border-purple-400 px-4 py-1.5 rounded-full text-sm font-semibold shadow-md hover:bg-purple-50 transition"
+                                    >
+                                        重置成绩
+                                    </button>
+                                </div>
+                                <div className="text-center text-xs text-gray-400 pt-1">
+                                    🌟 右侧拖拽数字卡片到答题区，巩固工程小妙招！
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 右侧互动游戏区 */}
+                        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border-2 border-purple-300 flex flex-col">
+                            <div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 px-5 py-4 rounded-t-3xl flex justify-between items-center flex-wrap gap-3">
+                                <h2 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">
+                                    🎲 工程队拖拽学院 · 脑力施工
+                                </h2>
+                                <button 
+                                    onClick={nextQuestion}
+                                    className="bg-yellow-300 hover:bg-yellow-400 text-purple-900 font-black py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 text-base flex items-center gap-1"
+                                >
+                                    🔁 换一题
+                                </button>
+                            </div>
+                            <div className="p-5 flex-1">
+                                <EngineeringGame 
+                                    key={gameResetKey + currentIndex}
+                                    currentQuestion={currentQuestion}
+                                    onCorrect={handleCorrect}
+                                    onWrong={handleWrong}
+                                    resetKey={gameResetKey}
+                                />
+                                <div className="mt-4 text-center text-xs text-gray-400 border-t pt-3 flex flex-wrap justify-center gap-3">
+                                    <span>✨ 拖拽数字卡片 → 投放到“答案盒子”</span>
+                                    <span>🧠 牢记效率单位“1” 合作效率相加</span>
+                                    <span>📏 答对获得建设勋章！</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 底部装饰 */}
+                    <div className="mt-8 text-center text-purple-800/80 text-sm flex flex-wrap justify-center gap-5">
+                        <span>🏗️ 工作总量 = 效率 × 时间</span>
+                        <span>🤝 合作效率 = 效率和</span>
+                        <span>⏳ 轮流工作 → 周期剩余量</span>
+                    </div>
+                    {flashSuccess && (
+                        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce text-lg font-bold z-50 flex items-center gap-2">
+                            🎉 工程小天才！ +1 分 🎉
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

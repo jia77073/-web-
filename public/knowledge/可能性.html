@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>小学数学乐园：排列组合与可能性 | 拖拽搭配小达人</title>
+    <!-- Tailwind CSS CDN + 基础样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义 Tailwind 配置：扩展字体大小 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '6xl': '3.75rem',   // 保证大号字体
+                        '7xl': '4.5rem',
+                    },
+                    colors: {
+                        'soft-lavender': '#CBAACB',
+                        'light-lavender': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- 添加自定义全局样式，让拖拽体验更好，移动端优化 -->
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none; /* 避免拖动时选中文字，提升拖拽感 */
+        }
+        /* 移动端让 draggable 元素有拖动提示 */
+        [draggable=true] {
+            cursor: grab;
+            touch-action: manipulation; /* 优化触摸操作 */
+        }
+        [draggable=true]:active {
+            cursor: grabbing;
+        }
+        /* 放置区域高亮效果 */
+        .drop-zone-active {
+            background-color: #fde68a !important;
+            border-color: #f59e0b !important;
+            transition: all 0.2s ease;
+            transform: scale(1.02);
+        }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        /* 卡片动画 */
+        .card-hover {
+            transition: all 0.2s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        /* 简单闪烁提示 */
+        @keyframes gentlePop {
+            0% { transform: scale(1); background-color: #c7d2fe; }
+            80% { transform: scale(1.05); background-color: #a5b4fc; }
+            100% { transform: scale(1); background-color: white; }
+        }
+        .pop-effect {
+            animation: gentlePop 0.4s ease-out;
+        }
+    </style>
+    <!-- 引入 React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-soft-lavender to-light-lavender min-h-screen p-4 md:p-6 font-sans">
+
+    <!-- 主应用容器 -->
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // 获取 React 相关对象
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ----- 辅助函数：随机生成上衣和裤子 (可爱风格，包含图标和名称)
+        const generateTops = (count) => {
+            const topTemplates = [
+                { icon: "🧥", name: "红色外套", color: "bg-red-200" },
+                { icon: "👕", name: "蓝色T恤", color: "bg-blue-200" },
+                { icon: "👚", name: "黄色毛衣", color: "bg-yellow-200" },
+                { icon: "🧶", name: "绿色背心", color: "bg-green-200" },
+                { icon: "👘", name: "紫色和服", color: "bg-purple-200" },
+                { icon: "🧥", name: "橙色风衣", color: "bg-orange-200" },
+                { icon: "👕", name: "粉色卫衣", color: "bg-pink-200" }
+            ];
+            // 随机取 count 个不重复 (简单取前count个但打乱顺序更趣味)
+            const shuffled = [...topTemplates];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled.slice(0, count).map((item, idx) => ({ ...item, id: `top_${idx}_${Date.now()}_${Math.random()}` }));
+        };
+
+        const generateBottoms = (count) => {
+            const bottomTemplates = [
+                { icon: "👖", name: "蓝色牛仔裤", color: "bg-blue-300" },
+                { icon: "🩳", name: "卡其短裤", color: "bg-yellow-300" },
+                { icon: "👗", name: "格子短裙", color: "bg-red-300" },
+                { icon: "👖", name: "黑色长裤", color: "bg-gray-300" },
+                { icon: "🎽", name: "运动短裤", color: "bg-green-300" },
+                { icon: "👘", name: "条纹长裤", color: "bg-indigo-300" }
+            ];
+            const shuffled = [...bottomTemplates];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled.slice(0, count).map((item, idx) => ({ ...item, id: `bottom_${idx}_${Date.now()}_${Math.random()}` }));
+        };
+
+        // 主游戏组件
+        const DressUpGame = () => {
+            // 上衣列表，裤子列表
+            const [tops, setTops] = useState([]);
+            const [bottoms, setBottoms] = useState([]);
+            // 当前拖拽搭配槽中的 上衣 和 裤子 (对象存储)
+            const [currentTop, setCurrentTop] = useState(null);
+            const [currentBottom, setCurrentBottom] = useState(null);
+            // 已经发现/成功搭配的组合列表 (存储字符串 "上衣名|裤子名")
+            const [foundCombinations, setFoundCombinations] = useState([]);
+            // 特效提示: 配对成功动画
+            const [effectKey, setEffectKey] = useState(0);
+            const [message, setMessage] = useState("✨ 拖拽衣服到下方两个篮子里，创造新搭配 ✨");
+            
+            // 放置区高亮状态 (拖拽悬停)
+            const [topZoneHighlight, setTopZoneHighlight] = useState(false);
+            const [bottomZoneHighlight, setBottomZoneHighlight] = useState(false);
+            
+            // 总可能性数量 = 上衣数量 * 裤子数量
+            const totalPossible = tops.length * bottoms.length;
+            const currentFoundCount = foundCombinations.length;
+            const isComplete = currentFoundCount === totalPossible && totalPossible > 0;
+            
+            // 重置游戏状态 (换题时调用)
+            const resetGameWithNewItems = (newTops, newBottoms) => {
+                setTops(newTops);
+                setBottoms(newBottoms);
+                setCurrentTop(null);
+                setCurrentBottom(null);
+                setFoundCombinations([]);
+                setMessage("🎉 新的一题！快来拖拽衣服，搭配出新组合吧！");
+                setEffectKey(prev => prev + 1);
+            };
+            
+            // 换一题: 随机生成不同数量的上衣(2~4件) 和 裤子(2~3件)
+            const handleChangeQuestion = () => {
+                const topCount = Math.floor(Math.random() * 3) + 2; // 2,3,4
+                const bottomCount = Math.floor(Math.random() * 2) + 2; // 2,3
+                const newTops = generateTops(topCount);
+                const newBottoms = generateBottoms(bottomCount);
+                resetGameWithNewItems(newTops, newBottoms);
+            };
+            
+            // 初始化默认题目 (3件上衣，2件裤子 经典搭配总数6)
+            useEffect(() => {
+                const defaultTops = generateTops(3);
+                const defaultBottoms = generateBottoms(2);
+                setTops(defaultTops);
+                setBottoms(defaultBottoms);
+            }, []);
+            
+            // 辅助: 检查并记录新组合 (当 currentTop 和 currentBottom 都存在时)
+            const tryAddCombination = useCallback((topItem, bottomItem) => {
+                if (!topItem || !bottomItem) return false;
+                const comboKey = `${topItem.name}|${bottomItem.name}`;
+                if (!foundCombinations.includes(comboKey)) {
+                    setFoundCombinations(prev => [...prev, comboKey]);
+                    setMessage(`🎈 搭配成功！「${topItem.icon}${topItem.name} + ${bottomItem.icon}${bottomItem.name}」 新样式 +1 🎈`);
+                    setEffectKey(prev => prev + 1);
+                    // 播放动画通过css类 (给搭配区域临时加类)
+                    const zone = document.getElementById('combo-list-area');
+                    if (zone) zone.classList.add('pop-effect');
+                    setTimeout(() => zone?.classList.remove('pop-effect'), 400);
+                    return true;
+                } else {
+                    setMessage(`🤔 「${topItem.icon}${topItem.name} + ${bottomItem.icon}${bottomItem.name}」已经搭配过了哟，再试试其他组合！`);
+                    return false;
+                }
+            }, [foundCombinations]);
+            
+            // 当 currentTop 和 currentBottom 同时有值时自动尝试组合，然后清空搭配槽
+            useEffect(() => {
+                if (currentTop && currentBottom) {
+                    // 尝试添加组合
+                    tryAddCombination(currentTop, currentBottom);
+                    // 无论是否重复，都清空搭配槽，让小朋友继续拖拽新的搭配
+                    setCurrentTop(null);
+                    setCurrentBottom(null);
+                }
+            }, [currentTop, currentBottom, tryAddCombination]);
+            
+            // 拖拽事件处理 (dragstart)
+            const onDragStart = (e, item, type) => {
+                e.dataTransfer.setData("text/plain", JSON.stringify({ id: item.id, type: type, item: item }));
+                e.dataTransfer.effectAllowed = "copy";
+                // 让拖拽图标更好看
+                if (e.target && e.target.tagName) {
+                    e.target.style.opacity = "0.6";
+                }
+            };
+            const onDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            // 放置区通用拖拽悬停
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            
+            // 放置上衣到 上衣槽
+            const onDropTop = (e) => {
+                e.preventDefault();
+                setTopZoneHighlight(false);
+                let rawData;
+                try {
+                    rawData = e.dataTransfer.getData("text/plain");
+                    if (!rawData) return;
+                    const { type, item } = JSON.parse(rawData);
+                    if (type === 'top') {
+                        setCurrentTop(item);
+                        setMessage(`✅ 选中上衣: ${item.icon} ${item.name}，再拖拽一条裤子搭配吧！`);
+                    } else if (type === 'bottom') {
+                        setMessage(`👖 裤子要拖拽到右边的裤子篮子哟，这个篮子是放上衣的～再试试看！`);
+                        // 闪烁错误提示但不清除
+                    } else {
+                        setMessage(`💡 只能把上衣拖到“上衣篮子”里~`);
+                    }
+                } catch (err) { console.warn(err); }
+            };
+            
+            const onDropBottom = (e) => {
+                e.preventDefault();
+                setBottomZoneHighlight(false);
+                let rawData;
+                try {
+                    rawData = e.dataTransfer.getData("text/plain");
+                    if (!rawData) return;
+                    const { type, item } = JSON.parse(rawData);
+                    if (type === 'bottom') {
+                        setCurrentBottom(item);
+                        setMessage(`✅ 选中裤子: ${item.icon} ${item.name}，搭配已准备！马上生成组合✨`);
+                    } else if (type === 'top') {
+                        setMessage(`🧥 上衣要拖拽到左边的“上衣篮子”哟，这个篮子是放裤子的～`);
+                    } else {
+                        setMessage(`💡 请把裤子拖拽到“裤子篮子”里`);
+                    }
+                } catch (err) { console.warn(err); }
+            };
+            
+            // 高亮处理
+            const onDragEnterTop = () => setTopZoneHighlight(true);
+            const onDragLeaveTop = () => setTopZoneHighlight(false);
+            const onDragEnterBottom = () => setBottomZoneHighlight(true);
+            const onDragLeaveBottom = () => setBottomZoneHighlight(false);
+            
+            // 清空当前搭配槽 (重置选中的上衣和裤子)
+            const clearSlots = () => {
+                setCurrentTop(null);
+                setCurrentBottom(null);
+                setMessage("🧹 已清空搭配篮子，可以重新拖拽衣服啦");
+            };
+            
+            // 百分比进度
+            const progressPercent = totalPossible > 0 ? (currentFoundCount / totalPossible) * 100 : 0;
+            
+            // 已经发现的组合列表渲染
+            const combosList = foundCombinations.map((combo, idx) => {
+                const [topName, bottomName] = combo.split("|");
+                // 找到对应图标展示 (提高视觉反馈)
+                const topItem = tops.find(t => t.name === topName);
+                const bottomItem = bottoms.find(b => b.name === bottomName);
+                return (
+                    <div key={idx} className="bg-white/70 backdrop-blur-sm rounded-full px-3 py-1 text-sm shadow-sm flex items-center gap-1">
+                        <span>{topItem?.icon || "🧥"}</span>
+                        <span>{topName}</span>
+                        <span>+</span>
+                        <span>{bottomItem?.icon || "👖"}</span>
+                        <span>{bottomName}</span>
+                    </div>
+                );
+            });
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* 左侧知识点区域 */}
+                    <div className="lg:w-2/5 bg-white/70 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 border border-white/40">
+                        <div className="mb-4 border-b-2 border-soft-lavender pb-2">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                📚 数学小讲堂
+                                <span className="text-xl bg-yellow-200 px-2 py-0.5 rounded-full">统计与概率</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-lg md:text-xl leading-relaxed text-gray-800">
+                            <p className="flex items-start gap-2">
+                                <span className="text-3xl">🎲</span>
+                                <span><strong class="text-purple-700">可能性</strong> 是指某件事发生的几率。排列组合帮助我们算出有多少种不同的可能！</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-purple-100 to-pink-100 p-4 rounded-2xl shadow-inner">
+                                <p className="font-bold text-purple-800 text-xl mb-2">✨ 搭配小魔法 ✨</p>
+                                <p>假如有 <span className="font-bold text-pink-600">m件上衣</span> 和 <span className="font-bold text-pink-600">n条裤子</span>，那么总共可以有 <span className="bg-yellow-200 px-2 rounded-lg font-mono">m × n</span> 种不同的穿搭组合！</p>
+                                <p className="mt-2 text-sm text-gray-600">这就是<span className="font-semibold">乘法原理</span>：一件事分步骤，每一步有不同方法，总可能性=各步方法数相乘。</p>
+                            </div>
+                            <div className="bg-white/50 rounded-xl p-3">
+                                <p className="font-bold">🔢 排列组合小应用：</p>
+                                <ul className="list-disc list-inside space-y-1 mt-1">
+                                    <li>从3件上衣选1件，2条裤子选1条 → 3×2 = <span className="font-bold text-green-700">6种</span> 不同穿法。</li>
+                                    <li>摸球问题：红黄蓝三色球取两个（不考虑顺序）→ 3种组合可能。</li>
+                                    <li>今天我们通过“拖拽搭配”游戏，亲自体验所有可能的组合！</li>
+                                </ul>
+                            </div>
+                            <div className="mt-3 text-center text-sm bg-soft-lavender/40 rounded-xl p-2">
+                                💡 <span className="font-medium">玩法说明：</span> 左边可拖拽上衣/裤子，分别放入下方两个篮子，每次配对自动生成新搭配，集满所有组合就通关啦！
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧游戏互动区 */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-3xl md:text-4xl font-bold text-purple-800 flex items-center gap-2">
+                                🎮 搭配小达人 <span className="text-2xl">(拖拽挑战)</span>
+                            </h3>
+                            <button 
+                                onClick={handleChangeQuestion}
+                                className="bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-lg"
+                            >
+                                🔄 换一题
+                            </button>
+                        </div>
+                        
+                        {/* 进度条 + 统计 */}
+                        <div className="bg-gray-100/70 rounded-full h-5 overflow-hidden shadow-inner">
+                            <div 
+                                className="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 text-xs text-white font-bold"
+                                style={{ width: `${progressPercent}%` }}
+                            >
+                                {progressPercent > 15 && `${currentFoundCount}/${totalPossible}`}
+                            </div>
+                        </div>
+                        <div className="flex justify-between text-md font-semibold">
+                            <span>✨ 已发现组合: {currentFoundCount} 种</span>
+                            <span>🎯 总可能性: {totalPossible} 种</span>
+                            {isComplete && <span className="text-green-600 animate-pulse">🏆 完美通关！太厉害了！ 🏆</span>}
+                        </div>
+                        
+                        {/* 可拖拽物品区: 上衣 & 裤子 两个区域并列 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* 上衣库 */}
+                            <div className="bg-pink-50/80 rounded-2xl p-3 shadow-md">
+                                <h4 className="text-center text-xl font-bold text-purple-700 mb-2">🧥 可拖拽上衣</h4>
+                                <div className="flex flex-wrap gap-3 justify-center">
+                                    {tops.map(top => (
+                                        <div 
+                                            key={top.id}
+                                            draggable="true"
+                                            onDragStart={(e) => onDragStart(e, top, 'top')}
+                                            onDragEnd={onDragEnd}
+                                            className={`${top.color} w-24 h-24 rounded-2xl flex flex-col items-center justify-center shadow-md cursor-grab active:cursor-grabbing transition transform hover:scale-105 card-hover`}
+                                        >
+                                            <span className="text-4xl">{top.icon}</span>
+                                            <span className="text-xs font-bold mt-1">{top.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-center text-gray-500 mt-2">👉 按住拖动到下方「上衣篮子」</p>
+                            </div>
+                            {/* 裤子库 */}
+                            <div className="bg-blue-50/80 rounded-2xl p-3 shadow-md">
+                                <h4 className="text-center text-xl font-bold text-purple-700 mb-2">👖 可拖拽裤子</h4>
+                                <div className="flex flex-wrap gap-3 justify-center">
+                                    {bottoms.map(bottom => (
+                                        <div 
+                                            key={bottom.id}
+                                            draggable="true"
+                                            onDragStart={(e) => onDragStart(e, bottom, 'bottom')}
+                                            onDragEnd={onDragEnd}
+                                            className={`${bottom.color} w-24 h-24 rounded-2xl flex flex-col items-center justify-center shadow-md cursor-grab active:cursor-grabbing transition transform hover:scale-105 card-hover`}
+                                        >
+                                            <span className="text-4xl">{bottom.icon}</span>
+                                            <span className="text-xs font-bold mt-1">{bottom.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-center text-gray-500 mt-2">👉 按住拖动到下方「裤子篮子」</p>
+                            </div>
+                        </div>
+                        
+                        {/* 两个搭配放置区 (上衣槽 & 裤子槽) 拖拽目标 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+                            <div 
+                                className={`border-4 border-dashed rounded-2xl p-4 transition-all duration-150 ${topZoneHighlight ? 'drop-zone-active border-yellow-500 bg-yellow-100' : 'border-purple-300 bg-white/50'} flex flex-col items-center justify-center min-h-[110px]`}
+                                onDragOver={onDragOver}
+                                onDrop={onDropTop}
+                                onDragEnter={onDragEnterTop}
+                                onDragLeave={onDragLeaveTop}
+                            >
+                                <span className="text-2xl font-bold text-purple-600">🧺 上衣篮子</span>
+                                {currentTop ? (
+                                    <div className={`${currentTop.color} mt-2 px-4 py-2 rounded-full flex items-center gap-2 shadow`}>
+                                        <span className="text-2xl">{currentTop.icon}</span>
+                                        <span className="font-semibold">{currentTop.name}</span>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500 text-sm mt-2">把上衣拖拽到这里 ⬅️</p>
+                                )}
+                            </div>
+                            
+                            <div 
+                                className={`border-4 border-dashed rounded-2xl p-4 transition-all duration-150 ${bottomZoneHighlight ? 'drop-zone-active border-yellow-500 bg-yellow-100' : 'border-purple-300 bg-white/50'} flex flex-col items-center justify-center min-h-[110px]`}
+                                onDragOver={onDragOver}
+                                onDrop={onDropBottom}
+                                onDragEnter={onDragEnterBottom}
+                                onDragLeave={onDragLeaveBottom}
+                            >
+                                <span className="text-2xl font-bold text-purple-600">🧺 裤子篮子</span>
+                                {currentBottom ? (
+                                    <div className={`${currentBottom.color} mt-2 px-4 py-2 rounded-full flex items-center gap-2 shadow`}>
+                                        <span className="text-2xl">{currentBottom.icon}</span>
+                                        <span className="font-semibold">{currentBottom.name}</span>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500 text-sm mt-2">把裤子拖拽到这里 ⬅️</p>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 清空搭配槽按钮 + 提示消息 */}
+                        <div className="flex justify-between items-center flex-wrap gap-2">
+                            <button onClick={clearSlots} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-1 px-4 rounded-full text-sm shadow transition">🗑️ 清空篮子</button>
+                            <div className="text-sm md:text-base font-medium text-purple-800 bg-purple-50 px-3 py-1 rounded-full max-w-xs">
+                                💬 {message}
+                            </div>
+                        </div>
+                        
+                        {/* 已发现组合展示区域 (排列组合列表) */}
+                        <div className="mt-2">
+                            <div className="flex items-center gap-2 mb-2">
+                                <h4 className="font-bold text-xl text-purple-800">📋 已解锁的穿搭组合 ({currentFoundCount}/{totalPossible})</h4>
+                                {isComplete && <span className="text-3xl">🎉🎉🎉</span>}
+                            </div>
+                            <div id="combo-list-area" className="bg-white/40 rounded-2xl p-3 min-h-[100px] max-h-[180px] overflow-y-auto flex flex-wrap gap-2 items-start transition-all">
+                                {combosList.length > 0 ? combosList : (
+                                    <div className="text-gray-500 text-center w-full py-5">✨ 把上衣和裤子分别拖拽到对应篮子里，自动解锁新搭配～ ✨</div>
+                                )}
+                            </div>
+                            {!isComplete && totalPossible > 0 && (
+                                <p className="text-xs text-center text-gray-500 mt-2">⭐ 集齐所有组合，你就是搭配小魔法师！⭐</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // 根组件，添加页眉说明
+        const App = () => {
+            return (
+                <div className="min-h-screen p-3">
+                    <div className="text-center mb-4 mt-2">
+                        <h1 className="text-5xl md:text-7xl font-black text-white drop-shadow-lg tracking-wide" style={{textShadow: "3px 3px 0 #9b59b6"}}>
+                            🧸 排列组合大冒险 🎪
+                        </h1>
+                        <p className="text-white/90 text-xl md:text-2xl mt-1 font-medium">拖拖拽拽，发现所有可能性！</p>
+                    </div>
+                    <DressUpGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-4">
+                        🌟 拖拽任意上衣/裤子到对应的篮子里 → 自动组合新搭配！换一题获得新衣服，继续挑战排列组合 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

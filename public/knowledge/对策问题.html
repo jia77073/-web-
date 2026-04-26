@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>策略大师 · 取胜对策与最优规划</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React 17 + ReactDOM (稳定版) -->
+    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js"></script>
+    <!-- Babel Standalone -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(145deg, #f3e8ff 0%, #e9d5ff 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', system-ui, sans-serif;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .drag-card {
+            transition: 0.1s ease;
+            user-select: none;
+        }
+        [draggable="true"] {
+            cursor: grab;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone {
+            transition: all 0.2s;
+        }
+        button {
+            cursor: pointer;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #ede9fe;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c084fc;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // 确保 React 和 ReactDOM 可用
+    const { useState, useEffect } = React;
+
+    // ---------- 对策策略题库 ----------
+    const STRATEGY_QUESTIONS = [
+        {
+            id: 1,
+            title: "🎲 取棋子游戏",
+            scenario: "桌上有15枚棋子，两人轮流取，每次可以取1枚或2枚，取到最后一枚者获胜。如果你先手，应该第一次取几枚才能确保必胜？",
+            hint: "控制每轮两人共取3枚，关键数是3的倍数。",
+            options: ["1枚", "2枚", "3枚", "先手必败"],
+            correctAnswer: "2枚",
+            explanation: "15÷3余0，先手取2枚后，剩下13，之后每轮与对方凑3枚，最终先手获胜。"
+        },
+        {
+            id: 2,
+            title: "🏆 抢30游戏",
+            scenario: "两人轮流报数，每次至少报1个数，最多报2个数，从1开始连续报数，谁抢到30谁获胜。如果让你先报，第一次应该报几个数？",
+            hint: "每轮两人共报3个数可控制，30是3的倍数。",
+            options: ["1个", "2个", "3个", "必败"],
+            correctAnswer: "2个",
+            explanation: "先报2个数，之后每轮与对方报数之和为3，则先手抢到30。"
+        },
+        {
+            id: 3,
+            title: "🍬 分糖果博弈",
+            scenario: "一堆糖果共21颗，两人轮流拿，每次拿1~4颗，拿到最后一颗者获胜。你先拿，要获胜第一次拿几颗？",
+            hint: "控制每轮总和为5，21÷5余1。",
+            options: ["1颗", "2颗", "3颗", "4颗"],
+            correctAnswer: "1颗",
+            explanation: "先拿1颗剩20颗（5的倍数），之后对方拿a颗，你就拿5-a颗，确保最后一颗归你。"
+        },
+        {
+            id: 4,
+            title: "🎯 报数抢20",
+            scenario: "两人轮流报数，每次报1~3个数，谁报到20谁赢。先报者第一次报几个能保证胜利？",
+            hint: "关键控制数是4的倍数，20÷4=5余0。",
+            options: ["1个", "2个", "3个", "必败"],
+            correctAnswer: "必败",
+            explanation: "20是4的倍数，后手每次都能凑4，所以先手必败。"
+        },
+        {
+            id: 5,
+            title: "⚡ 取火柴游戏",
+            scenario: "桌上有30根火柴，两人轮流取，每次可取1根或2根，取到最后一根者胜。你要先取，第一次取几根能必胜？",
+            hint: "30是3的倍数，先手需要取2根打破平衡？",
+            options: ["1根", "2根", "3根", "必败"],
+            correctAnswer: "2根",
+            explanation: "30÷3=10余0，先手取2根剩28，之后每轮与对方凑3根，最终先手获胜。"
+        }
+    ];
+
+    // 可拖拽卡片组件
+    function DragCard({ value, disabled }) {
+        const handleDragStart = (e) => {
+            if (disabled) {
+                e.preventDefault();
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", value);
+            e.dataTransfer.effectAllowed = "copy";
+            e.target.style.opacity = "0.6";
+        };
+        const handleDragEnd = (e) => {
+            e.target.style.opacity = "";
+        };
+        return (
+            <div
+                draggable={!disabled}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                className={`drag-card bg-gradient-to-br from-amber-100 to-yellow-200 border-4 border-purple-500 rounded-2xl w-28 h-28 md:w-32 md:h-28 flex items-center justify-center text-lg md:text-xl font-black text-purple-800 shadow-xl hover:scale-105 transition text-center p-2 ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-grab'}`}
+            >
+                {value}
+            </div>
+        );
+    }
+
+    // 右侧游戏组件（拖拽填空）
+    function StrategyGame({ question, onCorrect, onWrong, resetSignal }) {
+        const [feedback, setFeedback] = useState(null);
+        const [hasAnswered, setHasAnswered] = useState(false);
+        const [dropHighlight, setDropHighlight] = useState(false);
+
+        useEffect(() => {
+            setFeedback(null);
+            setHasAnswered(false);
+        }, [question, resetSignal]);
+
+        const handleDrop = (e) => {
+            e.preventDefault();
+            setDropHighlight(false);
+            if (hasAnswered) {
+                setFeedback({ type: 'info', msg: '🎯 本题已完成！点击“换一题”继续挑战。' });
+                return;
+            }
+            const droppedVal = e.dataTransfer.getData("text/plain");
+            const expected = question.correctAnswer;
+            if (droppedVal === expected) {
+                setFeedback({ type: 'success', msg: `✅ 策略正确！ ${question.explanation}` });
+                setHasAnswered(true);
+                onCorrect();
+            } else {
+                setFeedback({ type: 'error', msg: `❌ 策略失误！你选了“${droppedVal}”，正确答案是“${expected}”。💡 提示：${question.hint}` });
+                onWrong();
+            }
+        };
+
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        const handleDragEnter = (e) => {
+            e.preventDefault();
+            setDropHighlight(true);
+        };
+        const handleDragLeave = (e) => {
+            e.preventDefault();
+            setDropHighlight(false);
+        };
+
+        // 随机打乱选项顺序
+        const shuffledOptions = React.useMemo(() => {
+            const opts = [...question.options];
+            for (let i = opts.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [opts[i], opts[j]] = [opts[j], opts[i]];
+            }
+            return opts;
+        }, [question]);
+
+        return (
+            <div className="flex flex-col h-full">
+                {/* 题目卡片 */}
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4 mb-5 shadow-md border-l-[12px] border-purple-600">
+                    <div className="flex items-center gap-2 text-purple-900 font-black text-2xl mb-2">
+                        <span className="text-3xl">♟️</span> {question.title}
+                    </div>
+                    <div className="text-base md:text-lg text-gray-800 bg-white/70 p-4 rounded-xl whitespace-pre-line leading-relaxed">
+                        {question.scenario}
+                    </div>
+                    <div className="mt-3 text-sm text-purple-700 bg-purple-100 rounded-xl p-2">
+                        💡 策略线索：{question.hint}
+                    </div>
+                </div>
+
+                {/* 投放区 */}
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="font-black text-purple-800 text-xl flex items-center gap-2">
+                            🧩 拖拽【必胜策略】到答案箱
+                        </span>
+                    </div>
+                    <div
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        className={`drop-zone w-full min-h-[120px] bg-gradient-to-br from-purple-100 to-fuchsia-50 border-4 border-dashed rounded-3xl flex items-center justify-center transition-all shadow-inner ${dropHighlight ? 'bg-purple-200 border-purple-700' : ''} ${feedback?.type === 'success' ? 'border-green-500 bg-green-100' : 'border-purple-400'}`}
+                    >
+                        {feedback?.type === 'success' ? (
+                            <div className="text-center p-4">
+                                <div className="text-6xl mb-2">🏆🧠</div>
+                                <div className="text-2xl md:text-3xl font-black text-green-700">{question.correctAnswer}</div>
+                                <div className="text-sm text-green-600 font-bold mt-1">✓ 最优策略！</div>
+                            </div>
+                        ) : (
+                            <div className="text-center p-4 text-purple-700 font-semibold">
+                                {hasAnswered ? (
+                                    <span>✅ 策略已锁定，按「换一题」继续闯关</span>
+                                ) : (
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className="text-4xl">🎲⚡</span>
+                                        <span>⬇️ 将正确选项拖拽到这里</span>
+                                        <span className="text-xs bg-white/60 px-2 py-0.5 rounded-full">放手提交答案</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    {feedback && feedback.type !== 'success' && feedback.type !== 'info' && (
+                        <div className="mt-3 text-red-800 bg-red-100 p-3 rounded-xl text-sm font-medium">{feedback.msg}</div>
+                    )}
+                    {feedback?.type === 'success' && (
+                        <div className="mt-2 text-green-800 bg-green-100 p-2 rounded-xl text-sm">🎉 {feedback.msg}</div>
+                    )}
+                    {feedback?.type === 'info' && (
+                        <div className="mt-2 text-blue-700 bg-blue-100 p-2 rounded-xl text-sm">💡 {feedback.msg}</div>
+                    )}
+                </div>
+
+                {/* 拖拽卡片区 */}
+                <div>
+                    <div className="font-extrabold text-purple-800 mb-3 flex items-center gap-2">
+                        🃟 策略卡片（拖拽正确的方案）
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 p-3 bg-white/60 rounded-2xl min-h-[160px]">
+                        {shuffledOptions.map((opt, idx) => (
+                            <DragCard key={idx} value={opt} disabled={hasAnswered} />
+                        ))}
+                    </div>
+                </div>
+                <div className="mt-3 text-xs text-center text-gray-500">💡 手指/鼠标按住卡片拖拽至上方虚线框～</div>
+            </div>
+        );
+    }
+
+    // 主应用组件
+    function App() {
+        const [currentIdx, setCurrentIdx] = useState(0);
+        const [score, setScore] = useState(0);
+        const [attempts, setAttempts] = useState(0);
+        const [resetKey, setResetKey] = useState(0);
+        const [showWin, setShowWin] = useState(false);
+        
+        const currentQuestion = STRATEGY_QUESTIONS[currentIdx % STRATEGY_QUESTIONS.length];
+        
+        const handleCorrect = () => {
+            setScore(s => s + 1);
+            setShowWin(true);
+            setTimeout(() => setShowWin(false), 1000);
+        };
+        const handleWrong = () => setAttempts(a => a + 1);
+        const nextQuestion = () => {
+            setCurrentIdx(i => (i + 1) % STRATEGY_QUESTIONS.length);
+            setResetKey(k => k + 1);
+        };
+        const resetStats = () => {
+            setScore(0);
+            setAttempts(0);
+            setResetKey(k => k + 1);
+        };
+        
+        return (
+            <div className="min-h-screen">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                    {/* 左侧知识点区域 */}
+                    <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-300 flex flex-col">
+                        <div className="bg-gradient-to-r from-purple-800 to-fuchsia-700 px-6 py-5">
+                            <h1 className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg tracking-tight">
+                                ♟️ 对策策略 · 赢家思维
+                            </h1>
+                            <p className="text-purple-100 text-base mt-1 font-medium">最优方案 · 取胜秘诀 · 统筹规划</p>
+                        </div>
+                        <div className="p-5 space-y-5 text-gray-800 flex-1">
+                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-2xl border-l-[10px] border-purple-600">
+                                <div className="text-2xl font-black text-purple-900 flex items-center gap-2">⚡ 取胜策略三步法</div>
+                                <div className="mt-3 grid gap-3">
+                                    <div className="bg-white p-3 rounded-xl shadow-sm"><span className="font-bold text-purple-700">❶ 找周期/关键数</span> — 取物问题中，控制每轮总和为「最多取+最少取」</div>
+                                    <div className="bg-white p-3 rounded-xl shadow-sm"><span className="font-bold text-purple-700">❷ 计算余数</span> — 总数 ÷ 关键数，余数决定先手胜或败</div>
+                                    <div className="bg-white p-3 rounded-xl shadow-sm"><span className="font-bold text-purple-700">❸ 构造必胜态</span> — 让对手面对“必败局面”即可获胜</div>
+                                </div>
+                            </div>
+                            <div className="bg-fuchsia-50 p-4 rounded-2xl">
+                                <div className="font-black text-purple-800 text-xl flex items-center gap-2">🎯 经典模型举例</div>
+                                <ul className="list-disc list-inside space-y-1.5 mt-2 text-sm md:text-base">
+                                    <li>📌 取物游戏：两人取1~m个，总数n，若n mod (m+1)=0则后手胜，否则先手取余数必胜。</li>
+                                    <li>📌 抢数游戏：抢到30，每次报1~2个，关键数3，后手控制。</li>
+                                    <li>📌 最优安排：比较时间、资源，寻找最省方案。</li>
+                                    <li>📌 统筹规划：利用对称或关键点控制局势。</li>
+                                </ul>
+                                <div className="mt-2 text-xs text-purple-600 italic">✨ 学会逆向思考，从结局倒推必胜步骤！</div>
+                            </div>
+                            <div className="flex justify-between items-center bg-purple-100 p-3 rounded-xl">
+                                <div><span className="font-bold text-purple-800">🏆 获胜次数</span><span className="ml-2 text-3xl font-black text-purple-900">{score}</span></div>
+                                <div><span className="font-bold text-purple-800">📋 尝试次数</span><span className="ml-2 text-xl font-bold text-purple-700">{attempts}</span></div>
+                                <button onClick={resetStats} className="bg-white text-purple-700 border border-purple-400 px-4 py-1.5 rounded-full text-sm font-semibold shadow-md hover:bg-purple-50">重置战绩</button>
+                            </div>
+                            <div className="text-center text-xs text-gray-400 pt-1">🌟 右侧拖拽选择最佳对策，成为策略高手！</div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧游戏区 */}
+                    <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border-2 border-purple-300 flex flex-col">
+                        <div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 px-5 py-4 rounded-t-3xl flex justify-between items-center flex-wrap gap-3">
+                            <h2 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">🎮 决策拖拽室 · 最优策略</h2>
+                            <button onClick={nextQuestion} className="bg-yellow-300 hover:bg-yellow-400 text-purple-900 font-black py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 text-base">🔁 换一题</button>
+                        </div>
+                        <div className="p-5 flex-1">
+                            <StrategyGame
+                                key={resetKey + currentIdx}
+                                question={currentQuestion}
+                                onCorrect={handleCorrect}
+                                onWrong={handleWrong}
+                                resetSignal={resetKey}
+                            />
+                            <div className="mt-4 text-center text-xs text-gray-400 border-t pt-3 flex flex-wrap justify-center gap-3">
+                                <span>✨ 拖拽卡片到上方答案区</span>
+                                <span>🧠 思考“控制周期”和“关键数”</span>
+                                <span>🏅 答对提升策略思维</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-8 text-center text-purple-800/70 text-sm flex flex-wrap justify-center gap-5">
+                    <span>🎯 取物策略：总数÷(最多+最少) 看余数</span>
+                    <span>♟️ 抢数游戏：控制每轮合报数量</span>
+                    <span>📊 统筹规划：比较所有可能方案</span>
+                </div>
+                {showWin && (
+                    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-amber-500 to-purple-500 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce text-lg font-bold z-50">
+                        🧠 策略大师！ +1分 🎉
+                    </div>
+                )}
+            </div>
+        );
+    }
+    
+    // 渲染根组件，并添加错误捕获提示
+    const rootElement = document.getElementById('root');
+    try {
+        ReactDOM.render(<App />, rootElement);
+    } catch (err) {
+        rootElement.innerHTML = `<div class="text-red-600 p-8 bg-white rounded-xl">渲染错误: ${err.message}<br>请刷新页面重试</div>`;
+    }
+</script>
+</body>
+</html>

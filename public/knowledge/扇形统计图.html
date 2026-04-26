@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>扇形统计图小课堂 | 拖拽配对·认识百分比</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义主题：淡紫色调 + 大字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lavender-light': '#CBAACB',
+                        'lavender-soft': '#D9C2E6',
+                        'lavender-deep': '#B38CB8',
+                    },
+                    fontSize: {
+                        '6xl': '3.75rem',
+                        '5xl': '3rem',
+                    },
+                    fontFamily: {
+                        'kid': ['"Comic Neue"', '"Comic Sans MS"', 'Chalkboard SE', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .drag-card {
+            cursor: grab;
+            transition: transform 0.1s, box-shadow 0.2s;
+            touch-action: manipulation;
+        }
+        .drag-card:active { cursor: grabbing; }
+        .drop-zone {
+            transition: all 0.2s ease;
+            min-height: 70px;
+        }
+        .drop-zone.drag-over {
+            background-color: #e9d4ff;
+            border-color: #9b59b6;
+            transform: scale(1.02);
+        }
+        @keyframes bounceHappy {
+            0% { transform: scale(0.95); opacity: 0; }
+            80% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .feedback-pop {
+            animation: bounceHappy 0.3s ease forwards;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #fffaf2;
+            border-radius: 1rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+        /* 移动端优化 */
+        @media (max-width: 640px) {
+            .drag-card { cursor: pointer; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-lavender-light to-lavender-soft font-kid min-h-screen p-4 md:p-6">
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // ---------- 辅助函数：生成随机百分比（整数，总和100，类别数量固定为4）----------
+    const CATEGORIES = [
+        { id: 0, name: "足球", icon: "⚽", color: "#F97316" },   // 橙色
+        { id: 1, name: "篮球", icon: "🏀", color: "#10B981" },   // 绿色
+        { id: 2, name: "乒乓球", icon: "🏓", color: "#3B82F6" },  // 蓝色
+        { id: 3, name: "游泳", icon: "🏊", color: "#F59E0B" }     // 琥珀色
+    ];
+    
+    // 生成4个随机百分比（总和100，每个至少5%）
+    const generateRandomPercentages = () => {
+        let nums = [];
+        let remaining = 100;
+        for (let i = 0; i < CATEGORIES.length - 1; i++) {
+            let max = remaining - (CATEGORIES.length - i - 1) * 5; // 留出后续最小5
+            let val = Math.floor(Math.random() * (max - 5 + 1) + 5);
+            nums.push(val);
+            remaining -= val;
+        }
+        nums.push(remaining);
+        // 轻微打乱顺序? 不用，保持与类别对应，但为了让扇形图多彩，直接按类别顺序
+        // 但为了避免某类占比为0，最后一项至少5
+        if (nums[nums.length-1] < 5) {
+            // 调整
+            let diff = 5 - nums[nums.length-1];
+            nums[nums.length-1] = 5;
+            nums[0] -= diff;
+            if(nums[0] < 5) nums[0] = 5; // 简单保护
+        }
+        return nums; // [足球%, 篮球%, 乒乓球%, 游泳%]
+    };
+    
+    // 根据百分比构建卡片池 (每个百分比做成一张可拖拽卡片，打乱顺序)
+    const buildCardPool = (percentages) => {
+        let cards = percentages.map((pct, idx) => ({
+            id: `card_${Date.now()}_${idx}_${Math.random()}`,
+            value: pct,
+            categoryId: idx,   // 记录原本所属类别，用于验证时匹配
+            display: `${pct}%`
+        }));
+        // 洗牌
+        for (let i = cards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cards[i], cards[j]] = [cards[j], cards[i]];
+        }
+        return cards;
+    };
+    
+    // 扇形图绘制组件 (基于canvas)
+    const PieChart = React.memo(({ percentages }) => {
+        const canvasRef = React.useRef(null);
+        
+        React.useEffect(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const size = 240; // 固定大小
+            canvas.width = size;
+            canvas.height = size;
+            const centerX = size/2, centerY = size/2, radius = size/2 - 8;
+            
+            ctx.clearRect(0, 0, size, size);
+            if (!percentages || percentages.length === 0) return;
+            
+            let startAngle = -Math.PI / 2; // 从12点钟方向开始
+            for (let i = 0; i < CATEGORIES.length; i++) {
+                const angle = (percentages[i] / 100) * Math.PI * 2;
+                const endAngle = startAngle + angle;
+                ctx.beginPath();
+                ctx.fillStyle = CATEGORIES[i].color;
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.fill();
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                startAngle = endAngle;
+            }
+            // 绘制中心白点装饰
+            ctx.beginPath();
+            ctx.fillStyle = "#ffffffcc";
+            ctx.arc(centerX, centerY, radius * 0.25, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = "#5b21b6";
+            ctx.font = "bold 14px 'Comic Neue'";
+            ctx.fillText("100%", centerX-18, centerY+6);
+        }, [percentages]);
+        
+        return <canvas ref={canvasRef} width="240" height="240" className="mx-auto shadow-md rounded-full"></canvas>;
+    });
+    
+    // 右侧游戏主组件
+    const PieGame = () => {
+        // 当前题目百分比数据 [足球%,篮球%,乒乓球%,游泳%]
+        const [percentages, setPercentages] = React.useState(() => generateRandomPercentages());
+        // 每个类别是否已配对 (配对后不可再放)
+        const [matchedFlags, setMatchedFlags] = React.useState(Array(CATEGORIES.length).fill(false));
+        // 每个类别配对成功后显示的值
+        const [matchedValues, setMatchedValues] = React.useState(Array(CATEGORIES.length).fill(null));
+        // 卡片池（可拖拽的百分比卡片）
+        const [cardsPool, setCardsPool] = React.useState(() => buildCardPool(percentages));
+        // 反馈消息
+        const [feedback, setFeedback] = React.useState({ message: "", isError: false, show: false });
+        // 全部完成标志
+        const [allCompleted, setAllCompleted] = React.useState(false);
+        
+        const showFeedback = (msg, isError) => {
+            setFeedback({ message: msg, isError, show: true });
+            setTimeout(() => setFeedback(prev => ({ ...prev, show: false })), 1800);
+        };
+        
+        // 检查是否全部配对完成
+        const checkAllCompleted = (newFlags) => {
+            if (newFlags.every(flag => flag === true)) {
+                setAllCompleted(true);
+                showFeedback("🎉 太厉害了！全部配对成功！扇形统计图100%掌握啦 🎉", false);
+            } else {
+                setAllCompleted(false);
+            }
+        };
+        
+        // 处理拖拽放置
+        const handleDrop = (e, categoryIndex) => {
+            e.preventDefault();
+            const dropZone = document.getElementById(`dropzone-${categoryIndex}`);
+            if (dropZone) dropZone.classList.remove('drag-over');
+            
+            // 如果该类别已经配对过
+            if (matchedFlags[categoryIndex]) {
+                showFeedback(`📌 ${CATEGORIES[categoryIndex].name}${CATEGORIES[categoryIndex].icon} 已经配对过了，不能重复哦～`, true);
+                return;
+            }
+            
+            const dragRaw = e.dataTransfer.getData("text/plain");
+            if (!dragRaw) return;
+            const { cardId, cardValue, categoryId: originalCatId } = JSON.parse(dragRaw);
+            const requiredValue = percentages[categoryIndex];
+            
+            // 检查数值是否匹配（并且卡片原本所属类别最好对应，但为了教学直接比较百分比即可）
+            if (cardValue === requiredValue) {
+                // 配对成功
+                // 1. 从卡片池中删除该卡片
+                const newCardsPool = cardsPool.filter(card => card.id !== cardId);
+                setCardsPool(newCardsPool);
+                // 2. 更新该类别的配对状态
+                const newMatchedFlags = [...matchedFlags];
+                newMatchedFlags[categoryIndex] = true;
+                setMatchedFlags(newMatchedFlags);
+                const newMatchedValues = [...matchedValues];
+                newMatchedValues[categoryIndex] = cardValue;
+                setMatchedValues(newMatchedValues);
+                showFeedback(`✅ 正确！${CATEGORIES[categoryIndex].name} 占比 ${cardValue}% ，扇形大小正确！`, false);
+                checkAllCompleted(newMatchedFlags);
+            } else {
+                showFeedback(`❌ 配对错误！${CATEGORIES[categoryIndex].name} 的实际占比是 ${requiredValue}%，你拖了 ${cardValue}%，再仔细观察扇形大小～`, true);
+            }
+        };
+        
+        const handleDragOver = (e, categoryIndex) => {
+            e.preventDefault();
+            if (!matchedFlags[categoryIndex]) {
+                const dropZone = document.getElementById(`dropzone-${categoryIndex}`);
+                if (dropZone) dropZone.classList.add('drag-over');
+            }
+        };
+        
+        const handleDragLeave = (e, categoryIndex) => {
+            const dropZone = document.getElementById(`dropzone-${categoryIndex}`);
+            if (dropZone) dropZone.classList.remove('drag-over');
+        };
+        
+        const handleDragStart = (e, card) => {
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, cardValue: card.value, categoryId: card.categoryId }));
+            e.dataTransfer.effectAllowed = "copy";
+            e.target.style.opacity = "0.5";
+        };
+        
+        const handleDragEnd = (e) => {
+            e.target.style.opacity = "";
+        };
+        
+        // 换一题: 重置所有状态
+        const resetGame = () => {
+            const newPercentages = generateRandomPercentages();
+            setPercentages(newPercentages);
+            const newCards = buildCardPool(newPercentages);
+            setCardsPool(newCards);
+            setMatchedFlags(Array(CATEGORIES.length).fill(false));
+            setMatchedValues(Array(CATEGORIES.length).fill(null));
+            setAllCompleted(false);
+            setFeedback({ message: "", isError: false, show: false });
+            showFeedback("✨ 全新数据来啦！将百分比卡片拖拽到对应的运动项目 ✨", false);
+        };
+        
+        // 根据已配对情况，分析结论
+        const getAnalysis = () => {
+            if (!allCompleted) {
+                const pairedCount = matchedFlags.filter(f => f).length;
+                if (pairedCount > 0) {
+                    return (
+                        <div className="mt-3 bg-indigo-50 rounded-xl p-2 text-center text-sm md:text-base font-semibold text-purple-800">
+                            📊 已配对 {pairedCount}/{CATEGORIES.length} 项，继续拖拽卡片完成扇形图分析！
+                        </div>
+                    );
+                }
+                return null;
+            }
+            // 全部完成后，输出完整分析
+            const total = 100;
+            let maxPercent = Math.max(...percentages);
+            let maxIndex = percentages.indexOf(maxPercent);
+            let minPercent = Math.min(...percentages);
+            let minIndex = percentages.indexOf(minPercent);
+            return (
+                <div className="mt-4 bg-yellow-100 rounded-xl p-3 text-center text-base md:text-lg font-bold text-purple-900 shadow-md">
+                    🧩 扇形统计图大总结 🧩<br/>
+                    🥇 {CATEGORIES[maxIndex].name} {CATEGORIES[maxIndex].icon} 占比最大，为 {maxPercent}% <br/>
+                    🥉 {CATEGORIES[minIndex].name} {CATEGORIES[minIndex].icon} 占比最小，为 {minPercent}% <br/>
+                    🌟 整个圆代表“总数100%”，每个扇形大小表示各部分占总数的比例。<br/>
+                    💡 扇形统计图非常适合展示部分与整体的关系！
+                </div>
+            );
+        };
+        
+        return (
+            <div className="flex flex-col">
+                {/* 扇形图画布区域 */}
+                <div className="bg-white/80 rounded-2xl p-4 shadow-lg mb-5 flex justify-center">
+                    <div className="text-center">
+                        <PieChart percentages={percentages} />
+                        <p className="text-sm text-purple-600 mt-2">🎨 整个圆 = 总数100% &nbsp;&nbsp;扇形越大，占比越多</p>
+                    </div>
+                </div>
+                
+                {/* 配对区域：每个类别一个放置槽 */}
+                <div className="bg-white/70 rounded-2xl p-4 mb-4">
+                    <p className="text-xl md:text-2xl font-bold text-purple-800 mb-3 flex items-center gap-2">🎯 把百分比拖到对应项目：</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {CATEGORIES.map((cat, idx) => {
+                            const isMatched = matchedFlags[idx];
+                            const matchedVal = matchedValues[idx];
+                            return (
+                                <div key={cat.id} className="bg-purple-50/80 rounded-xl p-2 flex items-center gap-3 shadow-sm">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-3xl" style={{ backgroundColor: cat.color + '40' }}>
+                                        <span>{cat.icon}</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-bold text-lg text-purple-800">{cat.name}</div>
+                                        <div
+                                            id={`dropzone-${idx}`}
+                                            onDrop={(e) => handleDrop(e, idx)}
+                                            onDragOver={(e) => handleDragOver(e, idx)}
+                                            onDragLeave={(e) => handleDragLeave(e, idx)}
+                                            className={`drop-zone mt-1 p-2 rounded-xl border-2 border-dashed text-center text-sm md:text-base transition-all
+                                                ${isMatched ? 'bg-green-100 border-green-400' : 'bg-white border-purple-300 cursor-pointer'}`}
+                                        >
+                                            {isMatched ? (
+                                                <span className="font-bold text-green-700">✅ 占比 {matchedVal}%</span>
+                                            ) : (
+                                                <span className="text-gray-500">⬅️ 拖拽百分比卡片到这里</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                
+                {/* 可拖拽数字卡片池 */}
+                <div className="bg-white/70 rounded-2xl p-4 mb-3">
+                    <p className="text-xl md:text-2xl font-bold text-purple-800 mb-3">🎴 百分比卡片（拖拽到上方对应项目）</p>
+                    {cardsPool.length === 0 && allCompleted && (
+                        <div className="bg-green-200 p-3 rounded-xl text-center text-green-800 font-bold text-lg">
+                            🎉 完美配对！扇形统计图小达人就是你！点“换一题”继续挑战 🎉
+                        </div>
+                    )}
+                    {cardsPool.length > 0 ? (
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            {cardsPool.map(card => (
+                                <div
+                                    key={card.id}
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, card)}
+                                    onDragEnd={handleDragEnd}
+                                    className="drag-card w-24 h-24 md:w-28 md:h-28 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl flex items-center justify-center shadow-xl text-3xl md:text-4xl font-black text-purple-900 border-4 border-white hover:scale-105 transition-transform"
+                                >
+                                    {card.display}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        !allCompleted && <div className="text-center text-purple-600 text-lg">✨ 正在配对中，继续拖动卡片 ✨</div>
+                    )}
+                </div>
+                
+                {/* 反馈消息 */}
+                {feedback.show && (
+                    <div className={`text-center p-2 rounded-xl text-lg font-bold mb-2 ${feedback.isError ? 'bg-rose-200 text-rose-700' : 'bg-green-200 text-green-800'} feedback-pop`}>
+                        {feedback.message}
+                    </div>
+                )}
+                
+                {/* 分析结论区 */}
+                {getAnalysis()}
+                
+                {/* 换一题按钮 */}
+                <button onClick={resetGame}
+                        className="mt-4 w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-xl transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3">
+                    🔄 换一题
+                    <span>🌟</span>
+                </button>
+                <p className="text-xs text-center text-purple-700 mt-3 bg-white/50 rounded-full px-2 py-1">
+                    💡 玩法：观察右边扇形图，将下方的百分比卡片拖拽到对应运动项目的虚线框中。全部配对正确就能掌握扇形统计图！
+                </p>
+            </div>
+        );
+    };
+    
+    // 左侧知识点组件
+    const KnowledgePanel = () => {
+        return (
+            <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                <div className="flex items-center gap-2 mb-4 border-b-4 border-lavender-deep pb-2">
+                    <span className="text-4xl">🥧</span>
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">扇形统计图小课堂</h2>
+                </div>
+                <div className="space-y-4 text-lg md:text-xl leading-relaxed text-gray-800">
+                    <div className="bg-purple-50 p-3 rounded-xl">
+                        <p className="font-black text-purple-900">📌 什么是扇形统计图？</p>
+                        <p>用<span className="bg-yellow-200 px-1 rounded">整个圆</span>表示总数量（单位1，也就是100%），用<span className="bg-yellow-200 px-1 rounded">扇形大小</span>表示各部分占总数量的百分比。</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                        <p className="font-black text-purple-900">🧩 核心特征：</p>
+                        <ul className="list-disc pl-5 space-y-1 text-base md:text-xl">
+                            <li><strong>各部分百分比之和 = 100%</strong></li>
+                            <li>扇形圆心角度数 = 360° × 百分比</li>
+                            <li>能清楚看出<span className="font-bold">部分与整体的关系</span></li>
+                        </ul>
+                    </div>
+                    <div className="bg-indigo-50 p-3 rounded-xl">
+                        <p className="font-black">📊 与条形、折线图的区别：</p>
+                        <p>条形图比多少，折线图看变化，扇形图<span className="font-bold text-purple-700">看占比</span>！比如家庭支出中，食物占多少、衣服占多少，扇形图一目了然。</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 shadow-inner">
+                        <p className="font-black">📖 生活实例：</p>
+                        <p>🥗 食物营养成分占比、📱 班级兴趣爱好分布、🏠 家庭月度支出、🌍 土地利用结构……都可以用扇形统计图展示！</p>
+                    </div>
+                    <div className="text-sm md:text-base text-purple-800 bg-lavender-soft/50 p-2 rounded-lg">
+                        💡 读图技巧：扇形越大，占比越多；所有扇形加起来就是完整的整体。
+                    </div>
+                </div>
+                <div className="mt-4 text-center text-purple-500 text-xs md:text-sm">
+                    🎮 右侧游戏：将百分比卡片拖到正确的运动项目，配对成功即可看到扇形统计图的数据分析！
+                </div>
+            </div>
+        );
+    };
+    
+    // 主应用布局
+    const App = () => {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center">
+                <div className="w-full max-w-6xl mb-4 text-center">
+                    <h1 className="text-5xl md:text-7xl font-extrabold text-white drop-shadow-lg bg-purple-800/30 inline-block px-6 py-2 rounded-full backdrop-blur-sm">
+                        🍩 扇形统计图大冒险 🥧
+                    </h1>
+                    <p className="text-white/90 text-xl md:text-2xl mt-2 font-semibold">学会看占比·拖拽配对·玩转百分比</p>
+                </div>
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="lg:w-1/2">
+                        <KnowledgePanel />
+                    </div>
+                    <div className="lg:w-1/2">
+                        <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 mb-3 flex items-center gap-2">
+                                🎮 小小数据分析师 <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对游戏</span>
+                            </h3>
+                            <PieGame />
+                        </div>
+                    </div>
+                </div>
+                <footer className="mt-6 text-center text-purple-800 text-sm md:text-base bg-white/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                    🌟 观察扇形大小，把正确的百分比卡片拖到对应项目！全部配对完成，扇形统计图技能get！ 🌟
+                </footer>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

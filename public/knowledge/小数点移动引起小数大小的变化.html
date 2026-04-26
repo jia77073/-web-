@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>✨ 小数点魔法移动 · 数学游乐园 ✨</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .option-card {
+      transition: all 0.15s ease;
+    }
+    .option-card:active {
+      transform: scale(0.97);
+    }
+    .magic-glow {
+      transition: all 0.2s;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#f3e8ff] to-[#d9c6ff] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件 (小数点移动规律) ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-purple-200/80 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-purple-300 pb-3 mb-4">
+          <span className="text-3xl">✨</span>
+          <h2 className="text-2xl font-extrabold text-purple-800">小数点移动 · 魔法规律<br/><span className="text-sm font-normal">扩大与缩小，小数点会“跳舞”</span></h2>
+        </div>
+        <div className="space-y-4 text-purple-800">
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700 flex items-center gap-2">🔮 移动口诀：</p>
+            <p className="text-sm mt-1 font-mono bg-white/60 p-2 rounded-xl text-center">
+              ✨ 右移扩大，左移缩小 ✨<br/>
+              一位十、两位百、三位千……<br/>
+              位数不够“0”来补！
+            </p>
+          </div>
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700">📌 规律详解：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li><span className="font-bold">小数点向右移动一位</span> → 原数 × 10（扩大10倍）</li>
+              <li><span className="font-bold">小数点向右移动两位</span> → 原数 × 100（扩大100倍）</li>
+              <li><span className="font-bold">小数点向左移动一位</span> → 原数 ÷ 10（缩小到1/10）</li>
+              <li><span className="font-bold">小数点向左移动两位</span> → 原数 ÷ 100（缩小到1/100）</li>
+            </ul>
+            <div className="mt-2 text-xs italic bg-purple-100 p-2 rounded-lg">例：3.25 右移一位 → 32.5 &nbsp;&nbsp; 左移一位 → 0.325</div>
+          </div>
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700">🎯 应用技巧：</p>
+            <p className="text-sm">移动小数点时，先确定方向与位数，再逐位移动，缺少的数位用“0”补足。</p>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center">
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs font-mono">0.5 → 右移两位 → 50</span>
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs font-mono">12.3 → 左移一位 → 1.23</span>
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs font-mono">4 → 右移三位 → 4000</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-purple-600 bg-purple-100/70 p-2 rounded-xl">
+          🧙 右侧挑战：帮小数点正确“跳”到新位置，选出移动后的数字！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 工具函数：优雅处理小数点移动（字符串方式，精确无浮点误差）----------
+  // 输入原始数字字符串（如 "3.25" 或 "12"），方向 'right' / 'left'，移动位数 1~3
+  // 返回移动后的新数字字符串（去除多余尾随零和无效小数点）
+  const moveDecimalPoint = (numStr, direction, places) => {
+    if (!numStr.includes('.')) {
+      // 整数情况，添加小数点以便移动
+      numStr = numStr + '.';
+    }
+    let [intPart, decPart] = numStr.split('.');
+    if (decPart === undefined) decPart = '';
+    
+    if (direction === 'right') {
+      // 向右移动：将小数部分前 places 位挪到整数部分
+      let moveDigits = decPart.slice(0, places);
+      let remainingDec = decPart.slice(places);
+      intPart = intPart + moveDigits;
+      decPart = remainingDec;
+      // 如果整数部分前面有0需要去掉（但保留一位0？如 "0" + "5" = "05" -> 需要处理）
+      // 但一般整数部分可能为空？intPart至少是0或更多，直接parseInt去掉前导零
+      // 但为了保证大数不丢失，我们直接移除前导零但是保留"0"
+      if (intPart.length > 1 && intPart[0] === '0') {
+        intPart = intPart.replace(/^0+/, '');
+        if (intPart === '') intPart = '0';
+      }
+    } else {
+      // 向左移动：将整数部分末尾 places 位挪到小数部分前面
+      let len = intPart.length;
+      if (places > len) {
+        // 位数不够，补零
+        let zerosNeeded = places - len;
+        let newIntPart = '0';
+        let newDecPart = '0'.repeat(zerosNeeded) + intPart + decPart;
+        decPart = newDecPart;
+        intPart = newIntPart;
+      } else {
+        let movePart = intPart.slice(-places);
+        let remainingInt = intPart.slice(0, -places);
+        if (remainingInt === '') remainingInt = '0';
+        intPart = remainingInt;
+        decPart = movePart + decPart;
+      }
+    }
+    // 合并结果，去掉小数部分末尾多余的零，以及处理 . 后全零的情况
+    let result = intPart + (decPart ? '.' + decPart : '');
+    // 去除末尾无效零
+    result = result.replace(/(\.\d*?)0+$/, '$1');
+    result = result.replace(/\.$/, '');
+    // 处理类似 "0." 情况
+    if (result === '') result = '0';
+    // 确保科学计数法不会出现，返回标准字符串
+    return result;
+  };
+
+  // 生成一个随机的原始数（正数，包含整数或小数，范围 0.01 ~ 999.9 左右，直观易读）
+  const generateRandomOriginal = () => {
+    const type = Math.floor(Math.random() * 4); // 0:整数 1:一位小数 2:两位小数 3:三位小数但适度
+    let num;
+    if (type === 0) {
+      // 整数 1~999
+      num = Math.floor(Math.random() * 999) + 1;
+      return num.toString();
+    } else if (type === 1) {
+      // 一位小数 1~99.9
+      let intPart = Math.floor(Math.random() * 100) + 1;
+      let decPart = Math.floor(Math.random() * 10);
+      num = `${intPart}.${decPart}`;
+    } else if (type === 2) {
+      // 两位小数 0.1 ~ 99.99
+      let intPart = Math.floor(Math.random() * 100);
+      let decPart = Math.floor(Math.random() * 100);
+      if (intPart === 0 && decPart === 0) decPart = 1;
+      num = `${intPart}.${decPart.toString().padStart(2, '0')}`;
+    } else {
+      // 三位小数但范围较小 0.001~ 50.999
+      let intPart = Math.floor(Math.random() * 51);
+      let decPart = Math.floor(Math.random() * 1000);
+      if (intPart === 0 && decPart === 0) decPart = 1;
+      num = `${intPart}.${decPart.toString().padStart(3, '0')}`;
+    }
+    // 去除多余的前导零和末尾无效零（保留可读性）
+    let cleanNum = parseFloat(num).toString();
+    if (cleanNum.includes('e')) cleanNum = num; // 防御
+    return cleanNum;
+  };
+
+  // 生成完整题目：原始数字，随机方向(左/右)，随机移动位数(1~3)，正确结果，以及干扰项
+  const generateQuestion = () => {
+    const original = generateRandomOriginal();
+    const direction = Math.random() > 0.5 ? 'right' : 'left';
+    const places = Math.floor(Math.random() * 3) + 1; // 1,2,3
+    
+    const correctResult = moveDecimalPoint(original, direction, places);
+    
+    // 生成干扰项 (3个不同的错误结果)
+    const wrongSet = new Set();
+    // 错误类型：1. 相反方向移动同样位数 2. 移动位数±1 3. 随机错误移动 4. 加减随机偏移
+    const wrongCandidates = [];
+    
+    // 方向相反的移动
+    const oppositeDir = direction === 'right' ? 'left' : 'right';
+    const oppositeRes = moveDecimalPoint(original, oppositeDir, places);
+    if (oppositeRes !== correctResult) wrongCandidates.push(oppositeRes);
+    
+    // 位数多1或少1 (注意范围1-3)
+    if (places + 1 <= 3) {
+      const plusRes = moveDecimalPoint(original, direction, places + 1);
+      if (plusRes !== correctResult) wrongCandidates.push(plusRes);
+    }
+    if (places - 1 >= 1) {
+      const minusRes = moveDecimalPoint(original, direction, places - 1);
+      if (minusRes !== correctResult) wrongCandidates.push(minusRes);
+    }
+    // 随机加减一个数值（基于正确结果转换为数字微调，避免过于离谱，且确保不同）
+    const correctNum = parseFloat(correctResult);
+    if (!isNaN(correctNum)) {
+      let offset = 1;
+      for (let i = 0; i < 2; i++) {
+        let fake = (correctNum + offset * (i + 1)).toFixed(4).replace(/\.?0+$/, '');
+        if (fake !== correctResult && !wrongCandidates.includes(fake)) wrongCandidates.push(fake);
+        let fake2 = (correctNum - offset * (i + 1)).toFixed(4);
+        if (parseFloat(fake2) > 0 && fake2 !== correctResult && !wrongCandidates.includes(fake2)) wrongCandidates.push(fake2);
+        offset *= 2;
+      }
+    }
+    // 额外添加一个基于原始数字的错误移动（不同方向且不同位数）
+    const randomDir = Math.random() > 0.5 ? 'right' : 'left';
+    const randomPlaces = ((places % 3) + 1);
+    const randomRes = moveDecimalPoint(original, randomDir, randomPlaces);
+    if (randomRes !== correctResult && !wrongCandidates.includes(randomRes)) wrongCandidates.push(randomRes);
+    
+    // 去重并保证至少有3个不同的干扰项
+    let uniqueWrongs = [...new Set(wrongCandidates)];
+    // 如果不够3个，补充一些简单错误：正确结果±10%或补零
+    while (uniqueWrongs.length < 3) {
+      let extra = (parseFloat(correctResult) * (0.5 + Math.random() * 0.8)).toFixed(2);
+      if (!uniqueWrongs.includes(extra) && extra !== correctResult && parseFloat(extra) > 0) uniqueWrongs.push(extra);
+      else uniqueWrongs.push((parseFloat(correctResult) + 2).toString());
+    }
+    // 只取前3个干扰项
+    let wrongOptions = uniqueWrongs.slice(0, 3);
+    // 合并正确选项，构建选项数组并打乱
+    let options = [correctResult, ...wrongOptions];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    
+    // 描述文本
+    const directionText = direction === 'right' ? '向右' : '向左';
+    const placesText = places === 1 ? '一位' : places === 2 ? '两位' : '三位';
+    const questionText = `✨ ${original} 的小数点 ${directionText} 移动 ${placesText}，结果是多少？ ✨`;
+    
+    return {
+      original,
+      direction,
+      places,
+      correctResult,
+      options,
+      questionText,
+    };
+  };
+
+  // ---------- 小数点移动挑战游戏组件 ----------
+  const MagicDecimalGame = ({ resetKey, onNewQuestion }) => {
+    const [question, setQuestion] = React.useState(() => generateQuestion());
+    const [selectedOption, setSelectedOption] = React.useState(null);
+    const [feedback, setFeedback] = React.useState('');
+    const [isLocked, setIsLocked] = React.useState(false);
+    const [hasScored, setHasScored] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    const [attemptCount, setAttemptCount] = React.useState(0);
+    
+    // 刷新当前题目（换题时调用，保留总分）
+    const refreshQuestion = () => {
+      setQuestion(generateQuestion());
+      setSelectedOption(null);
+      setFeedback('');
+      setIsLocked(false);
+      setHasScored(false);
+    };
+    
+    // 监听外部重置信号（换一题）
+    React.useEffect(() => {
+      refreshQuestion();
+    }, [resetKey]);
+    
+    // 处理用户点击选项
+    const handleSelectOption = (optValue) => {
+      if (isLocked) {
+        setFeedback('🎯 本题已完成！点击“换一题”继续挑战吧！');
+        return;
+      }
+      setSelectedOption(optValue);
+      const isCorrect = (optValue === question.correctResult);
+      
+      if (isCorrect) {
+        if (!hasScored) {
+          setScore(prev => prev + 1);
+          setHasScored(true);
+          setAttemptCount(prev => prev + 1);
+        }
+        setFeedback('🎉✨ 完全正确！小数点魔法施展成功！ ✨🎉');
+        setIsLocked(true);
+      } else {
+        // 错误提示，显示正确答案
+        setFeedback(`❌ 哎呀！小数点没有跳对位置～ 正确答案是 ${question.correctResult}。再试试吧！`);
+        // 不锁定，不清空得分机会，用户可以继续选择正确选项
+        // 但为了更好的体验，不清空selectedOption也可以，用户可以再次点选正确选项
+        // 但当前setSelectedOption会显示已选错误，玩家再次点击正确依旧会触发正确加分。
+      }
+    };
+    
+    // 重置本题（清除当前选择，解锁，不清除得分机会）
+    const resetCurrent = () => {
+      if (isLocked) {
+        // 若已正确锁定，重置后可以重新尝试本题，但已经加过分不允许再加（hasScored保持true）
+        setSelectedOption(null);
+        setFeedback('');
+        setIsLocked(false);
+      } else {
+        setSelectedOption(null);
+        setFeedback('');
+        // 未锁定时单纯清空
+      }
+    };
+    
+    // 换新题
+    const nextQuestion = () => {
+      onNewQuestion(); // 触发父组件resetKey
+    };
+    
+    // 根据选项判断样式
+    const getOptionClass = (opt) => {
+      let base = "option-card cursor-pointer text-center p-3 rounded-2xl shadow-md transition-all border-2 font-mono font-bold text-xl ";
+      if (selectedOption === opt) {
+        if (opt === question.correctResult && isLocked) {
+          return base + "bg-green-400 text-white border-green-600 scale-105 ring-2 ring-green-300";
+        }
+        return base + "bg-purple-400 text-white border-purple-600";
+      }
+      if (isLocked && opt === question.correctResult) {
+        return base + "bg-green-200 text-green-800 border-green-400 opacity-80";
+      }
+      return base + "bg-white hover:bg-purple-100 text-purple-800 border-purple-200 hover:border-purple-400";
+    };
+    
+    // 显示移动方向动画小提示
+    const directionHint = () => {
+      if (!question) return '';
+      const dir = question.direction === 'right' ? '→ 向右移动' : '← 向左移动';
+      const placeMap = {1:'一位',2:'两位',3:'三位'};
+      return `${dir} ${placeMap[question.places]} (×${question.direction === 'right' ? Math.pow(10, question.places) : '1/' + Math.pow(10, question.places)})`;
+    };
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 得分区域 */}
+        <div className="flex justify-between items-center bg-white/70 rounded-2xl px-5 py-2 shadow-sm border border-purple-200">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <span className="font-bold text-purple-800">魔法积分</span>
+            <span className="text-3xl font-black text-purple-700">{score}</span>
+            <span className="text-sm text-purple-500">分</span>
+          </div>
+          <div className="text-xs bg-purple-200 px-3 py-1 rounded-full text-purple-800 font-medium">
+            ✨ 移动正确 +1 ✨
+          </div>
+        </div>
+        
+        {/* 题目魔法区 */}
+        <div className="bg-gradient-to-r from-purple-100 to-indigo-100 rounded-2xl p-5 shadow-md border border-purple-200">
+          <div className="text-center">
+            <div className="text-sm font-semibold text-purple-600 bg-white/50 inline-block px-4 py-1 rounded-full mb-3">🧙 小数点魔法指令 🧙</div>
+            <div className="text-xl md:text-2xl font-bold text-purple-900 bg-white/60 py-4 px-3 rounded-2xl inline-block shadow-inner">
+              {question.questionText}
+            </div>
+            <div className="mt-3 text-sm text-purple-600 bg-purple-50/80 rounded-full px-3 py-1 inline-flex items-center gap-1">
+              <span>🔮 提示：{directionHint()}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* 选项区域 - 四个魔法卡片 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+          {question.options.map((opt, idx) => (
+            <div
+              key={idx}
+              className={getOptionClass(opt)}
+              onClick={() => handleSelectOption(opt)}
+            >
+              <div className="text-2xl break-all">{opt}</div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 反馈信息 */}
+        {feedback && (
+          <div className={`text-center font-bold p-3 rounded-xl ${
+            feedback.includes('正确') ? 'bg-green-200 text-green-800 border-l-8 border-green-500' : 'bg-amber-100 text-amber-700 border-l-8 border-amber-400'
+          } shadow-sm`}>
+            {feedback}
+          </div>
+        )}
+        
+        {/* 操作按钮组 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={resetCurrent} 
+            className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2.5 rounded-full transition shadow-sm text-base active:scale-[0.98]"
+          >
+            🔄 重置本题
+          </button>
+          <button 
+            onClick={nextQuestion} 
+            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🎲 新魔法挑战
+          </button>
+        </div>
+        
+        {/* 小贴士：移动补零规则 */}
+        <div className="text-xs text-center text-purple-700 bg-purple-50/70 rounded-full py-1.5 px-3">
+          💡 魔法笔记：位数不够“0”来补！ 右移缺位末尾加0，左移缺位前加0。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (淡紫色主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-purple-200/70">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <h3 className="text-xl font-bold text-purple-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                小数点舞会 · 移动挑战
+              </h3>
+              <span className="text-sm text-purple-600 bg-purple-100 px-3 py-1 rounded-full">✨ 点击正确结果 ✨</span>
+            </div>
+            <MagicDecimalGame resetKey={gameResetKey} onNewQuestion={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-purple-700 bg-white/60 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>⚡ 玩法：根据小数点移动指令，从四个选项中选出正确结果</span>
+            <span>🏅 连续答对，成为小数点魔法师！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

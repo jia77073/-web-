@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🥬 2、3、5的倍数特征 · 数学游乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+    }
+    .drag-card:active {
+      opacity: 0.7;
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.2s ease;
+    }
+    .drop-zone.drag-over {
+      background-color: #bbf7d0;
+      border-color: #16a34a;
+      transform: scale(1.02);
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#D1FAE5] to-[#A7F3D0] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（2、3、5的倍数特征）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-green-200/80 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-green-300 pb-3 mb-4">
+          <span className="text-3xl">🥬</span>
+          <h2 className="text-2xl font-extrabold text-green-800">2、3、5的倍数特征<br/><span className="text-sm font-normal">一招判断，快速识别</span></h2>
+        </div>
+        <div className="space-y-4 text-green-800">
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700 flex items-center gap-2">✨ 2的倍数特征：</p>
+            <p className="text-sm mt-1">个位上是 <span className="font-bold text-green-700">0、2、4、6、8</span> 的数都是2的倍数（也叫偶数）。</p>
+            <div className="mt-1 text-xs bg-white/60 p-1 rounded-lg inline-block">例：18、34、70、256</div>
+          </div>
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700">✨ 5的倍数特征：</p>
+            <p className="text-sm mt-1">个位上是 <span className="font-bold text-green-700">0 或 5</span> 的数都是5的倍数。</p>
+            <div className="mt-1 text-xs bg-white/60 p-1 rounded-lg inline-block">例：25、40、105、370</div>
+          </div>
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700">✨ 3的倍数特征：</p>
+            <p className="text-sm mt-1">一个数各位上的数字之和是<span className="font-bold text-green-700">3的倍数</span>，这个数就是3的倍数。</p>
+            <div className="mt-1 text-xs bg-white/60 p-1 rounded-lg inline-block">例：27 (2+7=9→3的倍数) 、135 (1+3+5=9)</div>
+          </div>
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700">📌 小提醒：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li>个位是<span className="font-bold">0</span>的数同时是2和5的倍数。</li>
+              <li>个位是0且各位和是3的倍数，则同时是2、3、5的倍数（如30、60）。</li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-green-700 bg-green-100/70 p-2 rounded-xl">
+          🎮 右边游戏：把蔬菜数字拖到对应的菜篮里，分类挑战！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 辅助函数：判断倍数特征 ----------
+  const checkMultiple = (num, type) => {
+    // type: '2', '3', '5'
+    if (type === '2') return num % 2 === 0;
+    if (type === '5') return num % 5 === 0;
+    if (type === '3') return num % 3 === 0;
+    return false;
+  };
+
+  // 生成随机数字（10~99 之间，避免过于简单或复杂）
+  const generateRandomNumber = () => {
+    return Math.floor(Math.random() * 90) + 10; // 10~99
+  };
+
+  // 生成初始蔬菜卡片数组 (5~6个随机数)
+  const generateVegetableCards = (count = 5) => {
+    let cards = [];
+    for (let i = 0; i < count; i++) {
+      let num = generateRandomNumber();
+      // 避免重复数字（简单去重）
+      while (cards.some(c => c.value === num)) {
+        num = generateRandomNumber();
+      }
+      cards.push({
+        id: Date.now() + i + Math.random(),
+        value: num,
+        matched: false,   // 是否已正确分类
+        matchedType: null // 记录被分到哪个篮子（用于显示）
+      });
+    }
+    return cards;
+  };
+
+  // 篮子数据
+  const BASKETS = [
+    { type: '2', label: '2的倍数', icon: '🥕', bgColor: 'bg-yellow-100', borderColor: 'border-yellow-500', hint: '个位是0,2,4,6,8' },
+    { type: '3', label: '3的倍数', icon: '🥦', bgColor: 'bg-emerald-100', borderColor: 'border-emerald-500', hint: '各位和是3的倍数' },
+    { type: '5', label: '5的倍数', icon: '🍅', bgColor: 'bg-red-100', borderColor: 'border-red-500', hint: '个位是0或5' }
+  ];
+
+  // ---------- 拖拽分类游戏组件 ----------
+  const MultipleSortGame = ({ resetKey, onNewGame }) => {
+    const [cards, setCards] = React.useState(() => generateVegetableCards(5));
+    const [score, setScore] = React.useState(0);        // 正确分类计数
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 重置当前游戏（刷新卡片，不清除总分？更合理的：重置全部卡片，分数归零）
+    const resetGame = () => {
+      setCards(generateVegetableCards(5));
+      setScore(0);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 检查胜利（所有卡片都被正确分类）
+    React.useEffect(() => {
+      if (cards.length > 0 && cards.every(card => card.matched === true) && !isVictory) {
+        setIsVictory(true);
+      } else if (cards.some(card => !card.matched) && isVictory) {
+        setIsVictory(false);
+      }
+    }, [cards, isVictory]);
+    
+    // 监听外部重置（换新题目）
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 处理拖拽开始
+    const onDragStart = (e, card) => {
+      if (card.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.id, value: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    
+    const onDragEnd = (e) => {
+      e.target.style.opacity = '';
+    };
+    
+    const onDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    
+    const onDragLeave = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到篮子
+    const onDrop = (e, basketType) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      const { id, value } = JSON.parse(rawData);
+      
+      // 查找卡片
+      const targetCard = cards.find(c => c.id === id);
+      if (!targetCard || targetCard.matched) {
+        setErrorMsg('🥬 这个蔬菜已经摘过啦！');
+        setTimeout(() => setErrorMsg(''), 1200);
+        return;
+      }
+      
+      const isCorrect = checkMultiple(value, basketType);
+      if (isCorrect) {
+        // 正确分类
+        setCards(prevCards =>
+          prevCards.map(card =>
+            card.id === id ? { ...card, matched: true, matchedType: basketType } : card
+          )
+        );
+        setScore(prev => prev + 1);
+        setErrorMsg('');
+      } else {
+        // 错误提示
+        let correctHint = '';
+        if (checkMultiple(value, '2')) correctHint = '2的倍数';
+        else if (checkMultiple(value, '3')) correctHint = '3的倍数';
+        else if (checkMultiple(value, '5')) correctHint = '5的倍数';
+        else correctHint = '不是2、3、5的倍数';
+        setErrorMsg(`❌ 不对哦！ ${value} 不是${basketType}的倍数。${correctHint}。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1800);
+      }
+    };
+    
+    // 刷新所有未匹配卡片（换一批新数字）
+    const refreshCards = () => {
+      if (isVictory) {
+        // 如果已经胜利，直接重置游戏
+        resetGame();
+        if (onNewGame) onNewGame();
+      } else {
+        // 未胜利时，保留分数和篮子，只重置未匹配的卡片（用新数字替换未匹配的卡片）
+        setCards(prevCards => {
+          const matchedCards = prevCards.filter(c => c.matched);
+          const unmatchedCount = prevCards.filter(c => !c.matched).length;
+          let newUnmatched = [];
+          for (let i = 0; i < unmatchedCount; i++) {
+            let newNum = generateRandomNumber();
+            while (matchedCards.some(c => c.value === newNum) || newUnmatched.some(c => c.value === newNum)) {
+              newNum = generateRandomNumber();
+            }
+            newUnmatched.push({
+              id: Date.now() + i + Math.random(),
+              value: newNum,
+              matched: false,
+              matchedType: null
+            });
+          }
+          return [...matchedCards, ...newUnmatched];
+        });
+        setErrorMsg('');
+      }
+    };
+    
+    // 重置所有卡片（包括已匹配的）
+    const resetAll = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    // 胜利弹窗
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl p-3 mt-2 animate-bounce shadow-lg">
+        <div className="text-2xl font-bold text-white">🎉 大丰收啦！ 🎉</div>
+        <div className="text-sm text-white font-semibold">所有蔬菜都放对篮子啦！点击“新的一篮”继续挑战～</div>
+      </div>
+    );
+    
+    // 统计正确数量
+    const correctCount = cards.filter(c => c.matched).length;
+    const totalCount = cards.length;
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 得分/进度区域 */}
+        <div className="flex justify-between items-center bg-white/70 rounded-2xl px-5 py-2 shadow-sm border border-green-200">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🧺</span>
+            <span className="font-bold text-green-800">分类进度</span>
+            <span className="text-lg font-black text-green-700">{correctCount} / {totalCount}</span>
+          </div>
+          <div className="w-32 bg-gray-200 rounded-full h-2.5">
+            <div className="bg-green-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(correctCount/totalCount)*100}%` }}></div>
+          </div>
+          <div className="text-xs bg-green-200 px-2 py-1 rounded-full text-green-800">🥗 拖拽蔬菜到菜篮</div>
+        </div>
+        
+        {/* 蔬菜卡片区域 */}
+        <div className="bg-white/50 rounded-2xl p-4">
+          <div className="text-center text-sm font-semibold text-green-700 mb-2">🥬 下面的蔬菜数字卡片，拖到对应的篮子里 🥬</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {cards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.matched}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-2xl shadow-lg flex flex-col items-center justify-center transition-all ${
+                  card.matched 
+                    ? 'bg-gray-200 opacity-70 cursor-default border-2 border-gray-400' 
+                    : 'bg-gradient-to-br from-green-200 to-lime-200 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-green-500'
+                }`}
+              >
+                {card.matched ? (
+                  <>
+                    <span className="text-3xl">✅</span>
+                    <span className="text-xs text-gray-600 mt-1">已放入</span>
+                    <span className="text-xs font-mono">{card.value}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-4xl font-black text-green-800">{card.value}</span>
+                    <span className="text-[10px] text-green-600">🥕 拖拽我</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          {cards.length === 0 && <div className="text-center text-green-600 mt-4">✨ 所有蔬菜都分类完成啦！ ✨</div>}
+        </div>
+        
+        {/* 三个篮子区域 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+          {BASKETS.map(basket => (
+            <div
+              key={basket.type}
+              className={`drop-zone ${basket.bgColor} border-4 ${basket.borderColor} rounded-2xl p-3 text-center transition-all shadow-md`}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, basket.type)}
+            >
+              <div className="flex justify-center items-center gap-2 text-2xl font-bold">
+                <span>{basket.icon}</span>
+                <span className="text-green-800">{basket.label}</span>
+              </div>
+              <div className="text-xs text-gray-600 mt-1">{basket.hint}</div>
+              {/* 显示已经放入这个篮子的数字 */}
+              <div className="mt-2 flex flex-wrap justify-center gap-1">
+                {cards.filter(c => c.matched && c.matchedType === basket.type).map(c => (
+                  <span key={c.id} className="bg-white/60 rounded-full px-2 py-0.5 text-xs font-mono">{c.value}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-amber-100 text-amber-800 font-bold p-2 rounded-xl border-l-4 border-amber-500 animate-pulse">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利信息 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮组 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={refreshCards}
+            className="flex-1 bg-amber-400 hover:bg-amber-500 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🔄 换掉未分类的蔬菜
+          </button>
+          <button 
+            onClick={resetAll}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🧺 新的一篮
+          </button>
+        </div>
+        
+        <div className="text-xs text-center text-green-800 bg-white/60 rounded-full py-1.5 px-3">
+          💡 小贴士：看个位判断2和5，看各位和判断3。拖拽正确就能把蔬菜放进篮子！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (青菜绿主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-green-200/80">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-green-800 flex items-center gap-2">
+                <span className="text-2xl">🥬</span>
+                倍数小菜园 · 拖拽分类
+              </h3>
+              <span className="text-sm bg-green-100 px-3 py-1 rounded-full text-green-700">✨ 拖拽数字到正确篮子 ✨</span>
+            </div>
+            <MultipleSortGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-green-800 bg-white/60 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>🥕 玩法：观察数字，判断它是2、3还是5的倍数，拖拽到对应的菜篮里。</span>
+            <span>🏆 把所有蔬菜分完，成为倍数小园丁！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

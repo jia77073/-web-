@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>比例的基本性质 · 神秘算式岛 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大3号（2.2rem），保持阅读舒适 */
+    body {
+      font-size: 2.2rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    /* 调整小号辅助文字相对比例 */
+    .text-xs-custom {
+      font-size: 0.65rem;
+    }
+    .drag-number {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-number:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    /* 移动端适当缩小，防止卡片溢出 */
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.6rem;
+      }
+      .drag-number, .drop-slot {
+        font-size: 1.2rem;
+      }
+      .card-value {
+        font-size: 1.4rem;
+      }
+    }
+    /* 卡片内文字微调 */
+    .card-value {
+      font-size: 1.8rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 比例的基本性质 =======================
+  // 知识点：在比例里，两个外项的积等于两个内项的积，这叫做比例的基本性质。
+  
+  // ---------- 游戏数据：拖拽填空（根据比例的基本性质求未知项）----------
+  const gameQuestions = [
+    { id: 1, text: "3 : 4 = 6 : ?", missingPos: "right2", correctAnswer: 8, hint: "外项积 = 内项积：3 × ? = 4 × 6 → 3×? = 24 → ? = 8" },
+    { id: 2, text: "5 : 2 = ? : 6", missingPos: "left2", correctAnswer: 15, hint: "5 × 6 = 2 × ? → 30 = 2×? → ? = 15" },
+    { id: 3, text: "? : 7 = 9 : 21", missingPos: "left1", correctAnswer: 3, hint: "? × 21 = 7 × 9 → 21×? = 63 → ? = 3" },
+    { id: 4, text: "12 : 15 = 8 : ?", missingPos: "right2", correctAnswer: 10, hint: "12 × ? = 15 × 8 → 12×? = 120 → ? = 10" },
+    { id: 5, text: "2.5 : 5 = ? : 10", missingPos: "left2", correctAnswer: 5, hint: "2.5 × 10 = 5 × ? → 25 = 5×? → ? = 5" }
+  ];
+  
+  // 生成数字卡片池（包含每道题的正确选项 + 两个常见干扰项）
+  const generateNumberCards = () => {
+    const correctAnswers = gameQuestions.map(q => q.correctAnswer);
+    const distractors = [6, 12, 4, 20, 2, 18];
+    let allNumbers = [...correctAnswers];
+    for (let d of distractors) {
+      if (!allNumbers.includes(d)) allNumbers.push(d);
+      if (allNumbers.length >= 8) break;
+    }
+    // 打乱顺序
+    for (let i = allNumbers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allNumbers[i], allNumbers[j]] = [allNumbers[j], allNumbers[i]];
+    }
+    return allNumbers.map((num, idx) => ({
+      id: `num-${idx}`,
+      value: num,
+      used: false
+    }));
+  };
+  
+  // 游戏组件：拖拽填空
+  const MatchingGame = () => {
+    const [questions, setQuestions] = React.useState(() => 
+      gameQuestions.map(q => ({
+        ...q,
+        filledValue: null,
+        isCorrect: false,
+        feedback: null
+      }))
+    );
+    const [numberCards, setNumberCards] = React.useState(() => generateNumberCards());
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    const [gameComplete, setGameComplete] = React.useState(false);
+    
+    const checkAllComplete = (newQuestions) => {
+      const allFilled = newQuestions.every(q => q.filledValue !== null);
+      if (allFilled) {
+        const correctCount = newQuestions.filter(q => q.isCorrect === true).length;
+        if (correctCount === newQuestions.length) {
+          setGameComplete(true);
+          setFeedbackMsg("🎉 完美！所有比例都填对了！你已掌握比例的基本性质！ 🎉");
+        } else {
+          setFeedbackMsg("📌 还有题目没有填正确，再检查一下吧～");
+        }
+      }
+    };
+    
+    const onDragStart = (e, cardId, cardValue) => {
+      const card = numberCards.find(c => c.id === cardId);
+      if (card?.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardValue }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, questionId) => {
+      e.preventDefault();
+      setDragOverSlotId(questionId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, questionId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardValue } = dragData;
+      
+      const targetQuestion = questions.find(q => q.id === questionId);
+      const sourceCard = numberCards.find(c => c.id === cardId);
+      if (!targetQuestion || !sourceCard) return;
+      if (sourceCard.used) {
+        setFeedbackMsg("⏳ 这张数字卡片已经用过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      if (targetQuestion.filledValue !== null) {
+        setFeedbackMsg("⚠️ 这个比例已经填过了，不能重复填写。如需重置请点「重置全部」");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      const isMatch = (cardValue === targetQuestion.correctAnswer);
+      if (isMatch) {
+        setQuestions(prev => prev.map(q => 
+          q.id === questionId ? { 
+            ...q, 
+            filledValue: cardValue, 
+            isCorrect: true,
+            feedback: `✅ 正确！${q.hint}`
+          } : q
+        ));
+        setNumberCards(prev => prev.map(c => c.id === cardId ? { ...c, used: true } : c));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`🎉 正确！${targetQuestion.text} 中 ? = ${cardValue}，利用比例的基本性质。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newQuestions = questions.map(q => 
+          q.id === questionId ? { ...q, filledValue: cardValue, isCorrect: true } : q
+        );
+        checkAllComplete(newQuestions);
+      } else {
+        setFeedbackMsg(`❌ 答案 ${cardValue} 不对哦，${targetQuestion.text} 的正确值应该是 ${targetQuestion.correctAnswer}。再试试看～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetAll = () => {
+      setQuestions(gameQuestions.map(q => ({
+        ...q,
+        filledValue: null,
+        isCorrect: false,
+        feedback: null
+      })));
+      setNumberCards(generateNumberCards());
+      setScore(0);
+      setGameComplete(false);
+      setFeedbackMsg("✨ 已重置全部题目，开始挑战吧！");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const totalQuestions = questions.length;
+    const correctCount = questions.filter(q => q.isCorrect).length;
+    
+    const renderQuestionText = (q) => {
+      let text = q.text;
+      if (q.filledValue !== null) {
+        text = text.replace("?", q.filledValue);
+      }
+      return text;
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🔢 比例侦探 · 拖拽填空</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 正确 {correctCount}/{totalQuestions}</span>
+            <button onClick={resetAll} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 重置全部</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：根据比例的基本性质（外项积 = 内项积），将右侧正确的数字卡片<strong>拖拽</strong>到比例的问号处。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧题目区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📋 神秘比例 (拖拽填 ?)</div>
+            <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+              {questions.map(q => (
+                <div 
+                  key={q.id}
+                  className="bg-white rounded-xl p-3 shadow border border-purple-200"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="font-mono font-bold text-xl">
+                      {renderQuestionText(q)}
+                    </div>
+                    {q.isCorrect && <span className="text-green-600 text-sm">✓</span>}
+                  </div>
+                  <div 
+                    onDragOver={(e) => onDragOverSlot(e, q.id)}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, q.id)}
+                    className={`drop-slot rounded-lg p-2 mt-2 text-center transition-all ${dragOverSlotId === q.id ? 'drag-over' : ''} ${q.filledValue !== null ? 'slot-filled' : ''}`}
+                  >
+                    {q.filledValue !== null ? (
+                      <span className="text-2xl font-bold text-green-700">已填: {q.filledValue}</span>
+                    ) : (
+                      <span className="text-gray-500 text-sm">⬅️ 将数字拖拽至此填空</span>
+                    )}
+                  </div>
+                  {q.feedback && q.isCorrect && (
+                    <div className="mt-2 text-xs text-green-700 bg-green-50 p-1 rounded">{q.feedback}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧数字卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 数字卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3">
+              {numberCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.used}
+                  onDragStart={(e) => onDragStart(e, card.id, card.value)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-number w-20 h-20 rounded-xl shadow-md flex items-center justify-center text-3xl font-bold transition ${card.used ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  {card.used ? "✓" : card.value}
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个数字只能用一次，全部填对即可通关！</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameComplete && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 太棒啦！你完全掌握了比例的基本性质，成为比例魔法师！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 比例的基本性质：在比例里，两个外项的积等于两个内项的积。例如 3:4=6:8 → 3×8 = 4×6。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：比例的基本性质 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">🔮</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">比例的基本性质</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 核心性质</p>
+            <p>在比例里，<strong className="bg-purple-200 px-1 rounded">两个外项的积等于两个内项的积</strong>。这叫做比例的基本性质。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              例如：3 : 4 = 6 : 8  →  3 × 8 = 4 × 6  →  24 = 24
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 如何应用？</p>
+            <p>如果已知比例中的三项，就可以利用这个性质求出未知项。</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>把比例写成分数形式，交叉相乘。</li>
+              <li>解方程求出未知数。</li>
+            </ul>
+            <div className="mt-2 text-sm bg-amber-50 p-2 rounded">
+              🌰 例：x : 5 = 8 : 10  →  10x = 40  →  x = 4
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">⚠️ 注意事项</p>
+            <p>比例中两个比的比值相等，但利用基本性质计算更快捷。注意除数不能为0。</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“比例内外项，乘积相等藏；知三可求一，性质帮大忙。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断比例是否正确（心算）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ left: "3:5", right: "6:10", valid: true });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { left: "3:5", right: "6:10", valid: true, check: "3×10 = 30, 5×6 = 30, 相等 → 正确比例" },
+      { left: "4:7", right: "8:14", valid: true, check: "4×14=56, 7×8=56 → 正确" },
+      { left: "2:3", right: "4:9", valid: false, check: "2×9=18, 3×4=12, 不相等 → 错误比例" },
+      { left: "5:2", right: "10:4", valid: true, check: "5×4=20, 2×10=20 → 正确" },
+      { left: "1:4", right: "3:12", valid: true, check: "1×12=12, 4×3=12 → 正确" },
+      { left: "7:3", right: "14:9", valid: false, check: "7×9=63, 3×14=42, 不相等 → 错误" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.valid);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.left} 和 ${question.right} ${question.valid ? '能组成比例' : '不能组成比例'}。 ${question.check}`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.left} 和 ${question.right} ${question.valid ? '能' : '不能'}组成比例。 ${question.check}`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">⚡</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 比例判断</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-mono font-bold text-2xl">{question.left} 和 {question.right}</p>
+          <p className="text-sm mb-2">能否组成比例？</p>
+          <div className="flex gap-4 justify-center">
+            <button onClick={() => checkAnswer(true)} className={`px-5 py-2 rounded-full font-bold transition ${userChoice === true ? (question.valid ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-100'}`}>✅ 能</button>
+            <button onClick={() => checkAnswer(false)} className={`px-5 py-2 rounded-full font-bold transition ${userChoice === false ? (!question.valid ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-red-100'}`}>❌ 不能</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 比例的基本性质是解比例、判断比例是否成立的重要工具，也是后续学习正反比例的基础！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

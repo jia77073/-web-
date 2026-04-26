@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>五年级列方程·代数小英雄 | 拖拽排序 + 方程应用题闯关</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (移动端完美支持) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 6px 0 #c29b4a;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #ffe0a3;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .equation-badge {
+            background: #e9d5ff;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 列方程解决问题 (一步方程、两步方程、和差倍、行程、购物等)
+        const equationQuestions = [
+            {
+                text: "📖 学校图书馆买来一批故事书，借出36本后，还剩24本。原来有多少本故事书？(列方程解答)",
+                answer: 60,
+                solution: "🎯 解：设原来有 x 本书。等量关系：原来的本数 - 借出的本数 = 剩下的本数。方程：x - 36 = 24，解得 x = 60。"
+            },
+            {
+                text: "🍎 苹果每千克5元，妈妈买了3千克苹果，付了50元，应找回多少元？(列方程解答，求找回的钱数)",
+                answer: 35,
+                solution: "🎯 解：设应找回 x 元。等量关系：付出的钱 - 应付的钱 = 找回的钱。方程：50 - 5×3 = x，即 50 - 15 = x，x = 35。"
+            },
+            {
+                text: "🚗 一辆汽车每小时行80千米，几小时后能行驶240千米？(设时间为x小时)",
+                answer: 3,
+                solution: "🎯 解：设 x 小时。等量关系：速度 × 时间 = 路程。方程：80x = 240，解得 x = 3。"
+            },
+            {
+                text: "🧸 果园里桃树和梨树共180棵，桃树的棵数是梨树的3倍，桃树和梨树各有多少棵？(设梨树x棵，求桃树棵数)",
+                answer: 135,
+                solution: "🎯 解：设梨树 x 棵，则桃树 3x 棵。等量关系：桃树+梨树=180。方程：x + 3x = 180，4x=180，x=45，桃树=135棵。"
+            },
+            {
+                text: "📏 一个长方形的周长是36厘米，长是宽的2倍，求长方形的宽是多少厘米？",
+                answer: 6,
+                solution: "🎯 解：设宽为 x 厘米，则长为 2x 厘米。周长公式：2×(长+宽)=36。方程：2×(2x + x)=36 → 2×3x=36 → 6x=36 → x=6。"
+            },
+            {
+                text: "🎒 学校合唱队有48人，比舞蹈队的2倍少6人，舞蹈队有多少人？",
+                answer: 27,
+                solution: "🎯 解：设舞蹈队有 x 人。等量关系：舞蹈队人数×2 - 6 = 合唱队人数。方程：2x - 6 = 48 → 2x=54 → x=27。"
+            },
+            {
+                text: "⏱️ 两列火车从相距450千米的两地同时相对开出，甲车每小时行80千米，乙车每小时行70千米，几小时后两车相遇？",
+                answer: 3,
+                solution: "🎯 解：设 x 小时后相遇。等量关系：速度和×时间=总路程。方程：(80+70)x = 450 → 150x=450 → x=3。"
+            },
+            {
+                text: "🧮 小明买了5支铅笔和2本练习本，共花了12元，已知每本练习本2.5元，每支铅笔多少元？",
+                answer: 1.4,
+                solution: "🎯 解：设每支铅笔 x 元。等量关系：铅笔总价+练习本总价=12。方程：5x + 2×2.5 = 12 → 5x + 5 = 12 → 5x=7 → x=1.4。"
+            }
+        ];
+
+        // 左侧方程应用题组件
+        const EquationApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * equationQuestions.length);
+                const newQ = { ...equationQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (equationQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = parseFloat(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案哟～");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！方程列得准，解得棒！ 👍 代数小英雄！");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。看看方程解法吧～`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载方程题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-300 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">✏️</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">列方程·代数小英雄</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-[#F3E8FF] to-[#FDE9F0] rounded-2xl p-4 mb-5 shadow-inner">
+                        <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">设未知数·等量关系·解方程</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>🔍 <span className="font-semibold">找等量关系</span>：读懂题意，抓住“和、差、倍、比”等关键词。</li>
+                            <li>✏️ <span className="font-semibold">设未知数</span>：一般求什么设什么，也可以设较小的量为x。</li>
+                            <li>⚖️ <span className="font-semibold">列方程</span>：根据等量关系写出含有未知数的等式。</li>
+                            <li>📐 <span className="font-semibold">解方程</span>：运用等式的性质，求出未知数的值。</li>
+                            <li>✅ <span className="font-semibold">检验作答</span>：把解代入原方程检验，并写答语。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目卡片 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-amber-400 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 方程挑战</span>
+                            <button onClick={handleNext} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="number" 
+                                step="any"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入答案 (数字)"
+                                className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈区 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 方程解法</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-purple-600 text-sm italic">💡 提示：找等量关系 → 设未知数 → 列方程 → 解方程 → 检验作答。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        ✏️ 设未知数 | ⚖️ 列方程 | 📐 解方程 | ✅ 检验答案
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏：方程解题步骤拖拽排序 (根据题意，将解题步骤按正确顺序排列)
+        const stepsChallenges = [
+            {
+                title: "⚙️ 挑战1：一步方程",
+                description: "某数加上15等于42，求这个数。请将解题步骤按正确顺序排列。",
+                correctSteps: [
+                    "① 解：设这个数为 x。",
+                    "② 根据题意列方程：x + 15 = 42。",
+                    "③ 解方程：x = 42 - 15，x = 27。",
+                    "④ 答：这个数是27。"
+                ]
+            },
+            {
+                title: "⚙️ 挑战2：倍数问题",
+                description: "果园里桃树是梨树的4倍，桃树和梨树共120棵，梨树有多少棵？",
+                correctSteps: [
+                    "① 解：设梨树有 x 棵，则桃树有 4x 棵。",
+                    "② 等量关系：梨树 + 桃树 = 120 → x + 4x = 120。",
+                    "③ 解方程：5x = 120，x = 24。",
+                    "④ 答：梨树有24棵。"
+                ]
+            },
+            {
+                title: "⚙️ 挑战3：行程问题",
+                description: "甲、乙两地相距300千米，一辆汽车每小时行60千米，几小时可以到达？",
+                correctSteps: [
+                    "① 解：设需要 x 小时。",
+                    "② 等量关系：速度 × 时间 = 路程 → 60x = 300。",
+                    "③ 解方程：x = 300 ÷ 60，x = 5。",
+                    "④ 答：5小时可以到达。"
+                ]
+            },
+            {
+                title: "⚙️ 挑战4：购物方程",
+                description: "买了3支钢笔和2本笔记本共花36元，每支钢笔8元，每本笔记本多少元？",
+                correctSteps: [
+                    "① 解：设每本笔记本 x 元。",
+                    "② 等量关系：3支钢笔总价 + 2本笔记本总价 = 36元 → 3×8 + 2x = 36。",
+                    "③ 解方程：24 + 2x = 36 → 2x = 12 → x = 6。",
+                    "④ 答：每本笔记本6元。"
+                ]
+            }
+        ];
+
+        // 右侧拖拽排序组件
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            // 随机加载挑战并打乱步骤顺序
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                const stepsCopy = [...newChallenge.correctSteps];
+                // Fisher-Yates 打乱顺序
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确的方程解题步骤顺序排列！(从上到下)');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 每当 shuffledSteps 变化，重新初始化 Sortable 实例
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) sortableRef.current.destroy();
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => { /* 无额外动作，用户主动检查 */ }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            // 检查排序顺序是否正确
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美排序！方程解题逻辑完全正确！成为代数高手！🏅');
+                    setCheckStyle('success');
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想方程解题的流程：设未知数→列方程→解方程→作答。重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载趣味排序游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·方程特工队</h2>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-indigo-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下逻辑递进）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[320px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-amber-400 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-purple-500">
+                        💡 拖拽卡片调整顺序，排序正确即掌握方程解题五步法（设→找→列→解→答）。
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 拖拽排序小游戏融合代数思维：设未知数·找等量关系·列方程·解方程·作答，在排序中强化解题模型！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件：左右布局
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 方程应用题训练 */}
+                    <div className="flex-1">
+                        <EquationApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

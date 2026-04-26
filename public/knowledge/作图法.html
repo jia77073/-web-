@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>作图小能手 | 线段图·数形结合·画图解题</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .dragging-card {
+            opacity: 0.6;
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        .drop-zone-active {
+            transition: 0.08s linear;
+            box-shadow: 0 0 0 4px #c084fc, 0 0 0 8px rgba(192,132,252,0.3);
+            background-color: #f3e8ff !important;
+        }
+        .win-glow {
+            animation: winPulse 0.5s ease-in-out 2;
+        }
+        @keyframes winPulse {
+            0% { box-shadow: 0 0 0 0 #c084fc; background-color: #faf5ff; }
+            50% { box-shadow: 0 0 0 12px rgba(192,132,252,0.5); background-color: #fae8ff; }
+            100% { box-shadow: 0 0 0 0 #c084fc; background-color: #faf5ff; }
+        }
+        [draggable="true"] {
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #9333ea;
+            border-radius: 10px;
+        }
+        /* 简单示意图展示区样式 */
+        .diagram-container {
+            background: #f9f4ff;
+            border-radius: 1rem;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .line-segment {
+            height: 8px;
+            background: #a855f7;
+            border-radius: 4px;
+            margin: 12px 0;
+            position: relative;
+        }
+        .line-label {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-fuchsia-50 to-purple-100 min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root"></div>
+
+<script type="text/babel">
+    // 作图法专项训练 —— 线段图·数形结合·画图解题
+    const { useState, useCallback, useEffect, useRef } = React;
+
+    // ---------- 随机题目生成器 (适合画线段图/示意图的题型：和差、和倍、差倍、行程) ----------
+    const generateDiagramProblem = () => {
+        const type = Math.floor(Math.random() * 4); // 0:和差, 1:和倍, 2:差倍, 3:行程(相遇)
+        if (type === 0) {
+            // 和差问题: 已知两数和与差，求大数或小数
+            const sum = Math.floor(Math.random() * 40) + 30; // 30~70
+            const diff = Math.floor(Math.random() * 20) + 4; // 4~24
+            // 保证和差同奇偶
+            let large = (sum + diff) / 2;
+            let small = (sum - diff) / 2;
+            if (large % 1 !== 0 || small <= 0) {
+                // 重新调整确保整数
+                const adjust = (sum + diff) % 2 === 0 ? 0 : 1;
+                const newSum = sum + adjust;
+                const newDiff = diff + adjust;
+                const newLarge = (newSum + newDiff) / 2;
+                const newSmall = (newSum - newDiff) / 2;
+                if (newSmall > 0) {
+                    return { text: `📏 和差问题：甲、乙两数的和是 ${newSum}，差是 ${newDiff}。甲数比乙数大，甲数是多少？（画线段图，长线段表示大数，短线段表示小数，和差关系一目了然）`, correctAnswer: newLarge, hint: `💡 画一条线段表示大数，下面画短线段表示小数，长线比短线多出差的部分。和线段 = 大数+小数，从总和中减去差，剩下的就是两个小数之和。小数 = (和−差)÷2，大数 = 小数+差。` };
+                }
+            }
+            if (large > 0 && small > 0) {
+                const ask = Math.floor(Math.random() * 2); // 0求大数,1求小数
+                const correct = ask === 0 ? large : small;
+                const target = ask === 0 ? "甲数" : "乙数";
+                return { text: `📏 和差问题：甲、乙两数的和是 ${sum}，差是 ${diff}（甲大乙小）。求 ${target} 是多少？（提示：画线段图，长加短等于和，长减短等于差）`, correctAnswer: correct, hint: `💡 线段图：长线段减去短线段等于差，长+短=和。所以 (和+差)÷2=大数，(和−差)÷2=小数。` };
+            }
+            return generateDiagramProblem();
+        }
+        else if (type === 1) {
+            // 和倍问题: 已知和与倍数关系
+            const smaller = Math.floor(Math.random() * 15) + 5; // 5~20
+            const multiple = Math.floor(Math.random() * 4) + 2; // 2~5倍
+            const larger = smaller * multiple;
+            const sum = smaller + larger;
+            const ask = Math.floor(Math.random() * 2); // 0求小数,1求大数
+            const correct = ask === 0 ? smaller : larger;
+            const target = ask === 0 ? "较小数" : "较大数";
+            return { text: `🍎 和倍问题：两数之和是 ${sum}，大数是小数的 ${multiple} 倍。${target}是多少？（画线段图：把小数看作1份，大数就是${multiple}份，总份数是${multiple+1}份）`, correctAnswer: correct, hint: `💡 线段图：小数画1段，大数画连续${multiple}段，总长度 = 小数×(${multiple}+1) = ${sum}，所以小数 = ${sum} ÷ ${multiple+1} = ${sum/(multiple+1)}，再求大数。` };
+        }
+        else if (type === 2) {
+            // 差倍问题: 已知差与倍数关系
+            const smaller = Math.floor(Math.random() * 12) + 4; // 4~16
+            const multiple = Math.floor(Math.random() * 4) + 2; // 2~5倍
+            const larger = smaller * multiple;
+            const diff = larger - smaller;
+            const ask = Math.floor(Math.random() * 2); // 0求小数,1求大数
+            const correct = ask === 0 ? smaller : larger;
+            const target = ask === 0 ? "较小数" : "较大数";
+            return { text: `🐱 差倍问题：大数比小数多 ${diff}，大数是小数的 ${multiple} 倍。${target}是多少？（画线段图：小数1份，大数${multiple}份，相差${multiple-1}份对应${diff}）`, correctAnswer: correct, hint: `💡 线段图：小数1段，大数画${multiple}段，相差的${multiple-1}段就是${diff}，所以1段 = ${diff} ÷ ${multiple-1} = ${diff/(multiple-1)}，再求大数。` };
+        }
+        else {
+            // 行程问题: 相遇问题，画线段图求距离或速度
+            const speedA = Math.floor(Math.random() * 15) + 20; // 20~35
+            const speedB = Math.floor(Math.random() * 15) + 15; // 15~30
+            const time = Math.floor(Math.random() * 3) + 2; // 2~4小时
+            const distance = (speedA + speedB) * time;
+            const ask = Math.floor(Math.random() * 3);
+            if (ask === 0) {
+                const correct = distance;
+                return { text: `🚗 行程问题：甲、乙两车同时从两地相对开出，甲车速度 ${speedA} 千米/时，乙车速度 ${speedB} 千米/时，经过 ${time} 小时相遇。两地相距多少千米？（画线段图：总路程 = 甲车路程+乙车路程）`, correctAnswer: correct, hint: `💡 画一条线段表示两地距离，左边甲车行驶，右边乙车行驶，相遇点把全程分成两段。总路程 = (甲速+乙速)×时间 = ${speedA+speedB}×${time} = ${distance}。` };
+            } else if (ask === 1) {
+                const correct = speedA;
+                return { text: `🚲 行程问题：两地相距 ${distance} 千米，甲、乙两车同时从两地相对开出，经过 ${time} 小时相遇。已知乙车速度是 ${speedB} 千米/时，甲车速度是多少？（画图分析，总路程÷时间=速度和）`, correctAnswer: correct, hint: `💡 根据线段图，速度和 = 路程÷时间 = ${distance}÷${time} = ${distance/time}，甲速 = 速度和 - 乙速 = ${distance/time - speedB}。` };
+            } else {
+                const correct = time;
+                return { text: `🏍️ 行程问题：两地相距 ${distance} 千米，甲车速度 ${speedA} 千米/时，乙车速度 ${speedB} 千米/时，同时相对开出，几小时后相遇？（画线段图，速度和×时间=路程）`, correctAnswer: correct, hint: `💡 线段图上，相遇时间 = 总路程 ÷ (甲速+乙速) = ${distance} ÷ ${speedA+speedB} = ${distance/(speedA+speedB)}。` };
+            }
+        }
+    };
+
+    // 生成干扰选项
+    const generateOptions = (correct) => {
+        let opts = new Set();
+        opts.add(correct);
+        let candidates = [correct+1, correct-1, correct+2, correct-2, correct+3, correct-3, Math.floor(correct*1.2), Math.floor(correct*0.8)];
+        candidates = candidates.filter(v => v > 0 && v !== correct);
+        for (let c of candidates) {
+            if (opts.size < 4) opts.add(c);
+            if (opts.size >= 4) break;
+        }
+        while (opts.size < 4) opts.add(correct + opts.size);
+        let arr = Array.from(opts);
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    // 主组件
+    const DiagramGame = () => {
+        const [problem, setProblem] = useState(() => {
+            const init = generateDiagramProblem();
+            return init;
+        });
+        const [options, setOptions] = useState([]);
+        const [correctAnswer, setCorrectAnswer] = useState(0);
+        const [isWin, setIsWin] = useState(false);
+        const [message, setMessage] = useState("✏️ 先动手画图！再拖拽正确答案到宝箱 ✏️");
+        const [winAnim, setWinAnim] = useState(false);
+        const dragValueRef = useRef(null);
+
+        const refreshProblem = useCallback(() => {
+            const newProb = generateDiagramProblem();
+            setProblem(newProb);
+            setCorrectAnswer(newProb.correctAnswer);
+            const newOpts = generateOptions(newProb.correctAnswer);
+            setOptions(newOpts);
+            setIsWin(false);
+            setWinAnim(false);
+            setMessage("🖍️ 新题目！先画线段图或示意图，再拖拽答案！");
+        }, []);
+
+        useEffect(() => {
+            setCorrectAnswer(problem.correctAnswer);
+            setOptions(generateOptions(problem.correctAnswer));
+        }, [problem]);
+
+        const onCardDragStart = (e, num) => {
+            if (isWin) {
+                e.preventDefault();
+                setMessage("🏆 已经胜利啦！点击「换一题」继续挑战！");
+                return false;
+            }
+            dragValueRef.current = num;
+            e.dataTransfer.setData("text/plain", num);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target.classList) e.target.classList.add("dragging-card");
+        };
+        const onDragEnd = (e) => {
+            if (e.target.classList) e.target.classList.remove("dragging-card");
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+            dragValueRef.current = null;
+        };
+        const onDragOverTarget = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            const zone = document.getElementById("answerDropZone");
+            if (zone && !isWin) zone.classList.add("drop-zone-active");
+        };
+        const onDragLeaveTarget = () => {
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+        };
+        const onDropToTarget = (e) => {
+            e.preventDefault();
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+            if (isWin) {
+                setMessage("你已经获胜，换一题再挑战吧！");
+                return;
+            }
+            const raw = e.dataTransfer.getData("text/plain");
+            if (!raw) return;
+            const dropped = Number(raw);
+            if (isNaN(dropped)) return;
+            if (dropped === correctAnswer) {
+                setIsWin(true);
+                setWinAnim(true);
+                setMessage("🎉🎉 完全正确！画图分析能力超强！继续用图形解决问题 🎉🎉");
+                setTimeout(() => setWinAnim(false), 600);
+            } else {
+                setMessage(`❌ ${dropped} 不对哦。再画一画线段图，根据图形找数量关系。提示：${problem.hint}`);
+                const msgDiv = document.querySelector(".feedback-msg");
+                if (msgDiv) msgDiv.classList.add("animate-pulse");
+                setTimeout(() => {
+                    if (msgDiv) msgDiv.classList.remove("animate-pulse");
+                }, 600);
+            }
+        };
+
+        return (
+            <div className="max-w-7xl mx-auto">
+                {/* 主标题 */}
+                <div className="text-center mb-6">
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-900 to-fuchsia-700 drop-shadow-md">
+                        ✏️ 作图小能手 · 数形结合破难题 ✏️
+                    </h1>
+                    <p className="text-purple-800 text-lg font-semibold mt-1">线段图 | 示意图 | 画图分析 | 直观解题</p>
+                </div>
+                
+                <div className="flex flex-col lg:flex-row gap-7">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 border border-purple-200 custom-scroll overflow-y-auto">
+                        <div className="flex items-center gap-2 border-b-2 border-purple-400 pb-2 mb-4">
+                            <span className="text-3xl">📐</span>
+                            <span className="text-3xl font-bold text-purple-900">核心知识点</span>
+                        </div>
+                        <div className="space-y-5 text-gray-800 text-base md:text-lg">
+                            <div className="bg-purple-50 p-4 rounded-xl">
+                                <p className="font-extrabold text-purple-800 text-xl">🎨 作图法 · 数形结合</p>
+                                <p>把抽象的数学文字转化成<strong>线段图、示意图、韦恩图</strong>等图形，让数量关系“看得见”，降低解题难度。</p>
+                            </div>
+                            <div className="bg-indigo-50 p-4 rounded-xl">
+                                <p className="font-bold text-purple-800">✨ 常用图形及场景 ✨</p>
+                                <ul className="list-disc list-inside space-y-2 mt-1">
+                                    <li><strong>📏 线段图</strong>：和差、和倍、差倍、行程问题，用长短线段表示数量。</li>
+                                    <li><strong>🗺️ 示意图</strong>：植树问题、方阵问题、路线问题，画位置关系。</li>
+                                    <li><strong>🔵 韦恩图</strong>：重叠问题、包含排除。</li>
+                                    <li><strong>🌳 树形图</strong>：搭配、排列、枚举不重不漏。</li>
+                                </ul>
+                            </div>
+                            <div className="bg-fuchsia-50 p-4 rounded-xl">
+                                <p className="font-bold">🧠 作图法四步走</p>
+                                <ol className="list-decimal list-inside space-y-1">
+                                    <li><strong>读题</strong>：圈出关键数量、关系词（和、差、倍、相遇…）。</li>
+                                    <li><strong>画图</strong>：用图形表示每个量，标出已知和未知。</li>
+                                    <li><strong>看图</strong>：根据图形直观找到等量关系或计算步骤。</li>
+                                    <li><strong>解答</strong>：列式求解，检验答案合理性。</li>
+                                </ol>
+                                <div className="mt-2 bg-white p-2 rounded-md text-sm">
+                                    📌 经典示范：和差问题 → 画两条线段，长线段减短线段=差，两线段相加=和，看图直接列式。
+                                </div>
+                            </div>
+                            <div className="bg-amber-50 p-3 rounded-lg text-sm">
+                                💡 右侧游戏：先动笔在纸上画图（或想象图形），再拖拽正确答案到宝箱。每道题都适合用线段图或示意图分析。
+                            </div>
+                        </div>
+                        {/* 简单示意图示例 */}
+                        <div className="diagram-container mt-4">
+                            <p className="text-xs font-semibold text-purple-700 text-center">📊 线段图示例（和差问题）</p>
+                            <div className="line-segment" style={{width: '80%', background: '#c084fc'}}></div>
+                            <div className="line-label">大数</div>
+                            <div className="line-segment" style={{width: '50%', background: '#a855f7'}}></div>
+                            <div className="line-label">小数</div>
+                            <div className="text-[10px] text-center text-gray-500 mt-1">相差部分 = 差</div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧互动游戏区 */}
+                    <div className="lg:w-3/5 bg-white/95 rounded-3xl shadow-2xl p-5 border-2 border-purple-300 flex flex-col">
+                        {/* 题目卡片 */}
+                        <div className="bg-gradient-to-r from-purple-200 via-fuchsia-100 to-purple-200 rounded-2xl p-5 mb-4 shadow-md">
+                            <div className="flex flex-wrap justify-between items-start gap-2">
+                                <div className="flex-1">
+                                    <span className="inline-block bg-purple-700 text-white text-sm px-4 py-1 rounded-full">🧠 作图挑战</span>
+                                    <p className="text-lg md:text-xl font-bold text-purple-900 mt-3 leading-relaxed">
+                                        {problem.text}
+                                    </p>
+                                    <div className="mt-2 text-sm bg-white/60 inline-block px-3 py-1 rounded-full text-purple-700">
+                                        📌 提示：{problem.hint}
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={refreshProblem}
+                                    className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-6 rounded-full transition shadow-md flex items-center gap-1 text-base md:text-lg"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 拖拽卡片 + 答案宝箱 */}
+                        <div className="flex flex-col md:flex-row gap-6 items-stretch mb-5">
+                            <div className="flex-1 bg-purple-50/80 rounded-2xl p-4 border border-purple-200">
+                                <p className="text-center font-bold text-purple-800 mb-3 text-lg">🎲 可拖拽数字 (画图得到的答案)</p>
+                                <div className="flex flex-wrap justify-center gap-3">
+                                    {options.map((opt, idx) => (
+                                        <div
+                                            key={idx}
+                                            draggable={!isWin}
+                                            onDragStart={(e) => onCardDragStart(e, opt)}
+                                            onDragEnd={onDragEnd}
+                                            className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl shadow-lg flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition hover:scale-105 border-2 border-purple-500"
+                                        >
+                                            <span className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{opt}</span>
+                                            <span className="text-[10px] font-bold text-purple-900">拖拽</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-center text-gray-600 mt-3">👉 先画图，再拖拽正确数字到右边宝箱</p>
+                            </div>
+                            
+                            <div 
+                                id="answerDropZone"
+                                onDragOver={onDragOverTarget}
+                                onDragLeave={onDragLeaveTarget}
+                                onDrop={onDropToTarget}
+                                className={`flex-1 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl border-4 border-dashed p-5 flex flex-col items-center justify-center transition-all min-h-[200px] ${isWin ? 'border-green-500 bg-green-50' : 'border-purple-400'}`}
+                            >
+                                {isWin ? (
+                                    <div className="text-center">
+                                        <div className="text-7xl mb-2">🏆🎉</div>
+                                        <p className="text-2xl font-black text-green-700">画图成功！</p>
+                                        <p className="text-purple-700 mt-2">数形结合的力量</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span className="text-5xl mb-2">📦</span>
+                                        <span className="text-xl font-bold text-purple-800 text-center">答案宝箱</span>
+                                        <p className="text-center text-gray-600 mt-2 text-sm">将画图得出的答案拖拽至此 → <br/>验证你的图形分析！</p>
+                                        <div className="mt-3 w-32 h-16 bg-white rounded-xl flex items-center justify-center shadow-inner border border-purple-300">
+                                            <span className="text-2xl font-mono font-bold text-gray-400">???</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 反馈消息区 */}
+                        <div className={`feedback-msg mt-2 text-center py-3 px-4 rounded-full font-medium text-base md:text-lg ${isWin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'} shadow-inner transition`}>
+                            {isWin ? "🎉 画图小英雄！用线段图破解难题，点击换一题继续挑战 🎉" : message}
+                        </div>
+                        
+                        {/* 辅助按钮 */}
+                        <div className="flex justify-center mt-4 gap-4">
+                            <button 
+                                onClick={() => {
+                                    if (!isWin) setMessage(`💡 作图秘诀：先在草稿纸上画出线段，标出已知数量，观察图形关系。${problem.hint}`);
+                                    else setMessage("胜利啦！多练习画图，再复杂的题目也能变简单！");
+                                }}
+                                className="text-purple-600 bg-purple-100 px-3 py-1 rounded-full text-sm"
+                            >
+                                ✨ 画图小贴士
+                            </button>
+                            <button 
+                                onClick={refreshProblem}
+                                className="text-fuchsia-600 bg-fuchsia-100 px-3 py-1 rounded-full text-sm"
+                            >
+                                🎲 换一题新挑战
+                            </button>
+                        </div>
+                        
+                        <div className="text-xs text-purple-500 text-center mt-4 border-t pt-3 border-purple-200">
+                            💡 遇到应用题别慌，先画图！线段图、示意图能帮你把隐藏的数量关系“揪”出来，解题速度快一倍。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<DiagramGame />);
+</script>
+</body>
+</html>

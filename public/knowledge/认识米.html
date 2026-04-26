@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>认识米 · 米尺探险队 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大5号（2.2rem），淡紫色主题背景 */
+    body {
+      font-size: 2.2rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    .meter-stick {
+      background: #fdebb3;
+      border-radius: 1rem;
+      height: 1rem;
+      width: 100%;
+      position: relative;
+      margin: 1rem 0;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.5rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 认识米 =======================
+  // 知识点：米是比厘米更大的长度单位，1米=100厘米，测量较长物体时用米作单位。
+  
+  // ---------- 游戏数据：拖拽配对（物品 → 合适的长度单位：米或厘米）----------
+  // 让小朋友区分哪些物体用米测量，哪些用厘米测量
+  const matchPairs = [
+    { id: 1, item: "教室的黑板", unit: "米", correctUnit: "米", display: "米 (m)" },
+    { id: 2, item: "铅笔的长度", unit: "厘米", correctUnit: "厘米", display: "厘米 (cm)" },
+    { id: 3, item: "操场跑道的长度", unit: "米", correctUnit: "米", display: "米 (m)" },
+    { id: 4, item: "数学课本的厚度", unit: "厘米", correctUnit: "厘米", display: "厘米 (cm)" },
+    { id: 5, item: "一棵大树的高度", unit: "米", correctUnit: "米", display: "米 (m)" },
+    { id: 6, item: "橡皮的长度", unit: "厘米", correctUnit: "厘米", display: "厘米 (cm)" },
+    { id: 7, item: "家里门的高度", unit: "米", correctUnit: "米", display: "米 (m)" }
+  ];
+  
+  // 游戏组件：拖拽配对（将左边物品拖拽到右边正确的长度单位上）
+  const MatchingGame = () => {
+    // 左侧物品卡片（未配对）
+    const [itemCards, setItemCards] = React.useState(() => 
+      matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.item,
+        matchUnit: pair.unit,
+        matched: false
+      }))
+    );
+    
+    // 右侧单位槽位（打乱顺序）
+    const [unitSlots, setUnitSlots] = React.useState(() => {
+      let slots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.display,
+        matchUnit: pair.unit,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有物品都找到了正确的长度单位！你已经是米和厘米专家！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧物品卡片
+    const onDragStart = (e, cardId, matchUnit) => {
+      const card = itemCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "item", cardId, matchUnit }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "item") return;
+      const { cardId, matchUnit } = dragData;
+      
+      const targetSlot = unitSlots.find(s => s.id === slotId);
+      const sourceCard = itemCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个物品或单位槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配
+      if (matchUnit === targetSlot.matchUnit) {
+        // 配对成功
+        setItemCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setUnitSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.text} 应该用 ${targetSlot.text} 作单位。1米=100厘米，测量较长的物体用米。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = itemCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = unitSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 应该用 ${matchUnit === "米" ? "米 (m)" : "厘米 (cm)"} 作单位，而不是 ${targetSlot.text}。想一想：测量较长物体用米，较短物体用厘米。`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newItems = matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.item,
+        matchUnit: pair.unit,
+        matched: false
+      }));
+      let newSlots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.display,
+        matchUnit: pair.unit,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setItemCards(newItems);
+      setUnitSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的物品拖拽到右边正确的长度单位上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = itemCards.every(c => c.matched) && unitSlots.every(s => s.matched);
+    const totalPairs = matchPairs.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">📏 单位配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>物品</strong>拖拽到右边<strong>正确的长度单位</strong>上（米或厘米），配对正确会消除！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧物品卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 物品卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {itemCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchUnit)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧单位槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 长度单位 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto">
+              {unitSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把物品拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 单位小行家！你已掌握米和厘米的区别，测量世界不再难！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 米的小知识：1米 = 100厘米，测量黑板、教室、大树等较长物体时用米作单位。1米大约是你张开双臂的长度。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：认识米 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📏</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">认识米</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是米？</p>
+            <p>米是比厘米更大的<strong>长度单位</strong>，可以用“m”表示。测量较长的物体（如黑板、教室、大树）时，通常用米作单位。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              1米 = 100厘米
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 感受1米有多长</p>
+            <p>张开你的双臂，两个指尖之间的距离大约就是1米。教室里黑板的高度大约1米，门的高度大约2米。</p>
+            <div className="meter-stick bg-amber-200 mt-2 relative">
+              <div className="absolute left-0 top-0 text-xs">0</div>
+              <div className="absolute right-0 top-0 text-xs">100cm</div>
+            </div>
+            <p className="text-xs text-center mt-1">📏 米尺：1米 = 100厘米</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 米和厘米的关系</p>
+            <p>1米 = 100厘米，所以2米 = 200厘米，半米 = 50厘米。</p>
+            <p className="text-sm mt-1">🌰 黑板长3米 = 300厘米；铅笔长15厘米 = 0.15米。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>教室门的高度大约是（ ）米？你的身高大约是（ ）米（ ）厘米？</p>
+            <p className="text-sm text-purple-700">（答案：2米左右；例如1米30厘米）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“米和厘米是兄弟，1米等于100厘；量长用米短用厘，单位换算要仔细。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：选择合适的单位（米或厘米）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ item: "教室的黑板", options: ["米", "厘米"], correct: "米" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { item: "教室的黑板", options: ["米", "厘米"], correct: "米" },
+      { item: "铅笔的长度", options: ["米", "厘米"], correct: "厘米" },
+      { item: "操场跑道的长度", options: ["米", "厘米"], correct: "米" },
+      { item: "数学课本的厚度", options: ["米", "厘米"], correct: "厘米" },
+      { item: "一棵大树的高度", options: ["米", "厘米"], correct: "米" },
+      { item: "橡皮的长度", options: ["米", "厘米"], correct: "厘米" },
+      { item: "家里门的高度", options: ["米", "厘米"], correct: "米" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.item} 应该用 ${question.correct} 作单位。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.item} 应该用 ${question.correct} 作单位。测量较长物体用米，较短物体用厘米。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 单位小行家</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.item} 用哪个单位？</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-purple-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 米是测量世界的大尺子！教室、操场、大树都用米来量。记住1米=100厘米，你就能轻松换算啦！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>抽屉原理·思维训练营 | 鸽巢问题 + 拖拽分配小游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽库 (实现轻松拖拽分配) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        /* 自定义拖拽样式 */
+        .sortable-drag {
+            opacity: 0.4;
+            background-color: #d9f99d !important;
+            transform: scale(0.98);
+        }
+        .candy-card {
+            transition: all 0.2s ease;
+            cursor: grab;
+        }
+        .candy-card:active {
+            cursor: grabbing;
+        }
+        .drawer-zone {
+            min-height: 160px;
+            transition: background 0.1s ease;
+        }
+        .drawer-zone.sortable-ghost {
+            background-color: #fef9c3;
+            border: 2px dashed #a855f7;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-drawer {
+                font-size: 1.6rem !important;
+            }
+            .candy-card {
+                font-size: 1.2rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
+        /* 绿色氛围 + 紫色主题点缀 */
+        body {
+            background: linear-gradient(145deg, #ccf0c3 0%, #b8e0a8 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center font-sans">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ======================= 抽屉原理 (鸽巢问题) 知识点区域 =======================
+        const KnowledgeBase = () => {
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-300 h-full flex flex-col bg-white/95">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">📦</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 title-drawer">抽屉原理·思维训练营</h1>
+                    </div>
+                    
+                    {/* 核心知识点 */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-5 mb-5 shadow-md border border-emerald-200">
+                        <h2 className="text-2xl font-bold text-purple-700 flex items-center gap-2">🐦 什么是抽屉原理？（鸽巢原理）</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong class="text-purple-800">核心概念：</strong> 把 <strong class="text-emerald-700">m个物体</strong> 放入 <strong class="text-emerald-700">n个抽屉</strong> (m > n) ，那么<strong class="text-rose-600">至少有一个抽屉</strong> 里放有 <strong class="text-rose-600">不少于 ⌈m/n⌉ 个物体</strong>。</p>
+                            <p>🎯 <strong class="text-purple-800">“总有” & “至少”</strong> → 无论怎么分配，总能保证存在一个抽屉达到某个最小数量。</p>
+                            <p>🧠 <strong class="text-purple-800">极端思想（最不利原则）：</strong> 先考虑最平均的情况，再用“+1”找到保证发生的条件。</p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 万能公式：</p>
+                                <p>物体数 ÷ 抽屉数 = 商 …… 余数 → 至少数 = 商 + (余数>0 ? 1 : 0)</p>
+                                <p className="text-sm text-gray-600 mt-1">例：10只鸽子飞进3个鸽巢 → 10÷3=3…1 → 至少有一个巢里有4只鸽子。</p>
+                            </div>
+                            <p>⚡ <strong class="text-purple-800">解题三步法：</strong> ① 找抽屉 ② 分物体 ③ 用最不利原则计算“至少”保证值。</p>
+                            <p>🌟 经典题型：<strong>摸球问题</strong>、<strong>生日问题</strong>、<strong>借书问题</strong>、<strong>色块抽取</strong>、<strong>分组游戏</strong>等等。</p>
+                        </div>
+                    </div>
+
+                    {/* 趣味举例 */}
+                    <div className="bg-purple-50 rounded-2xl p-4 border border-purple-200">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">🍬 生活小剧场</h3>
+                        <div className="mt-2 text-gray-700 text-base">
+                            <p>🎈 班级有 <strong>367名同学</strong>，至少有 <strong>2人同一天生日</strong>（因为一年最多366天）。</p>
+                            <p>🎲 任意 <strong>13个小朋友</strong>，至少有 <strong>2个人属相相同</strong>（12生肖抽屉）。</p>
+                            <p>🧸 右侧小游戏：<strong>拖拽糖果任意分配！</strong> 看看“至少有一个抽屉里有几颗糖”，亲手验证抽屉原理！</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-5 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 提示：向右滑动 → 拖动🍬糖果卡片到“抽屉盒子”中，随意分配，系统会实时计算“至少保证数”！
+                    </div>
+                </div>
+            );
+        };
+
+        // ======================= 右侧互动小游戏：拖拽分糖果·抽屉原理实验室 =======================
+        // 预设题库：不同的(物品数, 抽屉数)组合，让小朋友换题挑战
+        const challengePresets = [
+            { name: "🍭 基础挑战", totalItems: 7, drawerCount: 3, hint: "7颗糖放进3个抽屉" },
+            { name: "🎈 进阶挑战", totalItems: 10, drawerCount: 4, hint: "10颗糖分给4个抽屉" },
+            { name: "🎨 高手挑战", totalItems: 15, drawerCount: 5, hint: "15颗糖分给5个抽屉" },
+            { name: "🐣 趣味挑战", totalItems: 9, drawerCount: 2, hint: "9颗糖放进2个抽屉" },
+            { name: "🚀 极限挑战", totalItems: 20, drawerCount: 6, hint: "20颗糖放进6个抽屉" }
+        ];
+
+        const DragGame = () => {
+            // 当前选中题目参数
+            const [currentChallenge, setCurrentChallenge] = React.useState(challengePresets[0]);
+            // 总物品数量 (糖果总数)
+            const [totalItems, setTotalItems] = React.useState(challengePresets[0].totalItems);
+            // 抽屉数量
+            const [drawerCount, setDrawerCount] = React.useState(challengePresets[0].drawerCount);
+            // 统计每个抽屉当前糖果个数 (从DOM读取更新)
+            const [drawerStats, setDrawerStats] = React.useState([]);
+            // 更新计数器时间戳，用于刷新统计显示
+            const [refreshKey, setRefreshKey] = React.useState(0);
+            
+            // refs: 未分配区容器 + 各个抽屉容器
+            const candyPoolRef = React.useRef(null);
+            const drawerRefs = React.useRef([]);
+            const sortableInstances = React.useRef([]);
+            
+            // 手动触发统计
+            const updateStats = () => {
+                if (!drawerRefs.current) return;
+                const stats = [];
+                for (let i = 0; i < drawerCount; i++) {
+                    const drawerDiv = drawerRefs.current[i];
+                    if (drawerDiv) {
+                        // 统计该抽屉内糖果卡片的数量（.candy-card 类）
+                        const candyCount = drawerDiv.querySelectorAll('.candy-card').length;
+                        stats.push(candyCount);
+                    } else {
+                        stats.push(0);
+                    }
+                }
+                setDrawerStats(stats);
+                setRefreshKey(prev => prev + 1);
+            };
+            
+            // 重新构建糖果卡片(重新初始化未分配区内的所有糖果)
+            const rebuildCandies = (total, drawerCnt, resetDrawers=true) => {
+                // 清空所有抽屉内容
+                if (resetDrawers) {
+                    for (let i = 0; i < drawerRefs.current.length; i++) {
+                        if (drawerRefs.current[i]) drawerRefs.current[i].innerHTML = '';
+                    }
+                }
+                // 重置糖果池: 生成 total 个糖果卡片 (用图标+编号)
+                if (candyPoolRef.current) {
+                    candyPoolRef.current.innerHTML = '';
+                    for (let i = 1; i <= total; i++) {
+                        const candy = document.createElement('div');
+                        candy.className = 'candy-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-3 py-2 text-center font-bold text-2xl cursor-grab select-none flex items-center justify-center gap-1';
+                        candy.setAttribute('data-id', `candy-${i}`);
+                        // 使用糖果emoji + 小星星点缀增加趣味
+                        candy.innerHTML = `<span class="text-3xl">🍬</span><span class="text-sm text-amber-800">${i}</span>`;
+                        candy.setAttribute('draggable', 'false'); // sortable 处理拖拽，避免原生干扰
+                        candyPoolRef.current.appendChild(candy);
+                    }
+                }
+                updateStats();
+            };
+            
+            // 根据当前参数完全重置游戏 (换题时调用)
+            const resetGameWithParams = (total, drawers) => {
+                setTotalItems(total);
+                setDrawerCount(drawers);
+                // 等待refs更新后重建糖果以及销毁旧sortable重新初始化
+                // 因为drawerCount变化需要重新分配refs数组长度，延迟到useEffect中统一重建
+            };
+            
+            // 换一题逻辑
+            const handleChangeChallenge = () => {
+                let newIndex = Math.floor(Math.random() * challengePresets.length);
+                // 避免和当前完全相同
+                while (challengePresets.length > 1 && challengePresets[newIndex].totalItems === totalItems && challengePresets[newIndex].drawerCount === drawerCount) {
+                    newIndex = Math.floor(Math.random() * challengePresets.length);
+                }
+                const preset = challengePresets[newIndex];
+                setCurrentChallenge(preset);
+                setTotalItems(preset.totalItems);
+                setDrawerCount(preset.drawerCount);
+            };
+            
+            // 当 totalItems 或 drawerCount 变化时，完全重置界面 + 销毁并重建 Sortable
+            React.useEffect(() => {
+                if (totalItems === undefined || drawerCount === undefined) return;
+                // 重置抽屉refs数组长度适应新数量
+                drawerRefs.current = drawerRefs.current.slice(0, drawerCount);
+                // 销毁已有的 Sortable 实例
+                if (sortableInstances.current) {
+                    sortableInstances.current.forEach(instance => {
+                        if (instance && instance.destroy) instance.destroy();
+                    });
+                    sortableInstances.current = [];
+                }
+                // 重置所有容器的HTML (清空抽屉、重置糖果池)
+                if (candyPoolRef.current) {
+                    // 重新生成糖果
+                    candyPoolRef.current.innerHTML = '';
+                    for (let i = 1; i <= totalItems; i++) {
+                        const candyDiv = document.createElement('div');
+                        candyDiv.className = 'candy-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-3 py-2 text-center font-bold text-2xl cursor-grab select-none flex items-center justify-center gap-1 transition-all hover:scale-105';
+                        candyDiv.innerHTML = `<span class="text-3xl">🍬</span><span class="text-sm text-amber-800">${i}</span>`;
+                        candyPoolRef.current.appendChild(candyDiv);
+                    }
+                }
+                // 清空所有抽屉
+                for (let i = 0; i < drawerCount; i++) {
+                    if (drawerRefs.current[i]) {
+                        drawerRefs.current[i].innerHTML = '';
+                    }
+                }
+                
+                // 等待DOM完成再初始化Sortable
+                setTimeout(() => {
+                    // 收集所有可拖拽容器 (未分配区 + 所有抽屉)
+                    const containers = [];
+                    if (candyPoolRef.current) containers.push(candyPoolRef.current);
+                    for (let i = 0; i < drawerCount; i++) {
+                        if (drawerRefs.current[i]) containers.push(drawerRefs.current[i]);
+                    }
+                    // 为每个容器创建 Sortable 实例，共享同一个 group，实现自由拖拽移动
+                    containers.forEach(container => {
+                        const sortable = new Sortable(container, {
+                            group: {
+                                name: 'candyGroup',
+                                pull: true,      // 可以从其他容器拿取
+                                revertClone: false,
+                                put: true        // 允许放入
+                            },
+                            animation: 250,
+                            sort: true,
+                            ghostClass: 'sortable-ghost',
+                            dragClass: 'sortable-drag',
+                            onEnd: () => {
+                                // 拖拽结束后重新统计每个抽屉内糖果数量
+                                updateStats();
+                            }
+                        });
+                        sortableInstances.current.push(sortable);
+                    });
+                    updateStats();
+                }, 20);
+            }, [totalItems, drawerCount]);
+            
+            // 当抽屉数量改变时，重新初始化 drawerRefs 长度并清除抽屉内容已在上述effect里处理，额外确保统计正确
+            React.useEffect(() => {
+                updateStats();
+            }, [drawerCount, refreshKey]);
+            
+            // 手动刷新统计（用于拖拽以外的情况）
+            const forceUpdateStats = () => {
+                updateStats();
+            };
+            
+            // 计算抽屉原理的“至少保证数” (理论值 ceil(总物品/抽屉数))
+            const getGuaranteedMin = () => {
+                if (drawerCount === 0) return 0;
+                return Math.ceil(totalItems / drawerCount);
+            };
+            
+            // 当前实际分配中最多糖果的抽屉包含多少个（小朋友拖拽后真实最大值）
+            const currentMaxCandies = drawerStats.length > 0 ? Math.max(...drawerStats, 0) : 0;
+            const currentMinCandies = drawerStats.length > 0 ? Math.min(...drawerStats, 0) : 0;
+            // 检查是否至少有一个抽屉达到了理论最低保证值（展示给小朋友信心）
+            const isPrincipleSatisfied = currentMaxCandies >= getGuaranteedMin();
+            
+            // 重置所有糖果到未分配区（一键归位）
+            const resetAllToPool = () => {
+                if (!candyPoolRef.current) return;
+                // 把所有抽屉里的糖果卡片移回 candyPool
+                for (let i = 0; i < drawerCount; i++) {
+                    const drawer = drawerRefs.current[i];
+                    if (drawer) {
+                        const candiesInDrawer = drawer.querySelectorAll('.candy-card');
+                        candiesInDrawer.forEach(candy => {
+                            candyPoolRef.current.appendChild(candy);
+                        });
+                    }
+                }
+                updateStats();
+            };
+            
+            // 智能平均分配演示（展示最平均分配下的结果，让小朋友理解“至少”的极限情况）
+            const smartAverageDistribute = () => {
+                // 先把所有糖果归位到池子
+                resetAllToPool();
+                const allCandies = Array.from(candyPoolRef.current.querySelectorAll('.candy-card'));
+                if (allCandies.length === 0) return;
+                // 清空所有抽屉
+                for (let i = 0; i < drawerCount; i++) {
+                    if (drawerRefs.current[i]) drawerRefs.current[i].innerHTML = '';
+                }
+                // 采用轮询分配，尽量平均
+                let drawerIdx = 0;
+                allCandies.forEach(candy => {
+                    const targetDrawer = drawerRefs.current[drawerIdx % drawerCount];
+                    if (targetDrawer) targetDrawer.appendChild(candy);
+                    drawerIdx++;
+                });
+                updateStats();
+            };
+            
+            // 渲染抽屉列表的UI
+            const renderDrawers = () => {
+                const drawersArray = [];
+                for (let i = 0; i < drawerCount; i++) {
+                    const drawerNum = i + 1;
+                    const currentCount = drawerStats[i] || 0;
+                    drawersArray.push(
+                        <div key={drawerNum} className="bg-orange-50 rounded-2xl border-2 border-purple-300 shadow-md overflow-hidden flex flex-col">
+                            <div className="bg-purple-200 px-3 py-2 font-bold text-purple-800 flex justify-between items-center">
+                                <span>📦 抽屉 {drawerNum}</span>
+                                <span className="bg-white rounded-full px-2 py-0.5 text-sm text-purple-600">🍬 {currentCount}颗</span>
+                            </div>
+                            <div 
+                                ref={el => drawerRefs.current[i] = el}
+                                className="drawer-zone min-h-[140px] p-3 bg-amber-50/50 flex flex-wrap gap-2 items-start transition-all"
+                                style={{minHeight: '130px'}}
+                            >
+                                {/* 动态糖果卡片会通过Sortable自动追加在这里 */}
+                            </div>
+                        </div>
+                    );
+                }
+                return drawersArray;
+            };
+            
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-300 h-full flex flex-col bg-white/95">
+                    <div className="flex items-center justify-between flex-wrap gap-2 border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🎮</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">糖果抽屉实验室 · 拖拽分配</h2>
+                        </div>
+                        <button onClick={handleChangeChallenge} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base flex items-center gap-1">
+                            🔄 换一题
+                        </button>
+                    </div>
+                    
+                    {/* 游戏说明 + 拖拽互动区 */}
+                    <div className="bg-green-50/70 rounded-xl p-3 mb-4 border border-green-300 text-sm md:text-base">
+                        <p className="font-bold text-green-800 flex items-center gap-2">✨ 拖拉拽玩法 ✨</p>
+                        <p>👉 将下方 <strong className="text-purple-700">🍬糖果卡片</strong> 用鼠标<strong className="text-rose-600">按住拖拽</strong> 到任意抽屉里 (也可以拖回糖果池)！<br/>
+                        随意分配后，观察右边统计数据 → 验证<strong>“至少有一个抽屉不少于 ? 颗糖”</strong> 的数学原理！</p>
+                    </div>
+                    
+                    {/* 题目信息区 */}
+                    <div className="flex flex-wrap justify-between items-center bg-gradient-to-r from-purple-100 to-indigo-50 p-3 rounded-2xl mb-4">
+                        <div className="font-bold text-lg">
+                            🧸 当前挑战：{currentChallenge.name} 
+                            <span className="ml-2 text-base font-normal text-gray-700">{currentChallenge.hint}</span>
+                        </div>
+                        <div className="bg-white px-3 py-1 rounded-full shadow text-purple-800 font-bold">
+                            📊 糖果总数：{totalItems}  |  抽屉总数：{drawerCount}
+                        </div>
+                    </div>
+                    
+                    {/* 核心交互区域: 糖果池 + 抽屉网格 */}
+                    <div className="flex flex-col gap-5 flex-1">
+                        {/* 糖果池 (未分配区) */}
+                        <div className="bg-amber-100 rounded-2xl p-3 border-2 border-amber-300 shadow-inner">
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="font-bold text-amber-800 text-xl">🍬 糖果池 (可随意拖拽)</h3>
+                                <button onClick={resetAllToPool} className="bg-amber-500 hover:bg-amber-600 text-white text-sm px-3 py-1 rounded-full shadow">🔄 一键归位</button>
+                            </div>
+                            <div 
+                                ref={candyPoolRef}
+                                className="flex flex-wrap gap-2 p-3 bg-amber-50/50 rounded-xl min-h-[110px] transition-all"
+                                style={{minHeight: '110px'}}
+                            >
+                                {/* 糖果卡片通过JS动态添加 */}
+                            </div>
+                        </div>
+                        
+                        {/* 抽屉网格 (响应式) */}
+                        <div>
+                            <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+                                <h3 className="font-bold text-purple-800 text-xl">📦 抽屉盒子 (接受糖果拖拽)</h3>
+                                <button onClick={smartAverageDistribute} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-1.5 rounded-full shadow transition flex items-center gap-1">
+                                    🎲 平均分配演示
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {renderDrawers()}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 实时数据分析 + 抽屉原理验证面板 */}
+                    <div className="mt-6 bg-purple-50 rounded-2xl p-4 border border-purple-200 shadow-md">
+                        <div className="flex flex-wrap justify-between items-center gap-2">
+                            <div className="font-bold text-purple-800 text-lg flex items-center gap-1">📐 抽屉原理实验室</div>
+                            <button onClick={forceUpdateStats} className="text-purple-600 text-sm underline">🔄 刷新统计</button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2 text-sm md:text-base">
+                            <div className="bg-white rounded-xl p-2">
+                                <p>🍬 <strong>当前分配实况</strong></p>
+                                <p>🔹 抽屉最多糖果数：<strong class="text-rose-600 text-xl">{currentMaxCandies}</strong> 颗</p>
+                                <p>🔹 抽屉最少糖果数：{currentMinCandies} 颗</p>
+                                <p>🔹 抽屉糖果分布：{drawerStats.join(', ')}</p>
+                            </div>
+                            <div className="bg-emerald-50 rounded-xl p-2 border border-emerald-200">
+                                <p>🧠 <strong>理论抽屉原理 (最不利原则)</strong></p>
+                                <p>⭐ 物品 {totalItems} ÷ 抽屉 {drawerCount} = {Math.floor(totalItems/drawerCount)} 余 {totalItems % drawerCount}</p>
+                                <p>🎯 <strong>“至少有一个抽屉不少于 <span className="text-purple-700 text-xl">{getGuaranteedMin()}</span> 颗糖”</strong></p>
+                                <p className={`mt-1 font-bold ${isPrincipleSatisfied ? 'text-green-600' : 'text-amber-600'}`}>
+                                    {isPrincipleSatisfied ? '✅ 当前分配中，最多糖果抽屉已达理论值！原理成立~' : '⚠️ 试着再拖拽分配，让某个抽屉再多几颗，体会“总有至少一个”的必然性'}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">✨ 无论你怎么拖拽分配，抽屉原理保证：永远存在一个抽屉拥有 ≥ {getGuaranteedMin()} 颗糖果！试试看~</p>
+                            </div>
+                        </div>
+                        <div className="text-center text-xs text-gray-400 mt-2">
+                            💡 小提示：你可以将糖果从糖果池拖到任意抽屉，也可以从抽屉拖回糖果池或不同抽屉之间移动！完全自由~
+                        </div>
+                    </div>
+                    
+                    <div className="mt-3 text-center text-purple-700 bg-purple-100/60 rounded-xl py-2 px-1 text-sm">
+                        🎉 通过拖拽亲手“制造”分配，深刻理解“总有”与“至少”的关系。尝试平均分配按钮，观察理论最小值如何出现！
+                    </div>
+                </div>
+            );
+        };
+        
+        // ========== 主页面布局: 左右结构 (左知识点 + 右游戏) ==========
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧：抽屉原理知识区 */}
+                    <div className="flex-1">
+                        <KnowledgeBase />
+                    </div>
+                    {/* 右侧：拖拽分配游戏区 */}
+                    <div className="flex-1">
+                        <DragGame />
+                    </div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainPage />);
+    </script>
+</body>
+</html>

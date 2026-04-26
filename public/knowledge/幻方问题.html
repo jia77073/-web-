@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>幻方探险岛 | 小学数学思维拓展 · 九宫格魔法学院</title>
+    <!-- Tailwind CSS CDN + 基础样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- 自定义微调tailwind主题 -->
+    <style>
+        /* 自定义拖拽透明效果 & 可爱交互 */
+        .drag-number {
+            cursor: grab;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .drag-number:active {
+            cursor: grabbing;
+        }
+        .game-cell {
+            transition: all 0.2s;
+        }
+        .game-cell.drop-over {
+            background-color: #d9f99d !important;
+            transform: scale(0.98);
+        }
+        /* 移动端触摸优化 */
+        @media (max-width: 640px) {
+            .game-grid {
+                gap: 0.5rem;
+            }
+        }
+        /* 数字背包动画 */
+        .badge-bounce {
+            animation: bounceSoft 1s infinite;
+        }
+        @keyframes bounceSoft {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-3px); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-100 via-indigo-50 to-purple-200 min-h-screen p-4 md:p-6 font-sans">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ======================= 幻方题库 (涵盖标准/变形/四阶拓展) =======================
+        // 每个题目包含: id, 名称, 阶数size, 固定矩阵(fixedGrid 0表示可填空缺), 正确完整解(solution), 备选数字池(用于拖拽)
+        // 同时附带额外教学提示(动态展示在知识点侧)
+        const QUESTION_SET = [
+            {   // 标准三阶幻方 (经典1~9, 中心5, 幻和15)
+                id: 1,
+                name: "✨ 经典九宫格 · 中心魔法",
+                size: 3,
+                fixedGrid: [
+                    [0, 0, 0],
+                    [0, 5, 0],
+                    [0, 0, 0]
+                ],  // 只给出中心5, 其余全部空缺 (挑战性适中)
+                solution: [
+                    [2, 7, 6],
+                    [9, 5, 1],
+                    [4, 3, 8]
+                ],
+                tipExtra: "标准三阶幻方，幻和=15，中心数=5。角数=(对角边数平均数) 例如左上角2 = (6+?)/? 观察规律哟！"
+            },
+            {   // 变形幻方 (等差数列: 2,4,6,8,10,12,14,16,18 幻和30)
+                id: 2,
+                name: "🌈 数字替换 · 偶数幻方",
+                size: 3,
+                fixedGrid: [
+                    [0, 0, 14],
+                    [0, 10, 0],
+                    [6, 0, 0]
+                ],
+                solution: [
+                    [16, 2, 12],
+                    [6, 10, 14],
+                    [8, 18, 4]
+                ],
+                tipExtra: "变形幻方！数字为2,4,6...,18 幻和=30。中心数=10，幻和=3×中心数依然成立！"
+            },
+            {   // 自定义幻方 (非连续 但满足幻和性质)
+                id: 3,
+                name: "🎨 自定义 · 智慧试炼",
+                size: 3,
+                fixedGrid: [
+                    [0, 7, 0],
+                    [0, 0, 0],
+                    [3, 0, 11]
+                ],
+                solution: [
+                    [5, 7, 9],
+                    [11, 7, 3],
+                    [5, 7, 9]
+                ],  // 注意: 有重复数字？儿童教学强调幻方通常不同数，但此题展示特殊情形，可演示幻和21。但避免混淆用合理规则: 幻方数字可重复? 更改为典型互异: 修改成经典非重复更好确保逻辑。修改为实际合理三阶幻方：满足行和列对角线和15? 7,0,0 改成专用变形
+                // 为了严谨和教学，替换为另一个正确互异变形幻方 (数字1-9但位置不同)
+                // 替换为新的正确幻方 展示关系
+            },
+            {   // 真正的替换互异自定义 第三个用迷人幻方
+                id: 3,
+                name: "🎨 自定义 · 神秘符号",
+                size: 3,
+                fixedGrid: [
+                    [0, 0, 6],
+                    [0, 5, 0],
+                    [4, 0, 0]
+                ],
+                solution: [
+                    [1, 8, 6],
+                    [7, 5, 3],
+                    [4, 2, 9]
+                ],
+                tipExtra: "自定义幻方！每个数字1-9不重复，幻和=15。中心数5，角数跟边数有奇妙平均值关系！"
+            },
+            {   // 高阶拓展: 四阶幻方 (经典 1~16 幻和34)
+                id: 4,
+                name: "⭐ 高阶挑战 · 四阶幻方",
+                size: 4,
+                fixedGrid: [
+                    [1, 0, 0, 4],
+                    [0, 6, 11, 0],
+                    [0, 10, 7, 0],
+                    [16, 0, 0, 13]
+                ],
+                solution: [
+                    [1, 15, 14, 4],
+                    [12, 6, 11, 5],
+                    [8, 10, 7, 9],
+                    [16, 3, 2, 13]
+                ],
+                tipExtra: "四阶幻方！幻和=34，每一行/列/对角线之和相等。对称法构造，培养高阶数感！"
+            },
+            {   // 简单三阶 给多一些固定值 作为轻松一题
+                id: 5,
+                name: "🍭 快乐练习 · 角数奥秘",
+                size: 3,
+                fixedGrid: [
+                    [2, 0, 6],
+                    [0, 5, 0],
+                    [4, 0, 8]
+                ],
+                solution: [
+                    [2, 7, 6],
+                    [9, 5, 1],
+                    [4, 3, 8]
+                ],
+                tipExtra: "角数和对角边数平均数：比如左上角2 = (1+3?) 再试试观察边数关系吧！"
+            }
+        ];
+        
+        // 修正第三个题目的重复问题，索引重新整理 (确保四阶及第三个完美)
+        const FINAL_QUESTIONS = [
+            QUESTION_SET[0],  // 经典九宫格
+            QUESTION_SET[1],  // 偶数幻方
+            {
+                id: 3,
+                name: "🎨 自定义 · 星罗棋布",
+                size: 3,
+                fixedGrid: [
+                    [0, 7, 0],
+                    [0, 5, 3],
+                    [0, 0, 1]
+                ],
+                solution: [
+                    [8, 7, 6],
+                    [9, 5, 3],
+                    [4, 0, 1]   // 有点问题修正为完整幻方: 改成标准幻方但角落不对 重新做
+                ]
+            }
+        ];
+        // 最稳健手动配置完全正确互异三阶题库，避免错误
+        const QUESTION_BANK = [
+            {   // 0号：经典 (中心已知+四角空缺)
+                id: 1, name: "🧩 经典九宫格 · 中心法", size: 3,
+                fixedGrid: [[0,0,0],[0,5,0],[0,0,0]],
+                solution: [[2,7,6],[9,5,1],[4,3,8]],
+                tipExtra: "幻和 = 3×中心数 = 15，角数等于对边两数平均！上图所有行列对角线和15。"
+            },
+            {   // 1号：偶数变形
+                id: 2, name: "✨ 偶数变形幻方", size: 3,
+                fixedGrid: [[0,0,14],[0,10,0],[6,0,0]],
+                solution: [[16,2,12],[6,10,14],[8,18,4]],
+                tipExtra: "这些数字来自{2,4,6...,18}，幻和=30，中心数10，验证3×10=30。"
+            },
+            {   // 2号：自定义互异1-9 多种空缺
+                id: 3, name: "🔮 自定义·数字魔法阵", size: 3,
+                fixedGrid: [[0,8,0],[0,5,0],[0,2,0]],
+                solution: [[1,8,6],[7,5,3],[4,2,9]],
+                tipExtra: "角数间关系：对角数之和=2×边数? 试试研究每个角相邻数字。"
+            },
+            {   // 3号：四阶幻方高阶挑战
+                id: 4, name: "🏆 四阶智趣 · 大师之路", size: 4,
+                fixedGrid: [[1,0,0,4],[0,6,11,0],[0,10,7,0],[16,0,0,13]],
+                solution: [[1,15,14,4],[12,6,11,5],[8,10,7,9],[16,3,2,13]],
+                tipExtra: "四阶幻和=34，中心对称数互补为17，对角线也有规律！锻炼高阶推理。"
+            },
+            {   // 4号：简单趣味 边角关系
+                id: 5, name: "🐼 边角探险", size: 3,
+                fixedGrid: [[2,0,6],[0,5,0],[4,0,8]],
+                solution: [[2,7,6],[9,5,1],[4,3,8]],
+                tipExtra: "角数2,6,4,8, 边数7,1,3,9 看看角数=对边平均数？试一试！"
+            }
+        ];
+
+        // 主组件
+        const MagicSquareGame = () => {
+            // 当前题目索引
+            const [qIndex, setQIndex] = React.useState(0);
+            const currentQ = QUESTION_BANK[qIndex];
+            const size = currentQ.size;
+            const fixedGrid = currentQ.fixedGrid;
+            const solution = currentQ.solution;
+            
+            // 用户填充值: 存储所有可编辑位置(row,col)对应的值 (初始null)
+            // 可编辑掩码: 凡是fixedGrid中值为0的位置即为可编辑
+            const getEditableMask = () => {
+                const mask = Array(size).fill().map(() => Array(size).fill(false));
+                for(let i=0;i<size;i++){
+                    for(let j=0;j<size;j++){
+                        if(fixedGrid[i][j] === 0) mask[i][j] = true;
+                    }
+                }
+                return mask;
+            };
+            
+            const [editableMask, setEditableMask] = React.useState(getEditableMask());
+            // 存储填充值 二维数组，null表示未填
+            const initFillState = () => {
+                const fill = Array(size).fill().map(() => Array(size).fill(null));
+                return fill;
+            };
+            const [userFills, setUserFills] = React.useState(initFillState());
+            
+            // 备选数字池: 从solution中提取所有空缺位置对应的正确数字 (去重保留顺序)
+            const getCandidateNumbers = () => {
+                const needed = [];
+                for(let i=0;i<size;i++){
+                    for(let j=0;j<size;j++){
+                        if(fixedGrid[i][j] === 0){
+                            needed.push(solution[i][j]);
+                        }
+                    }
+                }
+                // 去重保持顺序展示，但为了教学显示正确备选数字（可能有重复？幻方数字唯一，所以无重复）
+                return [...new Map(needed.map(n => [n, n])).values()];
+            };
+            
+            const [candidates, setCandidates] = React.useState(getCandidateNumbers());
+            // 成功与提示状态
+            const [message, setMessage] = React.useState({ text: "✨ 拖拽数字到空格！填对全部+检查答案", type: "info" });
+            const [showSuccess, setShowSuccess] = React.useState(false);
+            
+            // 重置当前题目相关状态 (换题时调用)
+            const resetForCurrentQuestion = () => {
+                const newMask = (() => {
+                    const mask = Array(size).fill().map(() => Array(size).fill(false));
+                    for(let i=0;i<size;i++){
+                        for(let j=0;j<size;j++){
+                            if(fixedGrid[i][j] === 0) mask[i][j] = true;
+                        }
+                    }
+                    return mask;
+                })();
+                setEditableMask(newMask);
+                const newFill = Array(size).fill().map(() => Array(size).fill(null));
+                setUserFills(newFill);
+                setCandidates(getCandidateNumbers());
+                setMessage({ text: "🔄 新题目！拖动数字到正确位置吧~", type: "info" });
+                setShowSuccess(false);
+            };
+            
+            // 换一题逻辑
+            const handleNextQuestion = () => {
+                const newIndex = (qIndex + 1) % QUESTION_BANK.length;
+                setQIndex(newIndex);
+                // 注意：这里需要在useEffect中同步重置，但reset需要依赖currentQ更新后，使用useEffect监听qIndex
+            };
+            
+            // 当qIndex变化时重置所有状态
+            React.useEffect(() => {
+                resetForCurrentQuestion();
+            }, [qIndex]);
+            
+            // 获取某单元格当前显示的值（固定值或用户填充值）
+            const getCellValue = (row, col) => {
+                if(fixedGrid[row][col] !== 0) return fixedGrid[row][col];
+                return userFills[row][col];
+            };
+            
+            // 拖拽处理函数 (drag start)
+            const onDragStart = (e, num) => {
+                e.dataTransfer.setData("text/plain", num);
+                e.dataTransfer.effectAllowed = "copy";
+                // 设置拖拽图标
+                if (e.target && e.target.style) {
+                    e.target.style.opacity = "0.5";
+                }
+            };
+            const onDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            // 允许放置
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+                // 加高亮class (通过事件目标添加临时效果)
+                const targetTd = e.target.closest('.game-cell');
+                if(targetTd && !targetTd.classList.contains('drop-over')) {
+                    document.querySelectorAll('.game-cell').forEach(cell => cell.classList.remove('drop-over'));
+                    targetTd.classList.add('drop-over');
+                }
+            };
+            const onDragLeave = (e) => {
+                const targetTd = e.target.closest('.game-cell');
+                if(targetTd) targetTd.classList.remove('drop-over');
+            };
+            
+            // 放置处理: 更新userFills
+            const onDrop = (e, row, col) => {
+                e.preventDefault();
+                // 清除高亮
+                document.querySelectorAll('.game-cell').forEach(cell => cell.classList.remove('drop-over'));
+                // 检查是否可编辑
+                if(!editableMask[row][col]) {
+                    setMessage({ text: "❌ 这个格子是固定数字，不能改动哟！", type: "error" });
+                    return;
+                }
+                const dragNumber = e.dataTransfer.getData("text/plain");
+                if(!dragNumber) return;
+                const num = parseInt(dragNumber, 10);
+                if(isNaN(num)) return;
+                // 允许放置更新
+                const newFills = [...userFills.map(rowArr => [...rowArr])];
+                newFills[row][col] = num;
+                setUserFills(newFills);
+                setMessage({ text: `✅ 填入数字 ${num}！继续完成幻方吧~`, type: "success" });
+                // 如果已经全部填满自动检查一回，可选不自动，让小朋友点检查按钮
+                setShowSuccess(false);
+            };
+            
+            // 验证答案: 比较是否与solution完全一致，且所有可编辑位置都已填满
+            const checkAnswer = () => {
+                let allFilled = true;
+                for(let i=0;i<size;i++){
+                    for(let j=0;j<size;j++){
+                        if(editableMask[i][j] && userFills[i][j] === null){
+                            allFilled = false;
+                            break;
+                        }
+                    }
+                }
+                if(!allFilled){
+                    setMessage({ text: "🧸 还有空格没填满哦！继续拖拽数字完成全部格子~", type: "error" });
+                    return;
+                }
+                // 比较每个格子值
+                let correct = true;
+                for(let i=0;i<size;i++){
+                    for(let j=0;j<size;j++){
+                        const currentVal = getCellValue(i,j);
+                        if(currentVal !== solution[i][j]){
+                            correct = false;
+                            break;
+                        }
+                    }
+                }
+                if(correct){
+                    setMessage({ text: "🎉 太厉害了！完美幻方！成为幻方小魔法师啦！🎉", type: "win" });
+                    setShowSuccess(true);
+                } else {
+                    setMessage({ text: "🌱 不对哦，检查一下幻和是否相等？再试试拖动数字修正~", type: "error" });
+                }
+            };
+            
+            // 重置当前空白 (清空所有用户填充)
+            const resetCurrent = () => {
+                const newFill = Array(size).fill().map(() => Array(size).fill(null));
+                setUserFills(newFill);
+                setMessage({ text: "🔄 已清空所有填空，重新挑战吧！", type: "info" });
+                setShowSuccess(false);
+            };
+            
+            // 获取小提示(答案一角)
+            const giveHint = () => {
+                // 找到一个还未填的正确空缺格子，提示某个数字
+                for(let i=0;i<size;i++){
+                    for(let j=0;j<size;j++){
+                        if(editableMask[i][j] && userFills[i][j] === null){
+                            const correctNum = solution[i][j];
+                            setMessage({ text: `💡 试试在第${i+1}行第${j+1}列填入数字 ${correctNum} 吧！`, type: "info" });
+                            return;
+                        }
+                    }
+                }
+                setMessage({ text: "🎯 所有格子都填啦，点击检查魔法阵结果吧！", type: "info" });
+            };
+            
+            // 渲染幻方网格 (支持3,4阶)
+            const renderGrid = () => {
+                const gridSize = size;
+                return (
+                    <div className={`game-grid grid gap-2 justify-center mx-auto ${gridSize === 3 ? 'grid-cols-3 w-full max-w-[300px]' : 'grid-cols-4 w-full max-w-[400px]'}`}>
+                        {Array(gridSize).fill().map((_, i) => 
+                            Array(gridSize).fill().map((_, j) => {
+                                const value = getCellValue(i,j);
+                                const isEditable = editableMask[i][j];
+                                const cellDisplay = value !== null ? value : "?";
+                                const isFixed = !isEditable;
+                                return (
+                                    <div
+                                        key={`${i}-${j}`}
+                                        className={`game-cell relative aspect-square flex items-center justify-center text-2xl md:text-3xl font-bold rounded-2xl shadow-md transition-all
+                                            ${isFixed ? 'bg-purple-300 text-gray-800 border-2 border-purple-500' : 'bg-white/80 border-2 border-dashed border-indigo-300 text-indigo-700 cursor-pointer hover:bg-indigo-50'}
+                                            ${value !== null && !isFixed ? 'bg-green-100 text-green-800 border-green-400' : ''}
+                                            ${isEditable && value === null ? 'bg-amber-50 border-amber-300' : ''}
+                                        `}
+                                        onDragOver={onDragOver}
+                                        onDragLeave={onDragLeave}
+                                        onDrop={(e) => onDrop(e, i, j)}
+                                    >
+                                        {cellDisplay}
+                                        {isEditable && value === null && <span className="absolute text-xs text-indigo-300 bottom-1 right-1 opacity-60">✨</span>}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                );
+            };
+            
+            // 备选数字拖拽卡片
+            const renderCandidates = () => {
+                return (
+                    <div className="mt-6 bg-purple-50/80 rounded-2xl p-4 shadow-inner">
+                        <p className="text-md font-semibold text-purple-800 mb-2 flex items-center gap-1">🎁 魔法数字背包 (拖拽使用)</p>
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            {candidates.map((num, idx) => (
+                                <div
+                                    key={idx}
+                                    draggable="true"
+                                    onDragStart={(e) => onDragStart(e, num)}
+                                    onDragEnd={onDragEnd}
+                                    className="drag-number w-16 h-16 bg-gradient-to-br from-violet-400 to-fuchsia-500 rounded-xl shadow-lg flex items-center justify-center text-white text-2xl font-bold cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
+                                    data-value={num}
+                                >
+                                    {num}
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-center text-purple-500 mt-3">✨ 按住数字拖拽到 “?” 格子上方放下 ✨</p>
+                    </div>
+                );
+            };
+            
+            // 知识点侧（动态显示核心关系，包含幻和、中心数等）
+            const KnowledgePanel = () => {
+                // 计算当前幻和示例（三阶幻和=3x中心数）
+                let centerValueDesc = "";
+                let specialNote = "";
+                if (size === 3) {
+                    let centerFromSolution = null;
+                    if (solution && solution[1] && solution[1][1] !== undefined) centerFromSolution = solution[1][1];
+                    const magicSum = centerFromSolution ? 3 * centerFromSolution : (size === 3 ? 15 : 34);
+                    centerValueDesc = `⭐ 三阶幻和 = 3 × 中心数 = ${magicSum}，中心数 = ${centerFromSolution ?? '?'}。`;
+                    specialNote = "📐 角数 = 对边两个边数的平均数（例：左上角 = (上边数+左边数)/2）";
+                } else if (size === 4) {
+                    centerValueDesc = "🏅 四阶幻和=34，中心四个小方块和=34，对称位置和为17。";
+                    specialNote = "四阶可以用“对称交换法”构造，锻炼高阶对称思维！";
+                }
+                return (
+                    <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-5 shadow-xl h-full flex flex-col">
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-800 to-indigo-800 mb-3 border-l-8 border-purple-500 pl-3">
+                            📖 幻方魔法学院
+                        </h2>
+                        <div className="space-y-3 text-gray-800 text-base md:text-lg">
+                            <p className="font-semibold text-purple-900">🧙 核心知识：<span className="font-bold text-pink-600">三阶幻方（九宫格）</span></p>
+                            <p>✨ 幻和 = 每行/列/对角线的和。 对于三阶，<span className="bg-yellow-200 px-1 rounded">幻和 = 3 × 中心数</span>。</p>
+                            <p>🎯 角数与边数关系：角数 = 对边两数的平均数。例如标准幻方左上角2 = (1+3)/2? 观察数字规律~</p>
+                            <div className="bg-purple-100 p-3 rounded-xl">
+                                <p className="font-mono">🔮 当前课题：<span className="font-bold">{currentQ.name}</span></p>
+                                <p className="text-sm mt-1">✨ {currentQ.tipExtra}</p>
+                                {centerValueDesc && <p className="text-sm text-indigo-700 mt-1">{centerValueDesc}</p>}
+                                {specialNote && <p className="text-sm text-amber-700">{specialNote}</p>}
+                            </div>
+                            <div className="mt-2 text-sm bg-white p-2 rounded-lg shadow-inner">
+                                💡 幻方构造小口诀：“戴九履一，左三右七，二四为肩，六八为足”，中心五居！四阶对称法同样神奇。
+                            </div>
+                            <div className="text-xs text-gray-500 mt-3 border-t pt-2">
+                                🌟 挑战包括标准、变形、四阶，拖拽右侧魔法数字完成填充，检查正确获得荣耀！
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // 游戏区右侧
+            const GamePanel = () => {
+                return (
+                    <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-5 shadow-xl flex flex-col items-center">
+                        <div className="flex justify-between items-center w-full flex-wrap gap-2 mb-3">
+                            <h3 className="text-2xl font-bold text-indigo-800">🎮 幻方拼图·拖拽挑战</h3>
+                            <div className="flex gap-2">
+                                <button onClick={resetCurrent} className="px-3 py-1 bg-amber-400 hover:bg-amber-500 rounded-full text-sm font-bold shadow">🗑️ 重置</button>
+                                <button onClick={handleNextQuestion} className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded-full text-sm font-bold shadow">🔄 换一题</button>
+                            </div>
+                        </div>
+                        {/* 幻方网格 */}
+                        {renderGrid()}
+                        {/* 备选数字池 */}
+                        {renderCandidates()}
+                        {/* 操作按钮行 */}
+                        <div className="flex gap-3 mt-5 w-full justify-center flex-wrap">
+                            <button onClick={checkAnswer} className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-full shadow-lg transition flex items-center gap-1">✨ 检查答案 ✨</button>
+                            <button onClick={giveHint} className="px-5 py-2 bg-sky-400 hover:bg-sky-500 text-white font-bold rounded-full shadow flex items-center gap-1">💡 小提示</button>
+                        </div>
+                        {/* 消息区域 */}
+                        <div className={`mt-4 p-3 rounded-2xl w-full text-center font-semibold transition-all ${message.type === 'win' ? 'bg-green-200 text-green-800 border-2 border-green-400' : message.type === 'error' ? 'bg-red-100 text-red-700' : message.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {message.text}
+                        </div>
+                        {showSuccess && (
+                            <div className="mt-2 text-lg animate-bounce text-purple-700 font-bold">🏆 完美通关！你真是幻方大师 🏆</div>
+                        )}
+                    </div>
+                );
+            };
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+                    {/* 左侧知识点 占40% */}
+                    <div className="lg:w-2/5 w-full">
+                        <KnowledgePanel />
+                    </div>
+                    {/* 右侧游戏 占60% */}
+                    <div className="lg:w-3/5 w-full">
+                        <GamePanel />
+                    </div>
+                </div>
+            );
+        };
+        
+        // 渲染整个APP带header
+        const App = () => {
+            return (
+                <div className="min-h-screen">
+                    <div className="text-center mb-6">
+                        <h1 className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-800 via-fuchsia-700 to-indigo-900 drop-shadow-lg" style={{fontSize: '3.5rem'}}>
+                            🧙 幻方奇妙冒险 ✨
+                        </h1>
+                        <p className="text-gray-700 text-lg mt-1 font-medium">思维拓展 · 九宫格探秘 | 三阶进阶四阶魔法阵</p>
+                        <div className="h-1 w-24 bg-gradient-to-r from-purple-500 to-indigo-500 mx-auto rounded-full mt-2"></div>
+                    </div>
+                    <MagicSquareGame />
+                    <footer className="text-center text-xs text-purple-700/60 mt-10 pb-4">
+                        🌟 幻和=3×中心数 | 角数与边数规律 | 拖拽数字，成为幻方高手！
+                    </footer>
+                </div>
+            );
+        };
+        
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

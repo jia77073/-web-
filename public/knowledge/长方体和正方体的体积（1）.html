@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>长方体和正方体体积·第一课时 | 体积小英雄</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义配置：主题色淡紫，字体大号，额外圆润风格 -->
+    <style>
+        /* 全局淡紫色主题 + 儿童友好风格 */
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, sans-serif;
+        }
+        /* 自定义滚动条可爱风格 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f3e5f9;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a17bb5;
+            border-radius: 20px;
+        }
+        /* 拖拽时半透明效果 */
+        .drag-card-active {
+            opacity: 0.5;
+            cursor: grabbing !important;
+        }
+        /* 放置区高亮效果 */
+        .drop-highlight {
+            background-color: #f4e2ff !important;
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px #b38fcc;
+            transition: all 0.1s ease;
+        }
+        /* 配对成功卡片闪烁 */
+        .matched-pulse {
+            animation: gentlePulse 0.4s ease;
+        }
+        @keyframes gentlePulse {
+            0% { transform: scale(1); background-color: #c8e6c9; }
+            50% { transform: scale(1.02); background-color: #a5d6a7; }
+            100% { transform: scale(1); background-color: #c8e6c9; }
+        }
+        /* 胜利彩蛋跳动 */
+        @keyframes bounceWin {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-6px); }
+        }
+        .win-animation {
+            animation: bounceWin 0.6s ease;
+        }
+        /* 全局字体放大基础 */
+        .text-super {
+            font-size: 1.55rem;
+            line-height: 2rem;
+        }
+        @media (min-width: 768px) {
+            .text-super {
+                font-size: 1.75rem;
+                line-height: 2.2rem;
+            }
+        }
+        /* 移动端触控优化 */
+        .drag-card, .drop-zone {
+            touch-action: manipulation;
+        }
+        /* 模拟小正方体网格样式 */
+        .cube-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            background: #ecd9ff;
+            padding: 8px;
+            border-radius: 20px;
+        }
+        .mini-cube {
+            background: #9f7bb5;
+            border-radius: 8px;
+            aspect-ratio: 1 / 1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="p-3 md:p-6 min-h-screen flex items-center justify-center">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+    // 长方体和正方体体积互动课程组件 (拖拽配对游戏 + 知识点)
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ---------- 游戏数据 ----------
+    // 放置区数据 (需要配对的挑战)
+    const dropZonesData = [
+        { id: 0, title: "📦 长方体挑战", desc: "长 = 6 cm，宽 = 3 cm，高 = 2 cm", question: "体积是多少？", expectMatch: "36 cm³", hint: "V = 长×宽×高" },
+        { id: 1, title: "🧊 正方体挑战", desc: "棱长 = 4 dm", question: "体积是多少？", expectMatch: "64 dm³", hint: "V = a³ = a×a×a" },
+        { id: 2, title: "📏 体积单位小侦探", desc: "一个牛奶箱的体积大约 30 ____", question: "选择合适的体积单位", expectMatch: "立方分米", hint: "1立方分米≈粉笔盒大小，牛奶箱合适" }
+    ];
+    
+    // 拖拽卡片数据 (答案卡片)
+    const cardsData = [
+        { id: 0, label: "36 cm³", matchZoneId: 0, emoji: "🎯" },
+        { id: 1, label: "64 dm³", matchZoneId: 1, emoji: "🎲" },
+        { id: 2, label: "立方分米", matchZoneId: 2, emoji: "📦" }
+    ];
+    
+    // 主游戏组件
+    const VolumeGame = () => {
+        // 配对状态：记录每个放置区是否已配对
+        const [matchedZones, setMatchedZones] = useState({});
+        // 剩余可拖拽的卡片列表 (未被配对的卡片对象数组)
+        const [remainingCards, setRemainingCards] = useState([]);
+        // 游戏胜利标志
+        const [gameWin, setGameWin] = useState(false);
+        // 全局反馈消息
+        const [feedback, setFeedback] = useState("🐣 把右边的答案卡片拖到对应的挑战区！长按或拖拽卡片～");
+        // 高亮放置区的id
+        const [highlightZoneId, setHighlightZoneId] = useState(null);
+        
+        // 初始化/重置游戏
+        const initGame = useCallback(() => {
+            const initialMatched = {};
+            dropZonesData.forEach(zone => {
+                initialMatched[zone.id] = false;
+            });
+            setMatchedZones(initialMatched);
+            // 打乱剩余卡片顺序增加趣味
+            const shuffled = [...cardsData];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setRemainingCards(shuffled);
+            setGameWin(false);
+            setFeedback("✨ 新的一局！将卡片拖拽到正确的挑战区上面吧 ✨");
+            setHighlightZoneId(null);
+        }, []);
+        
+        // 检查是否全部配对成功
+        useEffect(() => {
+            const allMatched = Object.values(matchedZones).every(v => v === true);
+            if (allMatched && remainingCards.length === 0 && !gameWin) {
+                setGameWin(true);
+                setFeedback("🎉 哇！全配对成功！你真是体积小英雄！🎉 点击【新的一局】继续挑战～");
+            } else if (allMatched && remainingCards.length === 0 && gameWin) {
+                // 已胜利状态保持
+            }
+        }, [matchedZones, remainingCards, gameWin]);
+        
+        // 处理拖拽开始
+        const handleDragStart = (e, card) => {
+            // 检查该卡片是否还在剩余卡片中 (未被配对)
+            if (!remainingCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                e.dataTransfer.effectAllowed = "none";
+                setFeedback("⛔ 这张卡片已经配对过了！不能重复拖拽啦 ⛔");
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, matchId: card.matchZoneId, label: card.label }));
+            e.dataTransfer.effectAllowed = "copy";
+            // 设置拖拽图标透明提升体验
+            const dragIcon = document.createElement('div');
+            dragIcon.textContent = card.emoji + " " + card.label;
+            dragIcon.style.position = "absolute";
+            dragIcon.style.top = "-1000px";
+            document.body.appendChild(dragIcon);
+            e.dataTransfer.setDragImage(dragIcon, 0, 0);
+            setTimeout(() => document.body.removeChild(dragIcon), 0);
+            if (e.target && e.target.classList) {
+                e.target.classList.add('drag-card-active');
+            }
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target && e.target.classList) {
+                e.target.classList.remove('drag-card-active');
+            }
+            setHighlightZoneId(null);
+        };
+        
+        // 拖拽经过放置区时高亮
+        const handleDragOver = (e, zoneId) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (highlightZoneId !== zoneId) {
+                setHighlightZoneId(zoneId);
+            }
+        };
+        
+        const handleDragLeave = () => {
+            setHighlightZoneId(null);
+        };
+        
+        // 放置逻辑
+        const handleDrop = (e, targetZone) => {
+            e.preventDefault();
+            setHighlightZoneId(null);
+            // 如果该放置区已经配对，不能再放
+            if (matchedZones[targetZone.id]) {
+                setFeedback(`🔁 挑战区“${targetZone.title}”已经配对过了！不能重复哦 🔁`);
+                return;
+            }
+            
+            let dragData;
+            try {
+                const rawData = e.dataTransfer.getData("text/plain");
+                dragData = JSON.parse(rawData);
+            } catch(err) {
+                setFeedback("拖拽出错了，再试一次吧~");
+                return;
+            }
+            if (!dragData) return;
+            
+            const { cardId, matchId, label } = dragData;
+            // 验证卡片是否还在剩余卡片中
+            const cardExists = remainingCards.some(c => c.id === cardId);
+            if (!cardExists) {
+                setFeedback("这张卡片已经被配对过了！不能再使用啦。");
+                return;
+            }
+            
+            // 检查匹配是否正确 (card.matchZoneId 应该等于 targetZone.id)
+            const isCorrect = (matchId === targetZone.id);
+            if (isCorrect) {
+                // 配对成功！
+                // 更新配对状态
+                setMatchedZones(prev => ({ ...prev, [targetZone.id]: true }));
+                // 从剩余卡片中移除该卡片
+                const newRemaining = remainingCards.filter(c => c.id !== cardId);
+                setRemainingCards(newRemaining);
+                setFeedback(`🎈 正确！${targetZone.desc} 体积为 ${label}，配对成功！ 🎈`);
+                // 播放小动画效果(可通过className)
+                const zoneElement = document.getElementById(`dropzone-${targetZone.id}`);
+                if (zoneElement) {
+                    zoneElement.classList.add('matched-pulse');
+                    setTimeout(() => zoneElement.classList.remove('matched-pulse'), 400);
+                }
+                // 胜利检查将在useEffect中触发
+            } else {
+                // 配对错误
+                let correctAnswer = dropZonesData.find(z => z.id === targetZone.id)?.expectMatch || "???";
+                setFeedback(`❌ 配对错误！ ${targetZone.title} 的正确结果是 “${correctAnswer}”，再试试看！❌`);
+            }
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            initGame();
+        };
+        
+        // 初始化
+        useEffect(() => {
+            initGame();
+        }, [initGame]);
+        
+        const totalZones = dropZonesData.length;
+        const matchedCount = Object.values(matchedZones).filter(v => v === true).length;
+        
+        return (
+            <div className="w-full rounded-3xl shadow-2xl p-4 md:p-5 bg-white/30 backdrop-blur-sm border border-white/40">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区域 ========= */}
+                    <div className="lg:w-2/5 bg-white/85 rounded-2xl p-5 md:p-6 shadow-xl backdrop-blur-sm border border-purple-100 overflow-y-auto max-h-[80vh] lg:max-h-none">
+                        <div className="border-l-8 border-[#a67cac] pl-4 mb-4">
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-[#5e3a63]">📦 长方体和正方体体积</h1>
+                            <p className="text-xl text-gray-700 mt-1 font-semibold">五年级·几何第一课时</p>
+                        </div>
+                        
+                        {/* 1. 体积的意义 */}
+                        <div className="bg-gradient-to-r from-[#f7effb] to-white p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800 flex items-center gap-2">🌟 体积的意义</h2>
+                            <p className="text-xl mt-2 leading-relaxed">物体所占空间的大小叫做物体的<strong className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-lg">体积</strong>。比如：书包占空间，橡皮占空间，空间越大体积越大。</p>
+                            <div className="mt-3 flex gap-4 justify-around text-center text-purple-700 bg-purple-50 p-3 rounded-xl">
+                                <div>📘 课本 📘<br/>体积较小</div>
+                                <div>📦 大书包 📦<br/>体积较大</div>
+                                <div>🏊 游泳池 🏊<br/>体积巨大</div>
+                            </div>
+                        </div>
+                        
+                        {/* 2. 常用的体积单位 */}
+                        <div className="bg-white/80 p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📏 体积单位家族</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                                <div className="bg-[#e6d6f0] rounded-xl p-2 text-center"><span className="font-bold text-2xl">立方厘米 (cm³)</span><br/>~ 指甲盖大小</div>
+                                <div className="bg-[#e6d6f0] rounded-xl p-2 text-center"><span className="font-bold text-2xl">立方分米 (dm³)</span><br/>~ 粉笔盒大小</div>
+                                <div className="bg-[#e6d6f0] rounded-xl p-2 text-center"><span className="font-bold text-2xl">立方米 (m³)</span><br/>~ 洗衣机大小</div>
+                            </div>
+                        </div>
+                        
+                        {/* 3. 推导公式：拼摆小正方体 + V=abh 和 V=a³ */}
+                        <div className="bg-[#faf0ff] p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">🧩 体积公式推导 (动手摆一摆)</h2>
+                            <div className="my-3 flex flex-col items-center">
+                                <p className="font-semibold text-lg">用1cm³小正方体拼长方体：</p>
+                                <div className="flex justify-center my-2">
+                                    {/* 模拟长方体 长4 宽2 高2 示意: 共16个小正方体 */}
+                                    <div className="grid grid-cols-4 gap-1 bg-purple-100 p-2 rounded-xl w-fit">
+                                        {[...Array(4)].map((_, i) => <div key={i} className="grid grid-rows-2 gap-1">
+                                            <div className="w-6 h-6 bg-purple-400 rounded-md shadow-sm"></div>
+                                            <div className="w-6 h-6 bg-purple-400 rounded-md shadow-sm"></div>
+                                        </div>)}
+                                    </div>
+                                </div>
+                                <p className="text-center text-lg">每行个数 × 行数 × 层数 = 长 × 宽 × 高</p>
+                                <div className="bg-purple-100 p-3 rounded-xl mt-2 w-full">
+                                    <p className="font-bold text-xl">📌 长方体体积 = 长 × 宽 × 高</p>
+                                    <p className="font-bold text-xl mt-1">📌 正方体体积 = 棱长 × 棱长 × 棱长 = a³</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 4. 基础例题 */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📝 例题演示</h2>
+                            <div className="mt-2 space-y-3 text-lg">
+                                <div className="border-l-4 border-purple-400 pl-3"><span className="font-bold">例1：</span>长方体长5cm，宽4cm，高3cm，体积？<br/>解：V = 5×4×3 = 60 (cm³)</div>
+                                <div className="border-l-4 border-purple-400 pl-3"><span className="font-bold">例2：</span>正方体棱长2dm，体积？<br/>解：V = 2×2×2 = 8 (dm³)</div>
+                                <div className="border-l-4 border-purple-400 pl-3"><span className="font-bold">小练习：</span>冰箱体积大约用____单位？(立方米)</div>
+                            </div>
+                        </div>
+                        <div className="mt-4 text-sm text-center text-purple-600 bg-white/60 rounded-full py-2">✨ 记住公式，轻松计算体积 ✨</div>
+                    </div>
+                    
+                    {/* ========= 右侧互动游戏区域 ========= */}
+                    <div className="lg:w-3/5 bg-[#faf3ff]/95 rounded-2xl p-5 md:p-6 shadow-lg border-2 border-[#CBAACB] flex flex-col">
+                        <div className="flex justify-between items-center flex-wrap gap-2 mb-4">
+                            <h2 className="text-2xl md:text-3xl font-black text-[#6b3f74] flex items-center gap-2">
+                                🎮 拖拽配对·抓抓乐 <span className="text-lg bg-white/70 px-3 py-1 rounded-full">拖拽卡片配对</span>
+                            </h2>
+                            <button 
+                                onClick={resetGame}
+                                className="bg-gradient-to-r from-[#a17bb5] to-[#cba3db] hover:from-[#8f68a3] hover:to-[#b887cf] text-white font-bold py-2 px-5 rounded-full shadow-md transition transform active:scale-95 text-lg"
+                            >
+                                🔄 新的一局
+                            </button>
+                        </div>
+                        
+                        {/* 反馈消息条 */}
+                        <div className={`mb-5 p-3 rounded-xl text-center font-bold text-lg transition-all ${feedback.includes('正确') || feedback.includes('🎉') ? 'bg-green-100 text-green-800 border border-green-300' : (feedback.includes('错误') || feedback.includes('⛔') ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')}`}>
+                            {feedback}
+                        </div>
+                        
+                        {/* 配对进度条 */}
+                        <div className="w-full bg-purple-200 rounded-full h-3 mb-4">
+                            <div className="bg-purple-600 h-3 rounded-full transition-all duration-300" style={{ width: `${(matchedCount / totalZones) * 100}%` }}></div>
+                        </div>
+                        <p className="text-right text-purple-700 text-sm font-medium">配对进度: {matchedCount}/{totalZones}</p>
+                        
+                        {/* 放置区列表 (三个挑战) */}
+                        <div className="space-y-4 mb-6 mt-2">
+                            {dropZonesData.map(zone => {
+                                const isMatched = matchedZones[zone.id];
+                                const isHighlight = highlightZoneId === zone.id;
+                                return (
+                                    <div
+                                        key={zone.id}
+                                        id={`dropzone-${zone.id}`}
+                                        className={`drop-zone relative bg-white rounded-2xl p-4 border-2 transition-all ${isMatched ? 'border-green-400 bg-green-50/80' : (isHighlight ? 'border-purple-500 bg-purple-50 drop-highlight' : 'border-purple-200')}`}
+                                        onDragOver={(e) => handleDragOver(e, zone.id)}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, zone)}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="text-xl font-black text-purple-800">{zone.title}</div>
+                                                <p className="text-lg text-gray-700">{zone.desc}</p>
+                                                <p className="text-md text-purple-600 mt-1">❓ {zone.question}</p>
+                                                {!isMatched && <p className="text-sm text-gray-400 mt-1">💡 提示：{zone.hint}</p>}
+                                                {isMatched && (
+                                                    <div className="mt-2 inline-block bg-green-200 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
+                                                        ✅ 已配对：{zone.expectMatch}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-4xl ml-2">{zone.id === 0 ? '📐' : (zone.id === 1 ? '🧊' : '📦')}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 拖拽卡片区 (类似扭蛋机/抓娃娃机卡片) */}
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <p className="text-xl font-bold text-purple-800 flex items-center gap-2">🎴 答案扭蛋卡片 (拖拽配对)</p>
+                                <span className="bg-purple-200 rounded-full px-3 py-1 text-sm font-bold">剩余: {remainingCards.length}</span>
+                            </div>
+                            
+                            {remainingCards.length === 0 && !gameWin && (
+                                <div className="text-center py-6 bg-yellow-50 rounded-2xl border border-yellow-300 text-yellow-700 font-bold text-xl">
+                                    ✨ 太厉害了！全部配对正确！点击[新的一局]继续挑战 ✨
+                                </div>
+                            )}
+                            
+                            {remainingCards.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                    {remainingCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable="true"
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-[#e8d3fc] to-white rounded-2xl p-4 text-center shadow-md cursor-grab active:cursor-grabbing border-2 border-purple-300 hover:shadow-xl transform transition hover:-translate-y-1"
+                                        >
+                                            <div className="text-4xl mb-1">{card.emoji}</div>
+                                            <div className="font-black text-2xl md:text-3xl text-purple-800">{card.label}</div>
+                                            <div className="text-sm text-purple-500 mt-1">✨ 拖拽到对应挑战区 ✨</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 游戏玩法说明 */}
+                            <div className="mt-5 bg-[#e9d4f0] rounded-xl p-3 text-center text-purple-800 text-base flex flex-wrap justify-center gap-2 items-center">
+                                <span className="font-bold">🎮 拖拉拽玩法：</span>
+                                <span>🐻 用手指长按右边卡片 → 拖到左边的挑战区域 → 松开配对！</span>
+                                <span className="text-sm bg-white rounded-full px-2 py-0.5">移动端长按卡片即可拖动</span>
+                            </div>
+                        </div>
+                        
+                        {/* 胜利彩蛋 */}
+                        {gameWin && (
+                            <div className="mt-5 p-4 bg-gradient-to-r from-green-200 to-emerald-200 rounded-2xl text-center win-animation">
+                                <div className="text-5xl mb-2">🏆🎉📦🧊</div>
+                                <p className="font-extrabold text-2xl text-emerald-800">完美通关！体积公式大师就是你！</p>
+                                <button onClick={resetGame} className="mt-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow">🏅 再来一局 🏅</button>
+                            </div>
+                        )}
+                        
+                        {/* 趣味额外提示 */}
+                        <div className="mt-3 text-right text-sm text-purple-600 flex justify-end items-center gap-1">
+                            <span>📖 V = 长×宽×高  &nbsp;|&nbsp; V = a³</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-center mt-5 text-sm text-purple-900/80 bg-white/30 rounded-full py-2 px-4 mx-auto w-fit">
+                    🌈 体积就是占空间的大小，用1立方厘米小方块摆一摆，轻松懂公式！ 🌈
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染到根节点
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<VolumeGame />);
+</script>
+</body>
+</html>

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>火车大冒险 · 列车问题特快专列</title>
+    <!-- Tailwind CDN + 字体 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 紫色主题 & 自定义拖拽克隆样式 */
+        body {
+            background: linear-gradient(135deg, #f5f0ff 0%, #e9dcff 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', system-ui, -apple-system, sans-serif;
+        }
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 12px 20px rgba(128, 0, 255, 0.4));
+            transform: rotate(2deg) scale(1.08);
+            pointer-events: none;
+            background: linear-gradient(145deg, #ffffff, #fde68a);
+            border-radius: 2rem;
+            padding: 0.6rem 1rem;
+            border: 3px solid #a855f7;
+            color: #5b21b6;
+            font-size: 1.8rem;
+            font-weight: 900;
+            text-align: center;
+            min-width: 80px;
+            box-shadow: 0 20px 25px -12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .no-select {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button, .drag-card, .drop-zone {
+            touch-action: manipulation;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #ede9fe;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c084fc;
+            border-radius: 10px;
+        }
+        /* 火车头装饰 */
+        .train-badge {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238b5cf6"><path d="M12 2c-4 0-7 3-7 7v7c0 2 1.5 4 3.5 4h7c2 0 3.5-2 3.5-4V9c0-4-3-7-7-7zM8 16c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2zm8 0c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2zm-4-8H8V6h4v2z"/></svg>') no-repeat center;
+            background-size: contain;
+            width: 32px;
+            height: 32px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="p-3 md:p-5">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback } = React;
+
+        // ---------- 列车问题题库（火车过桥/隧道/错车/超车/过路标）----------
+        const TRAIN_QUESTIONS = [
+            {
+                id: 1,
+                title: "🚂 火车过桥问题",
+                scenario: "一列火车长 180 米，以每秒 25 米的速度通过一座大桥，从车头上桥到车尾离桥一共用了 20 秒。这座桥长多少米？",
+                hint: "路程 = 速度 × 时间；火车过桥总路程 = 桥长 + 车长",
+                known: "火车速度25米/秒，时间20秒 → 总路程=500米，车长180米",
+                correctValue: 320,
+                unit: "米",
+                distractors: [280, 300, 340, 500],
+                explanation: "总路程 = 25×20 = 500米，桥长 = 总路程 - 车长 = 500 - 180 = 320米。"
+            },
+            {
+                id: 2,
+                title: "🚇 火车过隧道",
+                scenario: "一列火车长 200 米，完全通过一条长 600 米的隧道用了 40 秒。火车的速度是多少米/秒？",
+                hint: "完全通过是指从车头进隧道到车尾出隧道，总路程 = 隧道长 + 车长",
+                known: "总路程 = 600 + 200 = 800米，时间 = 40秒",
+                correctValue: 20,
+                unit: "米/秒",
+                distractors: [15, 18, 22, 25],
+                explanation: "速度 = (隧道长+车长) ÷ 时间 = (600+200) ÷ 40 = 800 ÷ 40 = 20 米/秒。"
+            },
+            {
+                id: 3,
+                title: "🚂🚃 错车问题（相向而行）",
+                scenario: "甲火车长 150 米，速度 20 米/秒；乙火车长 200 米，速度 15 米/秒。两列火车相向而行，从车头相遇到车尾完全错开需要多少秒？",
+                hint: "错车路程 = 两车长度之和，速度和 = 两车速度之和",
+                known: "路程和 = 150+200 = 350米，速度和 = 20+15 = 35米/秒",
+                correctValue: 10,
+                unit: "秒",
+                distractors: [8, 9, 11, 12],
+                explanation: "时间 = (甲车长+乙车长) ÷ (速度和) = 350 ÷ 35 = 10 秒。"
+            },
+            {
+                id: 4,
+                title: "🚄 超车问题（同向追及）",
+                scenario: "快车长 250 米，速度 25 米/秒；慢车长 150 米，速度 15 米/秒。两车同向行驶，快车从追上慢车到完全超过慢车需要多少秒？",
+                hint: "超车路程差 = 两车长度和，速度差 = 快车速度 - 慢车速度",
+                known: "路程差 = 250+150 = 400米，速度差 = 25-15 = 10米/秒",
+                correctValue: 40,
+                unit: "秒",
+                distractors: [30, 35, 45, 50],
+                explanation: "追及时间 = (快车长+慢车长) ÷ 速度差 = 400 ÷ 10 = 40 秒。"
+            },
+            {
+                id: 5,
+                title: "🚂 通过路标+桥梁求车长",
+                scenario: "一列火车通过一根路标（忽略长度）用了 8 秒，通过一座长 280 米的桥梁用了 24 秒。这列火车的长度是多少米？",
+                hint: "通过路标 → 路程 = 车长；通过桥梁 → 路程 = 桥长+车长；车速不变",
+                known: "设车长L，速度v：v×8 = L；v×24 = L+280",
+                correctValue: 140,
+                unit: "米",
+                distractors: [120, 130, 150, 160],
+                explanation: "车速v = L/8, 代入桥：24×(L/8) = L+280 → 3L = L+280 → 2L=280 → L=140米。"
+            }
+        ];
+
+        // 自定义拖拽 Hook (支持鼠标 + 触摸) 完美模拟拖拽
+        function useDragAndDrop({ onDropSuccess }) {
+            const [dragging, setDragging] = useState(false);
+            const dragItemRef = useRef(null);       // { value, element }
+            const currentCloneRef = useRef(null);
+            const startPos = useRef({ x: 0, y: 0 });
+            
+            const startDrag = useCallback((e, itemValue, elementDOM) => {
+                e.preventDefault();
+                let clientX, clientY;
+                if (e.touches) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                    e.preventDefault();
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                dragItemRef.current = { value: itemValue, element: elementDOM };
+                startPos.current = { x: clientX, y: clientY };
+                
+                // 克隆拖拽元素
+                const cloneDiv = document.createElement('div');
+                cloneDiv.className = 'drag-clone';
+                cloneDiv.innerText = itemValue;
+                document.body.appendChild(cloneDiv);
+                cloneDiv.style.left = `${clientX - 42}px`;
+                cloneDiv.style.top = `${clientY - 35}px`;
+                currentCloneRef.current = cloneDiv;
+                setDragging(true);
+                
+                const onMove = (moveEvent) => {
+                    if (!currentCloneRef.current) return;
+                    let moveX, moveY;
+                    if (moveEvent.touches) {
+                        moveX = moveEvent.touches[0].clientX;
+                        moveY = moveEvent.touches[0].clientY;
+                        moveEvent.preventDefault();
+                    } else {
+                        moveX = moveEvent.clientX;
+                        moveY = moveEvent.clientY;
+                    }
+                    currentCloneRef.current.style.left = `${moveX - 42}px`;
+                    currentCloneRef.current.style.top = `${moveY - 35}px`;
+                };
+                
+                const onEnd = (endEvent) => {
+                    if (currentCloneRef.current) {
+                        currentCloneRef.current.remove();
+                        currentCloneRef.current = null;
+                    }
+                    // 查找释放点下的目标元素
+                    let targetEl = null;
+                    if (endEvent.changedTouches) {
+                        const touch = endEvent.changedTouches[0];
+                        targetEl = document.elementsFromPoint(touch.clientX, touch.clientY)[0];
+                    } else {
+                        targetEl = document.elementsFromPoint(endEvent.clientX, endEvent.clientY)[0];
+                    }
+                    const dropZone = targetEl?.closest('[data-dropzone="true"]');
+                    if (dropZone && dragItemRef.current) {
+                        const expectedVal = Number(dropZone.getAttribute('data-expected'));
+                        const droppedNum = dragItemRef.current.value;
+                        if (expectedVal === droppedNum) {
+                            onDropSuccess?.(true, droppedNum);
+                        } else {
+                            onDropSuccess?.(false, droppedNum);
+                        }
+                    } else {
+                        if (dragItemRef.current) onDropSuccess?.(false, dragItemRef.current.value);
+                    }
+                    setDragging(false);
+                    dragItemRef.current = null;
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onEnd);
+                    window.removeEventListener('touchmove', onMove);
+                    window.removeEventListener('touchend', onEnd);
+                    window.removeEventListener('touchcancel', onEnd);
+                };
+                
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onEnd);
+                window.addEventListener('touchmove', onMove, { passive: false });
+                window.addEventListener('touchend', onEnd);
+                window.addEventListener('touchcancel', onEnd);
+            }, [onDropSuccess]);
+            
+            const cleanup = useCallback(() => {
+                if (currentCloneRef.current) {
+                    currentCloneRef.current.remove();
+                    currentCloneRef.current = null;
+                }
+                setDragging(false);
+                dragItemRef.current = null;
+            }, []);
+            
+            useEffect(() => {
+                return cleanup;
+            }, [cleanup]);
+            
+            return { startDrag, dragging };
+        }
+        
+        // 可拖拽数字卡片
+        function DragCard({ value, onDragStart, disabled }) {
+            const cardRef = useRef(null);
+            const handleDragStart = (e) => {
+                if (disabled) return;
+                if (cardRef.current) {
+                    onDragStart(e, value, cardRef.current);
+                }
+            };
+            return (
+                <div
+                    ref={cardRef}
+                    className={`drag-card bg-gradient-to-br from-amber-100 to-orange-200 border-3 border-purple-500 rounded-2xl w-28 h-28 md:w-28 md:h-28 flex items-center justify-center text-4xl md:text-5xl font-black text-purple-800 shadow-xl cursor-grab active:cursor-grabbing transition-all hover:scale-105 hover:shadow-2xl ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : ''}`}
+                    onMouseDown={!disabled ? handleDragStart : undefined}
+                    onTouchStart={!disabled ? handleDragStart : undefined}
+                    style={{ touchAction: 'none' }}
+                >
+                    {value}
+                </div>
+            );
+        }
+        
+        // 右侧游戏组件 (列车拖拽答题)
+        function TrainGame({ currentQuestion, onCorrect, onWrong, resetKey }) {
+            const [feedback, setFeedback] = useState(null);
+            const [hasAnswered, setHasAnswered] = useState(false);
+            const [selectedNum, setSelectedNum] = useState(null);
+            
+            // 重置状态 (换题时)
+            useEffect(() => {
+                setFeedback(null);
+                setHasAnswered(false);
+                setSelectedNum(null);
+            }, [currentQuestion, resetKey]);
+            
+            const handleDropResult = (isCorrect, droppedNum) => {
+                if (hasAnswered) {
+                    setFeedback({ type: 'info', msg: '🎫 这趟列车已完成答题！按「换一题」继续新挑战～' });
+                    return;
+                }
+                setSelectedNum(droppedNum);
+                if (isCorrect) {
+                    setFeedback({ type: 'success', msg: `🚆 呜~~~ 完全正确！ ${currentQuestion.explanation}`, correctVal: droppedNum });
+                    setHasAnswered(true);
+                    onCorrect();  // 累计正确次数
+                } else {
+                    setFeedback({ type: 'error', msg: `❌ 哐当！ ${droppedNum} ${currentQuestion.unit} 不对哦。再试试！ 🔍 ${currentQuestion.hint}` });
+                    // 不正确未锁定，可以继续尝试
+                }
+            };
+            
+            const { startDrag, dragging } = useDragAndDrop({ onDropSuccess: handleDropResult });
+            
+            // 生成选项 (正确答案 + 干扰项，打乱)
+            const allOptions = React.useMemo(() => {
+                let opts = [...currentQuestion.distractors, currentQuestion.correctValue];
+                opts = [...new Set(opts)];
+                for (let i = opts.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [opts[i], opts[j]] = [opts[j], opts[i]];
+                }
+                return opts;
+            }, [currentQuestion]);
+            
+            return (
+                <div className="flex flex-col h-full">
+                    {/* 题目卡片 */}
+                    <div className="bg-indigo-50/90 rounded-2xl p-4 mb-4 shadow-md border-l-8 border-purple-500">
+                        <div className="flex items-center gap-2 text-purple-800 font-black text-xl mb-2">
+                            <span className="text-2xl">🚂</span> {currentQuestion.title}
+                        </div>
+                        <div className="text-base md:text-lg text-gray-800 font-medium leading-relaxed bg-white p-3 rounded-xl shadow-inner">
+                            {currentQuestion.scenario}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-sm text-purple-700">
+                            <span className="bg-purple-100 px-3 py-1 rounded-full">📌 提示：{currentQuestion.hint}</span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 border-t border-purple-200 pt-2">
+                            💡 已知： {currentQuestion.known}
+                        </div>
+                    </div>
+                    
+                    {/* 拖拽投放区 (车站检票口) */}
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-2 flex-wrap">
+                            <span className="font-bold text-purple-800 text-lg flex items-center gap-2">
+                                🎫 拖拽数字到“检票口” 🎫
+                            </span>
+                            <span className="bg-purple-200 px-2 py-1 rounded-full text-xs font-mono">单位：{currentQuestion.unit}</span>
+                        </div>
+                        <div 
+                            data-dropzone="true"
+                            data-expected={currentQuestion.correctValue}
+                            className={`drop-zone w-full min-h-[130px] bg-gradient-to-br from-purple-100 to-fuchsia-50 border-4 border-dashed rounded-3xl flex items-center justify-center transition-all shadow-inner ${feedback?.type === 'success' ? 'border-green-500 bg-green-100' : 'border-purple-400'} ${!hasAnswered ? 'hover:bg-purple-50' : ''}`}
+                        >
+                            {feedback?.type === 'success' ? (
+                                <div className="text-center p-4">
+                                    <div className="text-5xl mb-2">🚆✨</div>
+                                    <div className="text-3xl font-black text-green-700">{currentQuestion.correctValue} {currentQuestion.unit}</div>
+                                    <div className="text-sm text-green-600 mt-1 font-bold">✔️ 完全正确！ 火车顺利通过！</div>
+                                </div>
+                            ) : (
+                                <div className="text-center p-4 text-purple-600 font-semibold">
+                                    {hasAnswered ? (
+                                        <span>✅ 本题已完成，按「下一题」继续行程</span>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className="text-3xl">🚂🐾</span>
+                                            <span>⬅️ 把下面的数字卡片拖拽到这里</span>
+                                            <span className="text-xs">（放手即提交答案）</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {feedback && feedback.type !== 'success' && feedback.type !== 'info' && (
+                            <div className="mt-2 text-red-700 bg-red-100 p-3 rounded-xl text-sm font-medium flex items-start gap-2">
+                                <span>⚠️</span> {feedback.msg}
+                            </div>
+                        )}
+                        {feedback?.type === 'success' && (
+                            <div className="mt-2 text-green-800 bg-green-100 p-2 rounded-xl text-sm">
+                                🎉 {feedback.msg}
+                            </div>
+                        )}
+                        {feedback?.type === 'info' && (
+                            <div className="mt-2 text-blue-700 bg-blue-100 p-2 rounded-xl text-sm">
+                                💙 {feedback.msg}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* 可拖拽数字卡牌池 */}
+                    <div>
+                        <div className="font-bold text-purple-800 mb-3 flex items-center gap-2">
+                            🃟 数字卡片车厢 (拖拽一个放到检票口)
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-4 p-3 bg-white/50 rounded-2xl min-h-[150px]">
+                            {allOptions.map((num, idx) => (
+                                <DragCard 
+                                    key={idx}
+                                    value={num}
+                                    onDragStart={startDrag}
+                                    disabled={hasAnswered}
+                                />
+                            ))}
+                        </div>
+                        {dragging && <div className="text-xs text-center text-purple-600 mt-2 animate-pulse">🚅 拖拽中... 放到紫色虚线区</div>}
+                    </div>
+                </div>
+            );
+        }
+        
+        // 主应用
+        function App() {
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [attemptCount, setAttemptCount] = useState(0);
+            const [gameResetKey, setGameResetKey] = useState(0);
+            const [lastSuccess, setLastSuccess] = useState(false);
+            
+            const currentQuestion = TRAIN_QUESTIONS[currentIndex % TRAIN_QUESTIONS.length];
+            
+            const handleCorrect = () => {
+                setScore(prev => prev + 1);
+                setLastSuccess(true);
+                setTimeout(() => setLastSuccess(false), 1000);
+            };
+            
+            const handleWrong = () => {
+                setAttemptCount(prev => prev + 1);
+            };
+            
+            const nextQuestion = () => {
+                setCurrentIndex(prev => (prev + 1) % TRAIN_QUESTIONS.length);
+                setGameResetKey(prev => prev + 1);
+            };
+            
+            const resetStats = () => {
+                setScore(0);
+                setAttemptCount(0);
+                setGameResetKey(prev => prev + 1);
+            };
+            
+            return (
+                <div className="min-h-screen">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                        {/* 左侧知识点区域 (紫色主题 深色字体 大标题) */}
+                        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-300 flex flex-col">
+                            <div className="bg-gradient-to-r from-purple-800 to-fuchsia-700 px-6 py-5">
+                                <h1 className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg tracking-wide">
+                                    🚆 列车问题 · 通关专列
+                                </h1>
+                                <p className="text-purple-100 text-base mt-1 font-medium">火车过桥 · 错车超车 · 车身长度秘密</p>
+                            </div>
+                            <div className="p-5 space-y-5 text-gray-800 flex-1">
+                                {/* 核心公式板块 */}
+                                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-2xl border-l-[10px] border-purple-600">
+                                    <div className="text-2xl font-black text-purple-900 flex items-center gap-2">🧠 核心法宝 · 列车专属</div>
+                                    <div className="mt-3 grid gap-3">
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <div className="font-mono text-xl font-bold text-purple-700">🚂 火车过桥/隧道：</div>
+                                            <div className="text-base">总路程 = 桥长/隧道长 + 火车长度</div>
+                                            <div className="text-sm text-gray-600">速度 × 时间 = 桥长 + 车长</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <div className="font-mono text-xl font-bold text-purple-700">🚃 错车(相向)：</div>
+                                            <div className="text-base">总路程 = 甲车长 + 乙车长   |   速度和</div>
+                                            <div className="text-sm text-gray-600">时间 = (L₁+L₂) ÷ (v₁+v₂)</div>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <div className="font-mono text-xl font-bold text-purple-700">🚄 超车(同向)：</div>
+                                            <div className="text-base">路程差 = 两车长度和 | 速度差</div>
+                                            <div className="text-sm text-gray-600">时间 = (L₁+L₂) ÷ (v₁−v₂)</div>
+                                        </div>
+                                        <div className="bg-amber-50 p-3 rounded-xl text-sm italic">
+                                            ✨ 重点：普通行程只关心点，列车必须考虑车身！ 车头进到车尾离 = 路程里加上车身！
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* 实战三步法 */}
+                                <div className="bg-fuchsia-50 p-4 rounded-2xl">
+                                    <div className="font-bold text-purple-800 text-lg flex items-center gap-2">🎯 解列车问题三步走</div>
+                                    <ul className="list-disc list-inside space-y-1.5 mt-2 text-sm md:text-base">
+                                        <li>1️⃣ 看清场景：过桥/隧道/错车/超车，画出“路程图”</li>
+                                        <li>2️⃣ 确定总路程：🚂 过桥=桥长+车长；错车=两车长之和；超车=两车长之和(路程差)</li>
+                                        <li>3️⃣ 套用公式：时间 = 总路程 ÷ 速度(和/差)，灵活计算未知量</li>
+                                    </ul>
+                                </div>
+                                
+                                {/* 得分 & 重置 */}
+                                <div className="flex justify-between items-center bg-purple-100 p-3 rounded-xl">
+                                    <div>
+                                        <span className="font-bold text-purple-800">🏆 正确次数</span>
+                                        <span className="ml-2 text-3xl font-black text-purple-900">{score}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-purple-800">📋 答题尝试</span>
+                                        <span className="ml-2 text-xl font-bold text-purple-700">{attemptCount}</span>
+                                    </div>
+                                    <button 
+                                        onClick={resetStats}
+                                        className="bg-white text-purple-700 border border-purple-400 px-4 py-1.5 rounded-full text-sm font-semibold shadow-md hover:bg-purple-50 transition"
+                                    >
+                                        重置纪录
+                                    </button>
+                                </div>
+                                <div className="text-center text-xs text-gray-400 pt-1">
+                                    💡 左侧知识 + 右侧拖拽小游戏，多练几遍变身火车小行家！
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 右侧 互动游戏区 */}
+                        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border-2 border-purple-300 flex flex-col">
+                            <div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 px-5 py-4 rounded-t-3xl flex justify-between items-center flex-wrap gap-3">
+                                <h2 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">
+                                    🎲 拖拽大挑战 · 列车数学岛
+                                </h2>
+                                <button 
+                                    onClick={nextQuestion}
+                                    className="bg-yellow-300 hover:bg-yellow-400 text-purple-900 font-black py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 text-base flex items-center gap-1"
+                                >
+                                    🔁 换一题
+                                </button>
+                            </div>
+                            <div className="p-5 flex-1">
+                                <TrainGame 
+                                    key={gameResetKey + currentIndex}
+                                    currentQuestion={currentQuestion}
+                                    onCorrect={handleCorrect}
+                                    onWrong={handleWrong}
+                                    resetKey={gameResetKey}
+                                />
+                                <div className="mt-4 text-center text-xs text-gray-400 border-t pt-3 flex flex-wrap justify-center gap-3">
+                                    <span>✨ 拖拽数字卡片 → 放到紫色虚线圈内</span>
+                                    <span>🚂 记住车身长度不能忘！</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 底部小彩蛋 & 励志 */}
+                    <div className="mt-8 text-center text-purple-800/80 text-sm flex flex-wrap justify-center gap-5">
+                        <span>🚉 火车过桥：长车+桥长 = 总行程</span>
+                        <span>🚂 错车顶呱呱：长度和 ÷ 速度和</span>
+                        <span>🏁 超车别慌：长度和 ÷ 速度差</span>
+                    </div>
+                    {lastSuccess && (
+                        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce text-lg font-bold z-50 flex items-center gap-2">
+                            🚆 呜~~~ 列车长为你点赞！ +1
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

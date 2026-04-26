@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🍇 一个数除以小数 · 数学游乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .option-card {
+      transition: all 0.15s ease;
+    }
+    .option-card:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#4C1D95] to-[#7E22CE] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（一个数除以小数）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/85 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-purple-300/60 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-purple-400 pb-3 mb-4">
+          <span className="text-3xl">🍇</span>
+          <h2 className="text-2xl font-extrabold text-purple-900">一个数除以小数<br/><span className="text-sm font-normal">转化思想：除数是小数→变整数</span></h2>
+        </div>
+        <div className="space-y-4 text-purple-900">
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700 flex items-center gap-2">📐 计算法则：</p>
+            <p className="text-sm mt-1">1️⃣ 先移动除数的小数点，使它变成<span className="font-bold">整数</span>。<br/>
+            2️⃣ 除数的小数点向右移动几位，被除数的小数点也向右移动几位（位数不够时，在被除数末尾用<span className="font-bold">“0”补足</span>）。<br/>
+            3️⃣ 然后按除数是整数的小数除法进行计算。</p>
+            <div className="mt-2 text-xs bg-white/60 p-2 rounded-lg font-mono text-center">
+              例：2.5 ÷ 0.5 → 25 ÷ 5 = 5<br/>
+              例：1.2 ÷ 0.3 → 12 ÷ 3 = 4<br/>
+              例：0.75 ÷ 0.25 → 75 ÷ 25 = 3
+            </div>
+          </div>
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700">⚠️ 易错提醒：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li>除数转化为整数，被除数必须<span className="font-bold">同步移动</span>相同位数。</li>
+              <li>被除数位数不够时，末尾<span className="font-bold">补0</span>。</li>
+              <li>商的小数点要和移动后的被除数小数点对齐。</li>
+            </ul>
+          </div>
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700">🧠 巧记口诀：</p>
+            <p className="text-sm italic">除数小数要搬家，向右移动整数化；<br/>被除数跟着走，位数不够补0啦。</p>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center">
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">3.6 ÷ 0.6 = 6</span>
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">0.48 ÷ 0.12 = 4</span>
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">2.5 ÷ 0.05 = 50</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-purple-800 bg-purple-100/70 p-2 rounded-xl">
+          🎯 右侧挑战：将除数转化为整数，快速计算，选出正确结果！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 工具函数：格式化数字（去除末尾多余的零）----------
+  const formatDecimal = (num) => {
+    if (isNaN(num)) return '0';
+    // 接近整数时显示整数
+    if (Math.abs(num - Math.round(num)) < 1e-10) return Math.round(num).toString();
+    let str = num.toFixed(8);
+    str = str.replace(/\.?0+$/, '');
+    if (str === '') return '0';
+    return str;
+  };
+
+  // 精确乘法（用于生成被除数 = 除数 × 商，避免浮点误差）
+  const preciseMultiply = (a, b) => {
+    const aStr = a.toString();
+    const bStr = b.toString();
+    const aDecLen = aStr.includes('.') ? aStr.split('.')[1].length : 0;
+    const bDecLen = bStr.includes('.') ? bStr.split('.')[1].length : 0;
+    const totalDecLen = aDecLen + bDecLen;
+    const aInt = Math.round(a * Math.pow(10, aDecLen));
+    const bInt = Math.round(b * Math.pow(10, bDecLen));
+    const productInt = aInt * bInt;
+    return productInt / Math.pow(10, totalDecLen);
+  };
+
+  // 生成随机除数（小数，0.1~9.9，最多两位小数，且不为0）
+  const generateRandomDivisor = () => {
+    let intPart = Math.floor(Math.random() * 10); // 0~9
+    let decPart = Math.floor(Math.random() * 100); // 0~99
+    let val = intPart + decPart / 100;
+    if (val === 0) val = 0.1;
+    // 约50%概率变成一位小数
+    if (Math.random() > 0.5) {
+      val = Math.floor(val * 10) / 10;
+      if (val === 0) val = 0.1;
+    }
+    // 避免过小
+    if (val < 0.1) val = 0.1;
+    return val;
+  };
+
+  // 生成随机商（有限小数，最多两位小数，范围0.2~50，保证被除数不会过大）
+  const generateRandomQuotient = () => {
+    const intPart = Math.floor(Math.random() * 30) + 1; // 1~30
+    const hasDec = Math.random() > 0.4; // 60%概率带小数
+    if (!hasDec) {
+      return intPart;
+    }
+    const decPart = Math.floor(Math.random() * 100); // 0~99
+    let val = intPart + decPart / 100;
+    if (val === 0) val = 0.5;
+    return val;
+  };
+
+  // 生成一道完整的题目（被除数 = 除数 × 商，保证除得尽）
+  const generateQuestion = () => {
+    let divisor = generateRandomDivisor();   // 小数除数
+    let quotient = generateRandomQuotient(); // 商
+    let dividend = preciseMultiply(divisor, quotient);
+    
+    // 格式化显示，保留合理位数
+    const displayDividend = formatDecimal(dividend);
+    const displayDivisor = formatDecimal(divisor);
+    const correctAnswer = formatDecimal(quotient);
+    
+    const questionText = `${displayDividend} ÷ ${displayDivisor} = ?`;
+    
+    // 生成干扰项：基于正确结果微调
+    let wrongSet = new Set();
+    const correctVal = quotient;
+    
+    // 干扰1: ±0.05 或 ±0.1
+    let off1 = 0.05;
+    let wrong1 = correctVal + off1;
+    let wrong1Disp = formatDecimal(wrong1);
+    if (wrong1Disp !== correctAnswer) wrongSet.add(wrong1Disp);
+    
+    let wrong2 = correctVal - off1;
+    if (wrong2 > 0) {
+      let wrong2Disp = formatDecimal(wrong2);
+      if (wrong2Disp !== correctAnswer) wrongSet.add(wrong2Disp);
+    }
+    
+    let off2 = 0.1;
+    let wrong3 = correctVal + off2;
+    let wrong3Disp = formatDecimal(wrong3);
+    if (wrong3Disp !== correctAnswer) wrongSet.add(wrong3Disp);
+    
+    let wrong4 = correctVal - off2;
+    if (wrong4 > 0) {
+      let wrong4Disp = formatDecimal(wrong4);
+      if (wrong4Disp !== correctAnswer) wrongSet.add(wrong4Disp);
+    }
+    
+    // 干扰3: 小数点位置错误（×10或÷10）
+    let wrong5 = correctVal * 10;
+    let wrong5Disp = formatDecimal(wrong5);
+    if (wrong5Disp !== correctAnswer) wrongSet.add(wrong5Disp);
+    
+    let wrong6 = correctVal / 10;
+    let wrong6Disp = formatDecimal(wrong6);
+    if (wrong6Disp !== correctAnswer && wrong6 > 0) wrongSet.add(wrong6Disp);
+    
+    // 干扰4: 常见错误（忘记移动小数点，直接用原数除）
+    let wrong7 = parseFloat(displayDividend) / parseFloat(displayDivisor);
+    if (!isNaN(wrong7)) {
+      let wrong7Disp = formatDecimal(wrong7);
+      if (wrong7Disp !== correctAnswer) wrongSet.add(wrong7Disp);
+    }
+    
+    // 保证至少有3个干扰项
+    let wrongList = Array.from(wrongSet);
+    while (wrongList.length < 3) {
+      let extra = formatDecimal(correctVal + 0.2);
+      if (extra !== correctAnswer && !wrongList.includes(extra)) wrongList.push(extra);
+      else {
+        extra = formatDecimal(correctVal - 0.2);
+        if (extra !== correctAnswer && !wrongList.includes(extra) && extra > 0) wrongList.push(extra);
+      }
+    }
+    wrongList = wrongList.slice(0, 3);
+    
+    // 合并选项并打乱
+    let options = [correctAnswer, ...wrongList];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    
+    return {
+      dividend: displayDividend,
+      divisor: displayDivisor,
+      operation: '÷',
+      correctAnswer: correctAnswer,
+      options,
+      questionText
+    };
+  };
+
+  // ---------- 一个数除以小数挑战游戏组件 ----------
+  const DecimalDivisionGame = ({ resetKey, onNewQuestion }) => {
+    const [question, setQuestion] = React.useState(() => generateQuestion());
+    const [selectedOption, setSelectedOption] = React.useState(null);
+    const [feedback, setFeedback] = React.useState('');
+    const [isLocked, setIsLocked] = React.useState(false);
+    const [hasScored, setHasScored] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const refreshQuestion = () => {
+      setQuestion(generateQuestion());
+      setSelectedOption(null);
+      setFeedback('');
+      setIsLocked(false);
+      setHasScored(false);
+    };
+    
+    React.useEffect(() => {
+      refreshQuestion();
+    }, [resetKey]);
+    
+    const handleSelectOption = (optValue) => {
+      if (isLocked) {
+        setFeedback('🍇 本题已完成！点击“换一题”继续挑战吧！');
+        return;
+      }
+      setSelectedOption(optValue);
+      const isCorrect = (optValue === question.correctAnswer);
+      
+      if (isCorrect) {
+        if (!hasScored) {
+          setScore(prev => prev + 1);
+          setHasScored(true);
+        }
+        setFeedback('🎉✨ 完全正确！除数小数变整数，商就出来了！ ✨🎉');
+        setIsLocked(true);
+      } else {
+        setFeedback(`❌ 再试试～ 正确答案是 ${question.correctAnswer}。记得移动小数点，让除数变成整数！`);
+      }
+    };
+    
+    const resetCurrent = () => {
+      if (isLocked) {
+        setSelectedOption(null);
+        setFeedback('');
+        setIsLocked(false);
+      } else {
+        setSelectedOption(null);
+        setFeedback('');
+      }
+    };
+    
+    const nextQuestion = () => {
+      onNewQuestion();
+    };
+    
+    const getOptionClass = (opt) => {
+      let base = "option-card cursor-pointer text-center p-3 rounded-2xl shadow-md transition-all border-2 font-mono font-bold text-xl ";
+      if (selectedOption === opt) {
+        if (opt === question.correctAnswer && isLocked) {
+          return base + "bg-purple-600 text-white border-purple-800 scale-105 ring-2 ring-purple-300";
+        }
+        return base + "bg-purple-600 text-white border-purple-800";
+      }
+      if (isLocked && opt === question.correctAnswer) {
+        return base + "bg-purple-200 text-purple-800 border-purple-400 opacity-80";
+      }
+      return base + "bg-white hover:bg-purple-100 text-purple-900 border-purple-300 hover:border-purple-500";
+    };
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 得分区域 */}
+        <div className="flex justify-between items-center bg-white/70 rounded-2xl px-5 py-2 shadow-sm border border-purple-300">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <span className="font-bold text-purple-900">葡萄积分</span>
+            <span className="text-3xl font-black text-purple-800">{score}</span>
+            <span className="text-sm text-purple-700">分</span>
+          </div>
+          <div className="text-xs bg-purple-200 px-3 py-1 rounded-full text-purple-800 font-medium">
+            🍇 答对一题 +1
+          </div>
+        </div>
+        
+        {/* 题目算式区 */}
+        <div className="bg-gradient-to-r from-purple-100 to-fuchsia-100 rounded-2xl p-5 shadow-md border border-purple-300">
+          <div className="text-center">
+            <div className="text-sm font-semibold text-purple-700 bg-white/50 inline-block px-4 py-1 rounded-full mb-3">➗ 一个数除以小数 · 转化挑战</div>
+            <div className="text-5xl md:text-6xl font-black font-mono text-purple-900 bg-white/60 py-5 px-4 rounded-2xl inline-block shadow-inner">
+              {question.dividend} ÷ {question.divisor}
+            </div>
+            <div className="mt-3 text-sm text-purple-800 bg-purple-50/80 rounded-full px-3 py-1 inline-flex items-center gap-1">
+              <span>🔍 移动除数的小数点，被除数跟着动，再计算！</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* 选项区域 */}
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 mt-2">
+          {question.options.map((opt, idx) => (
+            <div
+              key={idx}
+              className={getOptionClass(opt)}
+              onClick={() => handleSelectOption(opt)}
+            >
+              <div className="text-xl md:text-2xl tracking-wide">{opt}</div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 反馈信息 */}
+        {feedback && (
+          <div className={`text-center font-bold p-3 rounded-xl ${
+            feedback.includes('正确') ? 'bg-green-200 text-green-800 border-l-8 border-green-500' : 'bg-amber-100 text-amber-700 border-l-8 border-amber-400'
+          } shadow-sm`}>
+            {feedback}
+          </div>
+        )}
+        
+        {/* 操作按钮组 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={resetCurrent} 
+            className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2.5 rounded-full transition shadow-sm text-base active:scale-[0.98]"
+          >
+            🔄 重置本题
+          </button>
+          <button 
+            onClick={nextQuestion} 
+            className="flex-1 bg-purple-700 hover:bg-purple-800 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🎲 换一题
+          </button>
+        </div>
+        
+        {/* 小贴士 */}
+        <div className="text-xs text-center text-purple-800 bg-purple-100/70 rounded-full py-1.5 px-3">
+          💡 小贴士：先看除数有几位小数，就把除数和被除数的小数点同时向右移动几位，再按整数除法算。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (葡萄紫主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/75 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-purple-300/60">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <h3 className="text-xl font-bold text-purple-900 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                一个数除以小数 · 选结果
+              </h3>
+              <span className="text-sm text-purple-700 bg-purple-100 px-3 py-1 rounded-full">✨ 点击正确的商 ✨</span>
+            </div>
+            <DecimalDivisionGame resetKey={gameResetKey} onNewQuestion={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-purple-200 bg-purple-800/40 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>⚡ 规则：移动小数点转化为整数除法，从四个选项中选出正确结果</span>
+            <span>🍇 连续答对，成为小数除法魔法师！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

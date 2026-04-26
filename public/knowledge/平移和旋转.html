@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>平移和旋转 · 图形运动大挑战</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 拖拽优化 + 移动端友好 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drag-card {
+            transition: all 0.2s ease;
+            cursor: grab;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+            opacity: 0.7;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #f1e2ff;
+            border-color: #9333ea;
+            transform: scale(1.02);
+            box-shadow: 0 6px 14px rgba(147, 51, 234, 0.25);
+        }
+        /* 大字体 (6号 ≈ 18px以上) */
+        .big-text {
+            font-size: 1.25rem;
+            line-height: 1.45;
+        }
+        @media (min-width: 768px) {
+            .big-text {
+                font-size: 1.5rem;
+            }
+        }
+        .knowledge-text {
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        @media (min-width: 768px) {
+            .knowledge-text {
+                font-size: 1.2rem;
+            }
+        }
+        [draggable="true"] {
+            -webkit-user-drag: element;
+        }
+        /* 简易方格纸演示 */
+        .grid-demo {
+            display: inline-grid;
+            grid-template-columns: repeat(4, 32px);
+            grid-template-rows: repeat(3, 32px);
+            gap: 2px;
+            background-color: #fef3c7;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: inset 0 0 0 1px #fde68a;
+        }
+        .grid-cell {
+            background-color: #fff0d0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        .arrow {
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#CBAACB] to-[#D9C2E6] min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // 平移和旋转互动课程 (知识点 + 拖拽分类游戏)
+    const TranslationRotationGame = () => {
+        // ---------- 知识点内容 (左侧) ----------
+        const knowledgePoints = {
+            title: "📐 平移和旋转",
+            translation: {
+                name: "平移",
+                definition: "物体沿着直线运动，形状、大小、方向都不变，只改变位置。",
+                features: ["• 方向：上、下、左、右", "• 格数：移动了多少格", "• 例子：推拉窗户、电梯升降、抽屉滑动"],
+                gridTip: "📏 在方格纸上画平移图形：找到关键点，数清格子，向相同方向移动相同格数，再连线。"
+            },
+            rotation: {
+                name: "旋转",
+                definition: "物体绕一个固定点（中心）转动，方向会改变。",
+                features: ["• 方向：顺时针 / 逆时针", "• 角度：90°、180° 等", "• 例子：风车转动、钟表指针、旋转木马"],
+                ruleTip: "🔄 旋转三要素：旋转中心、旋转方向、旋转角度。"
+            },
+            compare: "✨ 平移与旋转的区别：平移不改变方向，旋转会改变方向。平移像滑滑梯，旋转像转圈圈。"
+        };
+        
+        // ---------- 游戏数据：卡片池 (平移或旋转实例) ----------
+        const initialCards = [
+            { id: "card1", text: "🚪 推拉窗户", type: "平移", description: "沿直线滑动" },
+            { id: "card2", text: "📦 电梯上升5米", type: "平移", description: "竖直向上平移" },
+            { id: "card3", text: "➡️ 向右平移4格", type: "平移", description: "方格纸上向右移动" },
+            { id: "card4", text: "📤 抽屉拉出", type: "平移", description: "水平直线运动" },
+            { id: "card5", text: "🌀 风扇叶片转动", type: "旋转", description: "绕中心旋转" },
+            { id: "card6", text: "⏰ 分针顺时针旋转", type: "旋转", description: "绕轴顺时针转动" },
+            { id: "card7", text: "🎠 旋转木马", type: "旋转", description: "绕中心旋转" },
+            { id: "card8", text: "🚗 汽车直行", type: "平移", description: "沿直线前进" },
+            { id: "card9", text: "🔄 摩天轮转动", type: "旋转", description: "绕中心转动" }
+        ];
+        
+        // 两个运动分类区域
+        const motionZones = [
+            { id: "translate", name: "平移", icon: "➡️", color: "from-sky-100 to-blue-100", border: "border-sky-300", type: "平移", hint: "直线运动，方向不变" },
+            { id: "rotate", name: "旋转", icon: "🔄", color: "from-amber-100 to-orange-100", border: "border-amber-300", type: "旋转", hint: "绕中心点转动" }
+        ];
+        
+        // 游戏状态
+        const [availableCards, setAvailableCards] = React.useState(initialCards);
+        const [matchedCards, setMatchedCards] = React.useState({
+            translate: [],
+            rotate: []
+        });
+        const [message, setMessage] = React.useState({ text: "🐣 把卡片拖拽到正确的运动区域（平移或旋转）！长按卡片并拖动～", type: "info" });
+        const [gameWin, setGameWin] = React.useState(false);
+        
+        const draggingCardRef = React.useRef(null);
+        
+        // 检查胜利 (所有卡片配对完毕)
+        React.useEffect(() => {
+            if (availableCards.length === 0 && !gameWin) {
+                setGameWin(true);
+                setMessage({ text: "🎉 太棒了！你完美区分了平移和旋转！现在你是图形运动小专家啦！ 🎉", type: "success" });
+            } else if (availableCards.length > 0 && gameWin) {
+                setGameWin(false);
+            }
+        }, [availableCards, gameWin]);
+        
+        // 显示临时消息
+        const showMessage = (msg, msgType = "error", duration = 2000) => {
+            setMessage({ text: msg, type: msgType });
+            setTimeout(() => {
+                setMessage(prev => prev.text === msg ? { text: "✨ 继续拖拽配对，把所有卡片送到正确的家！", type: "info" } : prev);
+            }, duration);
+        };
+        
+        // 拖拽开始
+        const handleDragStart = (e, card) => {
+            if (!availableCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                showMessage("⛔ 这张卡片已经配对过了！点击「重置游戏」可以重新挑战", "error");
+                return false;
+            }
+            draggingCardRef.current = card;
+            e.dataTransfer.setData("text/plain", card.id);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target) e.target.style.opacity = "0.6";
+            return true;
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target) e.target.style.opacity = "";
+            draggingCardRef.current = null;
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        
+        // 高亮效果
+        const handleDragEnter = (e, zoneId) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${zoneId}`);
+            if (zoneElem) zoneElem.classList.add("drag-over");
+        };
+        
+        const handleDragLeave = (e, zoneId) => {
+            const zoneElem = document.getElementById(`dropzone-${zoneId}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+        };
+        
+        // 放置逻辑: 将卡片匹配到对应的运动区域
+        const handleDrop = (e, targetZone) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${targetZone.id}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+            
+            let draggedCard = draggingCardRef.current;
+            if (!draggedCard) {
+                const cardId = e.dataTransfer.getData("text/plain");
+                draggedCard = initialCards.find(c => c.id === cardId);
+            }
+            if (!draggedCard) return;
+            
+            if (!availableCards.some(c => c.id === draggedCard.id)) {
+                showMessage(`❌ “${draggedCard.text}” 已经配对过了！`, "error");
+                return;
+            }
+            
+            const isCorrect = (draggedCard.type === targetZone.type);
+            if (isCorrect) {
+                setAvailableCards(prev => prev.filter(card => card.id !== draggedCard.id));
+                setMatchedCards(prev => ({
+                    ...prev,
+                    [targetZone.id]: [...prev[targetZone.id], draggedCard]
+                }));
+                showMessage(`✅ 正确！${draggedCard.text} 属于 ${targetZone.name} 运动。`, "success", 1500);
+            } else {
+                const correctType = draggedCard.type;
+                showMessage(`❌ 配对错误！“${draggedCard.text}” 是 ${correctType} 现象，不属于 ${targetZone.name}。再试试看～`, "error", 1800);
+            }
+            draggingCardRef.current = null;
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            setAvailableCards(initialCards);
+            setMatchedCards({ translate: [], rotate: [] });
+            setGameWin(false);
+            setMessage({ text: "🔄 游戏已重置！所有卡片重新出现，再挑战一次吧！", type: "info" });
+            draggingCardRef.current = null;
+            document.querySelectorAll('.drop-zone').forEach(el => el.classList.remove('drag-over'));
+        };
+        
+        const totalCards = initialCards.length;
+        const matchedCount = matchedCards.translate.length + matchedCards.rotate.length;
+        
+        // 方格纸演示组件 (展示平移)
+        const GridDemo = () => (
+            <div className="mt-4 bg-white/60 rounded-2xl p-3 text-center">
+                <p className="font-bold text-purple-700 text-sm">📌 方格纸上平移示例</p>
+                <div className="flex justify-center gap-4 flex-wrap items-center">
+                    <div className="grid-demo">
+                        {[...Array(3)].map((_, r) => 
+                            [...Array(4)].map((_, c) => (
+                                <div key={`${r}-${c}`} className="grid-cell w-8 h-8">
+                                    {r === 1 && c === 1 && <span className="text-orange-600 text-lg">★</span>}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    <div className="text-2xl">→ 向右平移2格 →</div>
+                    <div className="grid-demo">
+                        {[...Array(3)].map((_, r) => 
+                            [...Array(4)].map((_, c) => (
+                                <div key={`${r}-${c}`} className="grid-cell w-8 h-8">
+                                    {r === 1 && c === 3 && <span className="text-orange-600 text-lg">★</span>}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">★ 从 (2,2) 向右平移2格到 (2,4)，形状大小不变。</p>
+            </div>
+        );
+        
+        return (
+            <div className="w-full">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ================= 左侧：知识点星球 ================= */}
+                    <div className="lg:w-5/12 bg-white/85 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-white/40 transition-all">
+                        <div className="flex items-center gap-2 border-b-4 border-purple-300 pb-3 mb-4">
+                            <span className="text-4xl">🎯</span>
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">运动小讲堂</h2>
+                            <span className="text-sm bg-purple-200 px-3 py-1 rounded-full ml-2">平移 · 旋转</span>
+                        </div>
+                        <div className="knowledge-text text-gray-800 space-y-5">
+                            {/* 平移模块 */}
+                            <div className="bg-gradient-to-r from-white/80 to-sky-50 p-3 rounded-xl shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-3xl">➡️</span>
+                                    <h3 className="text-xl font-bold text-sky-700">{knowledgePoints.translation.name}</h3>
+                                </div>
+                                <p className="mt-1">{knowledgePoints.translation.definition}</p>
+                                <ul className="list-disc list-inside text-sm bg-sky-50/70 p-2 rounded mt-1">
+                                    {knowledgePoints.translation.features.map((f, idx) => <li key={idx}>{f}</li>)}
+                                </ul>
+                                <p className="text-sm text-sky-700 mt-1 bg-white/50 p-1 rounded">{knowledgePoints.translation.gridTip}</p>
+                            </div>
+                            
+                            {/* 旋转模块 */}
+                            <div className="bg-gradient-to-r from-white/80 to-amber-50 p-3 rounded-xl shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-3xl">🔄</span>
+                                    <h3 className="text-xl font-bold text-amber-700">{knowledgePoints.rotation.name}</h3>
+                                </div>
+                                <p className="mt-1">{knowledgePoints.rotation.definition}</p>
+                                <ul className="list-disc list-inside text-sm bg-amber-50/70 p-2 rounded mt-1">
+                                    {knowledgePoints.rotation.features.map((f, idx) => <li key={idx}>{f}</li>)}
+                                </ul>
+                                <p className="text-sm text-amber-700 mt-1 bg-white/50 p-1 rounded">{knowledgePoints.rotation.ruleTip}</p>
+                            </div>
+                            
+                            {/* 对比总结 */}
+                            <div className="bg-purple-50 p-3 rounded-xl text-purple-700 text-sm">
+                                <p className="font-bold">🔍 {knowledgePoints.compare}</p>
+                                <div className="flex justify-around mt-2">
+                                    <div className="text-center"><span className="text-2xl">➡️</span><br/>平移</div>
+                                    <div className="text-center"><span className="text-2xl">🔄</span><br/>旋转</div>
+                                </div>
+                            </div>
+                            
+                            {/* 方格纸演示 */}
+                            {GridDemo()}
+                            
+                            {/* 旋转小提示 */}
+                            <div className="bg-cyan-50 p-2 rounded-lg text-cyan-700 text-xs text-center">
+                                💡 旋转小口诀：绕中心，定方向，转角度，位置变，形状不变样。
+                            </div>
+                        </div>
+                        <div className="mt-4 text-center text-purple-600 bg-purple-100/60 rounded-xl p-2 text-sm md:text-base">
+                            🌟 平移滑滑梯，旋转转圈圈，拖拽配对记得牢！
+                        </div>
+                    </div>
+                    
+                    {/* ================= 右侧：拖拽配对游戏（运动分类） ================= */}
+                    <div className="lg:w-7/12 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 flex flex-col border border-purple-200">
+                        <div className="flex flex-wrap justify-between items-center gap-3 border-b-2 border-purple-300 pb-3 mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-3xl">🎮</span>
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">运动分类工坊</h2>
+                                <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-purple-100 rounded-full px-4 py-1 text-purple-700 font-bold text-lg">
+                                    配对进度 {matchedCount}/{totalCards}
+                                </div>
+                                <button 
+                                    onClick={resetGame}
+                                    className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold py-2 px-4 rounded-full shadow-md transition transform hover:scale-105 text-base md:text-lg flex items-center gap-1"
+                                >
+                                    🔄 重置游戏
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 全局消息 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-medium transition-all big-text ${message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' : message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                            {message.text}
+                        </div>
+                        
+                        {/* 两个运动分类区域（放置区） */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                            {motionZones.map(zone => {
+                                const zoneMatched = matchedCards[zone.id];
+                                return (
+                                    <div 
+                                        key={zone.id}
+                                        className={`bg-gradient-to-b ${zone.color} rounded-2xl shadow-lg overflow-hidden border-2 ${zone.border} transition-all`}
+                                    >
+                                        <div className="bg-white/50 p-3 text-center">
+                                            <div className="text-4xl">{zone.icon}</div>
+                                            <h3 className="text-2xl font-black text-gray-800">{zone.name}</h3>
+                                            <p className="text-xs text-gray-600">{zone.hint}</p>
+                                        </div>
+                                        <div 
+                                            id={`dropzone-${zone.id}`}
+                                            onDragOver={handleDragOver}
+                                            onDragEnter={(e) => handleDragEnter(e, zone.id)}
+                                            onDragLeave={(e) => handleDragLeave(e, zone.id)}
+                                            onDrop={(e) => handleDrop(e, zone)}
+                                            className={`drop-zone m-3 p-2 min-h-[140px] rounded-xl border-2 border-dashed transition-all flex flex-col items-center ${
+                                                zoneMatched.length > 0 ? 'bg-green-100 border-green-400' : 'bg-white/70 border-purple-300'
+                                            }`}
+                                        >
+                                            {zoneMatched.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center h-full text-center py-2">
+                                                    <span className="text-3xl mb-1">⬇️</span>
+                                                    <p className="text-purple-500 font-medium text-sm">拖放卡片到这里</p>
+                                                    <p className="text-xs text-gray-400 mt-1">{zone.name} 运动实例</p>
+                                                </div>
+                                            ) : (
+                                                <div className="w-full">
+                                                    <p className="text-sm font-bold text-green-700 mb-1 text-center">✅ 已配对 ({zoneMatched.length})</p>
+                                                    <div className="flex flex-wrap gap-1 justify-center max-h-32 overflow-y-auto">
+                                                        {zoneMatched.map(card => (
+                                                            <div key={card.id} className="bg-green-200 text-green-800 text-xs rounded-full px-2 py-1 flex items-center gap-1">
+                                                                <span>{card.text.length > 14 ? card.text.slice(0,12)+'…' : card.text}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-1 text-center text-[10px] text-gray-400">
+                                            将正确的运动卡片拖至此区域
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽卡片池 */}
+                        <div className="mt-2">
+                            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                <h3 className="text-2xl font-bold text-purple-700 flex items-center gap-2">
+                                    🃏 运动卡片池
+                                    <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">长按/鼠标拖拽</span>
+                                </h3>
+                                <span className="text-xs md:text-sm text-purple-500">💡 把卡片拖到上方对应的运动区域</span>
+                            </div>
+                            
+                            {availableCards.length === 0 ? (
+                                <div className="bg-gradient-to-r from-green-100 to-emerald-100 p-6 rounded-2xl text-center text-green-700 text-xl font-bold">
+                                    🎉 完美！所有运动卡片都正确分类！ 你已经是平移旋转大师啦 🎉
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {availableCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable={true}
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-2xl p-3 shadow-md flex items-center gap-2 cursor-grab active:cursor-grabbing hover:shadow-xl transition-all transform hover:scale-[1.02]"
+                                        >
+                                            <div className="text-3xl">{card.text.charAt(0)}</div>
+                                            <div className="flex-1">
+                                                <p className="font-bold text-gray-800 text-base md:text-lg leading-tight">{card.text}</p>
+                                                <p className="text-xs text-amber-800 mt-0.5">{card.description}</p>
+                                                <p className="text-[10px] text-purple-600 mt-1">👉 拖拽配对</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 玩法说明 + 描述小模板 */}
+                            <div className="mt-5 bg-purple-100/70 p-3 rounded-xl text-purple-700 text-sm">
+                                <p className="font-bold">📌 拖拉拽玩法：</p>
+                                <ul className="list-disc list-inside space-y-1">
+                                    <li>① 手指/鼠标长按卡片（运动实例）</li>
+                                    <li>② 拖拽到上方对应的运动区域（平移 / 旋转）</li>
+                                    <li>③ 配对正确，卡片会移动到区域中，并显示成功提示</li>
+                                    <li>④ 全部卡片配对成功，获得胜利 🏆</li>
+                                </ul>
+                                <div className="mt-2 bg-white/60 rounded-lg p-2 text-xs">
+                                    💡 <strong>描述小模板</strong>：平移 → “向（方向）平移（几）格”；旋转 → “绕（中心点）（顺时针/逆时针）旋转（角度）°”
+                                </div>
+                            </div>
+                            
+                            {/* 额外区分练习 */}
+                            <div className="mt-3 flex flex-wrap gap-2 justify-center text-xs text-purple-800 bg-white/40 rounded-xl p-2">
+                                <span className="font-bold">🧠 想一想：</span>
+                                <span>推拉门→平移</span>
+                                <span>钟表指针→旋转</span>
+                                <span>缆车→平移</span>
+                                <span>车轮→旋转</span>
+                            </div>
+                            
+                            {gameWin && (
+                                <div className="mt-4 bg-gradient-to-r from-green-200 to-teal-200 text-green-800 p-4 rounded-2xl text-center text-xl font-bold animate-pulse flex items-center justify-center gap-3 shadow-lg">
+                                    🏆 恭喜你完成所有配对！🏆 <span className="text-3xl">🎓🎯</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="mt-3 text-center text-xs text-purple-500">
+                            💡 移动端小技巧：长按卡片并轻轻拖拽到目标区上方，松手即可。多思考运动特点，分类更轻松！
+                        </div>
+                    </div>
+                </div>
+                {/* 底部装饰 */}
+                <div className="text-center mt-8 text-purple-800 text-sm bg-white/30 rounded-full py-2 px-4 w-fit mx-auto backdrop-blur-sm">
+                    🌈 平移不改变方向，旋转会转圈，拖拽配对，轻松掌握图形运动！ 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染到根节点
+    ReactDOM.createRoot(document.getElementById("root")).render(
+        <React.StrictMode>
+            <TranslationRotationGame />
+        </React.StrictMode>
+    );
+</script>
+</body>
+</html>

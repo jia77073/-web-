@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🤠 真分数 & 假分数 · 牛仔工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.65;
+      filter: grayscale(0.1);
+    }
+    .drop-zone {
+      transition: all 0.2s ease;
+    }
+    .drop-zone.drag-over {
+      background-color: #b8d0ff;
+      border-color: #1e3a8a;
+      transform: scale(1.02);
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .denim-bg {
+      background-image: repeating-linear-gradient(45deg, rgba(30, 58, 138, 0.05) 0px, rgba(30, 58, 138, 0.05) 2px, transparent 2px, transparent 8px);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#B8D0FF] to-[#5F7BBF] min-h-screen flex items-center justify-center p-4 font-sans denim-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 工具函数：真分数 / 假分数 判断 ----------
+  // 接收 "分子/分母" 格式字符串
+  const isProperFraction = (fractionStr) => {
+    const [num, den] = fractionStr.split('/').map(Number);
+    if (isNaN(num) || isNaN(den) || den === 0) return false;
+    return num < den;
+  };
+  const isImproperFraction = (fractionStr) => {
+    const [num, den] = fractionStr.split('/').map(Number);
+    if (isNaN(num) || isNaN(den) || den === 0) return false;
+    return num >= den;
+  };
+
+  // 生成随机分数 (真分数或假分数混合，保证多样性)
+  const generateRandomFraction = (existingSet) => {
+    const maxAttempts = 40;
+    for (let i = 0; i < maxAttempts; i++) {
+      // 分母 2~12，分子 1~18 (保证假分数能到较大值)
+      const denominator = Math.floor(Math.random() * 11) + 2; // 2~12
+      let numerator;
+      // 随机决定真/假倾向，使两类数量均衡
+      if (Math.random() > 0.5) {
+        // 真分数：分子 < 分母
+        numerator = Math.floor(Math.random() * (denominator - 1)) + 1; // 1 到 denominator-1
+      } else {
+        // 假分数：分子 >= 分母，但也不要太大 (分母~分母+8)
+        numerator = denominator + Math.floor(Math.random() * 9); // 分母 到 分母+8
+      }
+      // 避免分子过于巨大
+      if (numerator > 22) numerator = denominator + 3;
+      const fraction = `${numerator}/${denominator}`;
+      if (!existingSet.has(fraction)) {
+        existingSet.add(fraction);
+        return fraction;
+      }
+    }
+    // 保底分数
+    return "5/3";
+  };
+
+  // 生成一组分数卡片 (默认5~6个)
+  const generateFractionCards = (count = 5) => {
+    let cards = [];
+    let usedFractions = new Set();
+    for (let i = 0; i < count; i++) {
+      let fraction = generateRandomFraction(usedFractions);
+      cards.push({
+        id: `frac-${Date.now()}-${i}-${Math.random()}`,
+        value: fraction,     // 例如 "3/4"
+        matched: false,
+        matchedType: null,   // 'proper' 或 'improper'
+      });
+    }
+    return cards;
+  };
+
+  // 篮子配置 (真分数 & 假分数)
+  const BASKETS = [
+    { type: 'proper', label: '真分数篮', icon: '🤠', bgColor: 'bg-blue-100/80', borderColor: 'border-blue-600', hint: '分子 < 分母，值小于1', textColor: 'text-blue-900' },
+    { type: 'improper', label: '假分数篮', icon: '⭐', bgColor: 'bg-indigo-100/80', borderColor: 'border-indigo-600', hint: '分子 ≥ 分母，值≥1', textColor: 'text-indigo-900' }
+  ];
+
+  // ---------- 左侧知识点卡片：真分数 & 假分数 牛仔课堂 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#F0F4FF]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8BA5DF] h-full text-[#1E3A8A]">
+        <div className="flex items-center gap-2 border-b-2 border-[#5F7BBF] pb-3 mb-4">
+          <span className="text-4xl">🤠</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">真分数 & 假分数<br/><span className="text-sm font-normal text-[#3B5CAD]">牛仔课堂 · 一镖命中</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#E6EEFF] rounded-2xl p-4 border border-[#B7CCF5]">
+            <p className="font-bold text-[#1E3A8A] flex items-center gap-2">✨ 真分数 (Proper Fraction)</p>
+            <p className="text-sm mt-1">分子 <strong>&lt;</strong> 分母，分数值 <strong>小于1</strong>。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg inline-block shadow-sm">🌾 例：2/3、5/8、7/12、1/2</div>
+          </div>
+          <div className="bg-[#E6EEFF] rounded-2xl p-4 border border-[#B7CCF5]">
+            <p className="font-bold text-[#1E3A8A]">⚡ 假分数 (Improper Fraction)</p>
+            <p className="text-sm mt-1">分子 <strong>≥</strong> 分母，分数值 <strong>大于或等于1</strong>。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg inline-block shadow-sm">🌵 例：5/3、7/4、9/9、11/6</div>
+          </div>
+          <div className="bg-[#D9E5FF] rounded-2xl p-3 text-center text-sm border border-[#8FABE0]">
+            📌 特别提醒：分子分母都是正整数，分母不为0。假分数包括整数（如 4/4 =1）<br/>🎯 右侧训练场：将分数拖拽到正确的牛仔篮！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 拖拽游戏组件：真分数 vs 假分数 ----------
+  const FractionSortGame = ({ resetKey, onNewGame }) => {
+    const [cards, setCards] = React.useState(() => generateFractionCards(5));
+    const [score, setScore] = React.useState(0);        // 已正确分类的数量
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 重置游戏（新的一批分数）
+    const resetGame = () => {
+      setCards(generateFractionCards(5));
+      setScore(0);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 检查胜利：所有卡片都被正确分类
+    React.useEffect(() => {
+      if (cards.length > 0 && cards.every(card => card.matched === true) && !isVictory) {
+        setIsVictory(true);
+      } else if (cards.some(card => !card.matched) && isVictory) {
+        setIsVictory(false);
+      }
+    }, [cards, isVictory]);
+    
+    // 监听外部重置（新的一篮）
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 获取分数对应的正确篮子类型
+    const getCorrectType = (fractionStr) => {
+      return isProperFraction(fractionStr) ? 'proper' : 'improper';
+    };
+    
+    // 拖拽开始
+    const onDragStart = (e, card) => {
+      if (card.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.id, value: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    
+    const onDragLeave = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到篮子
+    const onDrop = (e, basketType) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      
+      let dragId, dragValue;
+      try {
+        const { id, value } = JSON.parse(rawData);
+        dragId = id;
+        dragValue = value;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = cards.find(c => c.id === dragId);
+      if (!targetCard || targetCard.matched) {
+        setErrorMsg('🤠 这个分数已经归篮啦！不能重复投放');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const correctType = getCorrectType(dragValue);
+      const isCorrect = (correctType === basketType);
+      
+      if (isCorrect) {
+        // 正确分类
+        setCards(prevCards =>
+          prevCards.map(card =>
+            card.id === dragId ? { ...card, matched: true, matchedType: basketType } : card
+          )
+        );
+        setScore(prev => prev + 1);
+        setErrorMsg('');
+      } else {
+        // 错误提示，告知正确篮子
+        const correctCampName = correctType === 'proper' ? '真分数篮' : '假分数篮';
+        const wrongCamp = basketType === 'proper' ? '真分数篮' : '假分数篮';
+        setErrorMsg(`❌ 牛仔失手！ ${dragValue} 不是${wrongCamp}，它属于 ${correctCampName}。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1900);
+      }
+    };
+    
+    // 换掉未分类的分数 (保留已匹配的，刷新未匹配的分数)
+    const refreshUnmatchedCards = () => {
+      if (isVictory) {
+        resetGame();
+        if (onNewGame) onNewGame();
+        return;
+      }
+      setCards(prevCards => {
+        const matchedCards = prevCards.filter(c => c.matched);
+        const unmatchedCards = prevCards.filter(c => !c.matched);
+        if (unmatchedCards.length === 0) return prevCards;
+        
+        const existingFractions = new Set(matchedCards.map(c => c.value));
+        let newUnmatched = [];
+        for (let i = 0; i < unmatchedCards.length; i++) {
+          let newFrac;
+          let attempts = 0;
+          do {
+            newFrac = generateRandomFraction(existingFractions);
+            attempts++;
+            if (attempts > 35) break;
+          } while (existingFractions.has(newFrac) || newUnmatched.some(c => c.value === newFrac));
+          existingFractions.add(newFrac);
+          newUnmatched.push({
+            id: Date.now() + i + Math.random() * 10000,
+            value: newFrac,
+            matched: false,
+            matchedType: null,
+          });
+        }
+        return [...matchedCards, ...newUnmatched];
+      });
+      setErrorMsg('');
+    };
+    
+    // 重置所有 (新的一篮)
+    const resetAll = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    // 胜利庆祝组件
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#FDE68A]">
+        <div className="text-2xl font-bold text-white">🏆 神枪手！全部分类正确 🏆</div>
+        <div className="text-sm text-yellow-100 font-semibold">分数牛仔完美收工！点击「新的一篮」继续挑战～</div>
+      </div>
+    );
+    
+    const correctCount = cards.filter(c => c.matched).length;
+    const totalCount = cards.length;
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度 + 士气条 (牛仔蓝) */}
+        <div className="flex justify-between items-center bg-[#E6EEFF]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#8CA5DF]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎯</span>
+            <span className="font-bold text-blue-900">分类进度</span>
+            <span className="text-lg font-black text-indigo-800">{correctCount} / {totalCount}</span>
+          </div>
+          <div className="w-32 bg-[#C7D9FF] rounded-full h-2.5">
+            <div className="bg-[#2563EB] h-2.5 rounded-full transition-all duration-300" style={{ width: `${(correctCount/totalCount)*100}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#BED0FF] px-2 py-1 rounded-full text-blue-800 border border-blue-400">🤠 拖拽分数 精准入篮</div>
+        </div>
+        
+        {/* 分数卡片区域 */}
+        <div className="bg-[#F8FAFF]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#9BB4E5]">
+          <div className="text-center text-sm font-semibold text-blue-900 mb-2">📜 待分类分数卡片（拖拽到对应牛仔篮）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {cards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.matched}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-2xl shadow-lg flex flex-col items-center justify-center transition-all ${
+                  card.matched 
+                    ? 'bg-gray-300/70 cursor-default border-2 border-gray-500 opacity-70' 
+                    : 'bg-gradient-to-br from-blue-200 to-indigo-200 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-blue-600 shadow-md'
+                }`}
+              >
+                {card.matched ? (
+                  <>
+                    <span className="text-3xl">✅</span>
+                    <span className="text-xs text-gray-700 mt-1">已入篮</span>
+                    <span className="text-sm font-mono font-bold text-gray-800">{card.value}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-2xl font-black text-blue-900">{card.value}</span>
+                    <span className="text-[10px] text-indigo-700">🤠 拖拽我</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 两个篮子区域 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+          {BASKETS.map(basket => (
+            <div
+              key={basket.type}
+              className={`drop-zone ${basket.bgColor} border-4 ${basket.borderColor} rounded-2xl p-3 text-center transition-all shadow-md`}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, basket.type)}
+            >
+              <div className="flex justify-center items-center gap-2 text-2xl font-bold">
+                <span className="text-3xl">{basket.icon}</span>
+                <span className={basket.textColor}>{basket.label}</span>
+              </div>
+              <div className="text-xs text-gray-700 mt-1">{basket.hint}</div>
+              {/* 显示已放入此篮的分数列表 */}
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5 min-h-[48px]">
+                {cards.filter(c => c.matched && c.matchedType === basket.type).map(c => (
+                  <span key={c.id} className="bg-white/80 rounded-full px-2.5 py-0.5 text-xs font-mono font-semibold text-blue-800 border border-blue-300 shadow-sm">{c.value}</span>
+                ))}
+                {cards.filter(c => c.matched && c.matchedType === basket.type).length === 0 && 
+                  <span className="text-[11px] text-gray-500 italic">—— 暂无牛仔入驻 ——</span>
+                }
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-amber-100/90 text-amber-800 font-bold p-2.5 rounded-xl border-l-8 border-amber-500 backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮组 (牛仔风格) */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={refreshUnmatchedCards}
+            className="flex-1 bg-[#7C8FC5] hover:bg-[#5F73AE] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98] border border-[#B6C8FF]"
+          >
+            🔄 换掉未归篮的分数
+          </button>
+          <button 
+            onClick={resetAll}
+            className="flex-1 bg-[#3B5CAD] hover:bg-[#2E4A8E] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98] border border-[#95B2F0]"
+          >
+            🧺 新的一篮 · 重新挑战
+          </button>
+        </div>
+        
+        <div className="text-xs text-center text-blue-900 bg-[#E9F0FF]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 牛仔小贴士：真分数 &lt;1 ，假分数≥1 。拖拽分数到对应篮子，全部正确即可成为「分数牛仔」！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (牛仔蓝主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#F0F5FF]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#A1BBEC]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
+                <span className="text-3xl">🤠</span>
+                真分数 · 假分数 牛仔对决
+              </h3>
+              <span className="text-sm bg-[#BED0FF] px-3 py-1 rounded-full text-blue-800 border border-blue-400">🎯 拖拽分类挑战</span>
+            </div>
+            <FractionSortGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-blue-900 bg-[#E6F0FF]/80 rounded-full py-2 px-3 flex justify-center gap-4 backdrop-blur-sm border border-[#8AAAE0]">
+            <span>🤠 玩法：观察分数 → 判断真分数/假分数 → 拖拽到对应牛仔篮</span>
+            <span>🏅 全部分类正确，获得「金牌牛仔」称号！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

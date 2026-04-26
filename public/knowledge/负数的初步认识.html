@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>负数的初步认识 · 冰与火配对 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫色主题背景 */
+    body {
+      font-size: 1.7rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.4rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 负数的初步认识 =======================
+  // 知识点：负数表示相反意义的量，读作“负几”，0既不是正数也不是负数。
+  
+  // ---------- 游戏数据：配对（生活情境 → 负数/正数）----------
+  const matchPairs = [
+    { id: 1, scenario: "零下5摄氏度", value: "-5℃", correctNumber: -5, unit: "℃" },
+    { id: 2, scenario: "海平面以下100米", value: "-100米", correctNumber: -100, unit: "米" },
+    { id: 3, scenario: "地下2层（停车场）", value: "-2层", correctNumber: -2, unit: "层" },
+    { id: 4, scenario: "气温比0℃低8度", value: "-8℃", correctNumber: -8, unit: "℃" },
+    { id: 5, scenario: "支出50元（用负数表示）", value: "-50元", correctNumber: -50, unit: "元" },
+    { id: 6, scenario: "珠穆朗玛峰海拔8848米", value: "+8848米（或8848米）", correctNumber: 8848, unit: "米", positive: true },
+    { id: 7, scenario: "零上3摄氏度", value: "+3℃", correctNumber: 3, unit: "℃", positive: true }
+  ];
+  
+  // 游戏组件：拖拽配对（将左边的场景拖拽到右边正确的负数/正数上）
+  const MatchingGame = () => {
+    // 左侧场景卡片（未配对）
+    const [scenarioCards, setScenarioCards] = React.useState(() => 
+      matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.scenario,
+        matchValue: pair.value,
+        matched: false
+      }))
+    );
+    
+    // 右侧数值槽位（打乱顺序）
+    const [valueSlots, setValueSlots] = React.useState(() => {
+      let slots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.value,
+        matchValue: pair.value,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有负数朋友都找到了自己的家！你已认识负数！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧场景卡片
+    const onDragStart = (e, cardId, matchValue) => {
+      const card = scenarioCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "scenario", cardId, matchValue }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "scenario") return;
+      const { cardId, matchValue } = dragData;
+      
+      const targetSlot = valueSlots.find(s => s.id === slotId);
+      const sourceCard = scenarioCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个场景或数值槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配（数值表示是否相等）
+      if (matchValue === targetSlot.matchValue) {
+        // 配对成功
+        setScenarioCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setValueSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.text} 用 ${targetSlot.text} 表示，负数可以表示相反意义的量。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = scenarioCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = valueSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 应该对应 ${matchValue}，而不是 ${targetSlot.text}。再试试看～ 想一想温度、海拔、楼层中负数的含义。`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newScenarios = matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.scenario,
+        matchValue: pair.value,
+        matched: false
+      }));
+      let newSlots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.value,
+        matchValue: pair.value,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setScenarioCards(newScenarios);
+      setValueSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的场景拖拽到右边正确的负数/正数上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = scenarioCards.every(c => c.matched) && valueSlots.every(s => s.matched);
+    const totalPairs = matchPairs.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🧊 负数配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>生活场景</strong>拖拽到右边<strong>正确的负数/正数表示</strong>上，配对正确会消除！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧场景卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 生活场景卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {scenarioCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchValue)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧数值槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 负数/正数表示 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto">
+              {valueSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把场景拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 负数魔法成功！你已经成为负数小专家！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 负数小知识：比0小的数叫负数，通常在数字前加“-”号。负数表示相反意义的量，如零下温度、地下楼层、海平面以下。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：负数的初步认识 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">❄️</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">负数的初步认识</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是负数？</p>
+            <p><strong className="bg-purple-200 px-1 rounded">比0小的数</strong>叫做负数。负数前面有一个“−”号（负号），读作“负几”。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              例如：-5℃（零下5摄氏度），-10米（地下10米）
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 正数和0</p>
+            <p>像 +3、+15、8848 这样的数叫做正数（“+”号通常省略）。<strong className="bg-amber-200 px-1 rounded">0既不是正数也不是负数</strong>，它是正数和负数的分界点。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🌡️ 生活中的负数</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>温度计：零下温度用负数表示</li>
+              <li>海拔高度：海平面以下用负数</li>
+              <li>楼层：地下车库用-1层、-2层</li>
+              <li>收入和支出：支出用负数</li>
+            </ul>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📖 读写方法</p>
+            <p>-8 读作“负八”；+3 读作“正三”，通常“正三”的“正”字可以省略，直接读“三”。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>零下12度写作 ( ) ； 地下3层写作 ( ) ； 海平面以上200米写作 ( ) 。</p>
+            <p className="text-sm text-purple-700">（答案：-12℃；-3层；+200米或200米）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“零上正，零下负，海平面分界数；温度楼层和海拔，负数朋友遍天下。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断正负数（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ desc: "零下8摄氏度", answer: "-8℃" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { desc: "零下8摄氏度", answer: "-8℃" },
+      { desc: "地下1层", answer: "-1层" },
+      { desc: "海平面以下30米", answer: "-30米" },
+      { desc: "零上25摄氏度", answer: "+25℃或25℃" },
+      { desc: "支出100元", answer: "-100元" },
+      { desc: "盈利500元", answer: "+500元或500元" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const normalized = userAnswer.trim().replace(/\s/g, '').toLowerCase();
+      const correctRaw = question.answer.replace(/\s/g, '').toLowerCase();
+      // 处理多种可能答案（如“25℃”和“+25℃”）
+      const possibleAnswers = [correctRaw];
+      if (correctRaw.includes('+')) possibleAnswers.push(correctRaw.replace('+', ''));
+      if (!correctRaw.includes('+') && !correctRaw.includes('-')) possibleAnswers.push('+' + correctRaw);
+      const isCorrect = possibleAnswers.some(ans => normalized === ans);
+      
+      if (isCorrect) {
+        setFeedback("✅ 完全正确！负数表示法掌握得很好！");
+      } else {
+        setFeedback(`❌ 不对哦，“${question.desc}” 应该写作 ${question.answer}。再试试看～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 负数小写手</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.desc} 用负数/正数怎么表示？</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="text" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-purple-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="如 -8℃"
+            />
+            <button onClick={checkAnswer} className="bg-purple-400 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 负数让数学世界更完整，从温度、海拔到银行账单，负数无处不在！认识负数，探索更多数学奥秘！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

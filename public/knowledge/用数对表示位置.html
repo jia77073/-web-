@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>位置与方向 · 数对侦探社</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 拖拽优化 + 移动端友好 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drag-card {
+            transition: all 0.2s ease;
+            cursor: grab;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+            opacity: 0.7;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #f1e2ff;
+            border-color: #9333ea;
+            transform: scale(1.02);
+            box-shadow: 0 6px 14px rgba(147, 51, 234, 0.25);
+        }
+        /* 大字体 (6号 ≈ 18px以上) */
+        .big-text {
+            font-size: 1.25rem;
+            line-height: 1.45;
+        }
+        @media (min-width: 768px) {
+            .big-text {
+                font-size: 1.5rem;
+            }
+        }
+        .knowledge-text {
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        @media (min-width: 768px) {
+            .knowledge-text {
+                font-size: 1.2rem;
+            }
+        }
+        [draggable="true"] {
+            -webkit-user-drag: element;
+        }
+        .grid-cell {
+            transition: all 0.1s ease;
+        }
+        .matched-cell {
+            background: linear-gradient(145deg, #c8e6c9, #a5d6a7);
+            box-shadow: inset 0 0 0 2px #2e7d32;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#CBAACB] to-[#D9C2E6] min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // 用数对表示位置 互动课程 (知识点 + 拖拽配对游戏)
+    const CoordinateGame = () => {
+        // ---------- 知识点内容 (左侧) ----------
+        const knowledgePoints = {
+            title: "📍 用数对表示位置",
+            intro: "在方格图中，通常用数对 (列, 行) 来确定一个点的位置。",
+            rules: [
+                "🔹 列：竖排叫做列，一般从左往右数，第1列、第2列……",
+                "🔹 行：横排叫做行，一般从前往后数，第1行、第2行……",
+                "🔹 数对表示法：(列数, 行数)，先列后行，中间用逗号隔开。",
+                "🔹 例如：第3列第2行的位置，记作 (3, 2)。"
+            ],
+            example: "🎯 在方格纸上，我们可以用数对表示每个格子。比如 (1,1) 是左下角（或左上角，通常约定第1行在最下面或最前面）。小学阶段常以左下角为第1行。",
+            tip: "💡 小技巧：先看列，再看行，就像电影院的座位号（排和号）一样。",
+            gridTip: "📌 游戏中的网格：列号1~5（从左到右），行号1~5（从下到上）。每个动物都藏在一个数对位置上，把正确的数对卡片拖到动物身上吧！"
+        };
+        
+        // ---------- 游戏配置 ----------
+        // 定义5x5网格，列1-5，行1-5
+        const cols = 5;
+        const rows = 5;
+        // 预设5个动物及其正确位置 (列,行) 和图标
+        const initialAnimals = [
+            { id: "dog", name: "小狗", icon: "🐶", col: 2, row: 3, pairKey: "(2,3)" },
+            { id: "cat", name: "小猫", icon: "🐱", col: 4, row: 1, pairKey: "(4,1)" },
+            { id: "mouse", name: "小老鼠", icon: "🐭", col: 1, row: 4, pairKey: "(1,4)" },
+            { id: "rabbit", name: "小兔", icon: "🐰", col: 3, row: 2, pairKey: "(3,2)" },
+            { id: "frog", name: "青蛙", icon: "🐸", col: 5, row: 5, pairKey: "(5,5)" }
+        ];
+        
+        // 可拖拽的数对卡片 (每个卡片对应一个动物的正确数对)
+        const initialCards = [
+            { id: "card_dog", text: "(2, 3)", pairKey: "(2,3)", correctAnimalId: "dog" },
+            { id: "card_cat", text: "(4, 1)", pairKey: "(4,1)", correctAnimalId: "cat" },
+            { id: "card_mouse", text: "(1, 4)", pairKey: "(1,4)", correctAnimalId: "mouse" },
+            { id: "card_rabbit", text: "(3, 2)", pairKey: "(3,2)", correctAnimalId: "rabbit" },
+            { id: "card_frog", text: "(5, 5)", pairKey: "(5,5)", correctAnimalId: "frog" }
+        ];
+        
+        // 游戏状态
+        const [animals, setAnimals] = React.useState(initialAnimals);
+        const [availableCards, setAvailableCards] = React.useState(initialCards);
+        const [matchedAnimals, setMatchedAnimals] = React.useState([]); // 存储已配对的动物id
+        const [message, setMessage] = React.useState({ text: "🐣 把正确的数对卡片拖拽到对应动物所在的格子里！长按卡片并拖动～", type: "info" });
+        const [gameWin, setGameWin] = React.useState(false);
+        
+        const draggingCardRef = React.useRef(null);
+        
+        // 检查胜利
+        React.useEffect(() => {
+            if (matchedAnimals.length === animals.length && !gameWin && animals.length > 0) {
+                setGameWin(true);
+                setMessage({ text: "🎉 太棒了！你完全掌握了用数对表示位置！所有动物都找到了正确的坐标！ 🎉", type: "success" });
+            } else if (matchedAnimals.length !== animals.length && gameWin) {
+                setGameWin(false);
+            }
+        }, [matchedAnimals, animals, gameWin]);
+        
+        const showMessage = (msg, msgType = "error", duration = 2000) => {
+            setMessage({ text: msg, type: msgType });
+            setTimeout(() => {
+                setMessage(prev => prev.text === msg ? { text: "✨ 继续拖拽配对，把数对卡片送到正确的小动物家！", type: "info" } : prev);
+            }, duration);
+        };
+        
+        // 拖拽开始
+        const handleDragStart = (e, card) => {
+            if (!availableCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                showMessage("⛔ 这张数对卡片已经配对过了！点击「重置游戏」可以重新挑战", "error");
+                return false;
+            }
+            draggingCardRef.current = card;
+            e.dataTransfer.setData("text/plain", card.id);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target) e.target.style.opacity = "0.6";
+            return true;
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target) e.target.style.opacity = "";
+            draggingCardRef.current = null;
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        
+        // 高亮效果
+        const handleDragEnter = (e, cellKey) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${cellKey}`);
+            if (zoneElem) zoneElem.classList.add("drag-over");
+        };
+        
+        const handleDragLeave = (e, cellKey) => {
+            const zoneElem = document.getElementById(`dropzone-${cellKey}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+        };
+        
+        // 核心放置逻辑：将数对卡片拖拽到某个网格单元格 (col, row)
+        const handleDrop = (e, targetCol, targetRow) => {
+            e.preventDefault();
+            const cellKey = `${targetCol},${targetRow}`;
+            const zoneElem = document.getElementById(`dropzone-${cellKey}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+            
+            let draggedCard = draggingCardRef.current;
+            if (!draggedCard) {
+                const cardId = e.dataTransfer.getData("text/plain");
+                draggedCard = initialCards.find(c => c.id === cardId);
+            }
+            if (!draggedCard) return;
+            
+            // 检查卡片是否还在可用列表中
+            if (!availableCards.some(c => c.id === draggedCard.id)) {
+                showMessage(`❌ 数对卡片“${draggedCard.text}”已经配对过了！`, "error");
+                return;
+            }
+            
+            // 检查这个格子是否有动物（未配对）
+            const animalAtCell = animals.find(a => a.col === targetCol && a.row === targetRow && !matchedAnimals.includes(a.id));
+            if (!animalAtCell) {
+                showMessage(`❌ (${targetCol},${targetRow}) 这个位置没有等待配对的小动物，或者已经配对过了！`, "error");
+                return;
+            }
+            
+            // 验证配对：卡片的 correctAnimalId 是否等于动物id，且数对匹配
+            const isCorrect = (draggedCard.correctAnimalId === animalAtCell.id && draggedCard.pairKey === animalAtCell.pairKey);
+            if (isCorrect) {
+                // 配对正确: 从可用卡片移除，标记该动物已配对
+                setAvailableCards(prev => prev.filter(card => card.id !== draggedCard.id));
+                setMatchedAnimals(prev => [...prev, animalAtCell.id]);
+                showMessage(`✅ 正确！${animalAtCell.name} 的位置是 ${draggedCard.text}，配对成功！`, "success", 1500);
+            } else {
+                // 配对错误
+                showMessage(`❌ 配对错误！${animalAtCell.name} 的正确数对是 ${animalAtCell.pairKey}，不是 ${draggedCard.text}。再试试看～`, "error", 1800);
+            }
+            draggingCardRef.current = null;
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            setAnimals(initialAnimals);
+            setAvailableCards(initialCards);
+            setMatchedAnimals([]);
+            setGameWin(false);
+            setMessage({ text: "🔄 游戏已重置！所有数对卡片重新出现，再挑战一次吧！", type: "info" });
+            draggingCardRef.current = null;
+            document.querySelectorAll('.drop-zone').forEach(el => el.classList.remove('drag-over'));
+        };
+        
+        const matchedCount = matchedAnimals.length;
+        const totalAnimals = animals.length;
+        
+        // 生成网格的辅助函数：行号从下往上（行1在最下面，符合数学直觉）
+        // 但为了显示直观，我们渲染时行号从5到1（从上往下），坐标逻辑保持 row 1 在底部
+        // 在网格显示上，我们将最下面一行标注为第1行，方便小朋友理解。
+        // 为了简单，我们直接渲染行号从5到1，显示时每个单元格对应的实际行是行号。
+        const renderGrid = () => {
+            const gridRows = [];
+            // 行从高到低显示，实际行号从 rows 到 1
+            for (let r = rows; r >= 1; r--) {
+                const cells = [];
+                for (let c = 1; c <= cols; c++) {
+                    const animalHere = animals.find(a => a.col === c && a.row === r);
+                    const isMatched = animalHere && matchedAnimals.includes(animalHere.id);
+                    const showAnimal = animalHere && !isMatched; // 未配对的动物才显示，配对后动物消失（表示已正确放置）
+                    const cellKey = `${c},${r}`;
+                    cells.push(
+                        <div 
+                            key={`${c}-${r}`}
+                            className={`grid-cell relative border-2 border-purple-300 rounded-xl bg-white/80 shadow-sm flex flex-col items-center justify-center transition-all ${isMatched ? 'matched-cell opacity-60' : ''}`}
+                            style={{ aspectRatio: '1 / 1' }}
+                        >
+                            {showAnimal && (
+                                <div className="flex flex-col items-center">
+                                    <span className="text-4xl md:text-5xl">{animalHere.icon}</span>
+                                    <span className="text-xs text-gray-500 mt-1">{animalHere.name}</span>
+                                </div>
+                            )}
+                            {isMatched && (
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl">✅</span>
+                                    <span className="text-[10px] text-green-700">已完成</span>
+                                </div>
+                            )}
+                            <div 
+                                id={`dropzone-${cellKey}`}
+                                onDragOver={handleDragOver}
+                                onDragEnter={(e) => handleDragEnter(e, cellKey)}
+                                onDragLeave={(e) => handleDragLeave(e, cellKey)}
+                                onDrop={(e) => handleDrop(e, c, r)}
+                                className={`drop-zone absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity duration-150 flex items-center justify-center pointer-events-auto ${
+                                    !showAnimal && !isMatched ? 'bg-purple-200/60' : ''
+                                }`}
+                                style={{ cursor: 'pointer', backgroundColor: 'rgba(147, 51, 234, 0.1)' }}
+                            >
+                                <span className="text-sm bg-white/80 px-1 rounded text-purple-600 pointer-events-none">⬇️ 拖拽</span>
+                            </div>
+                            {/* 显示坐标辅助 */}
+                            <div className="absolute bottom-1 right-1 text-[10px] text-gray-400 bg-white/60 px-1 rounded">
+                                ({c},{r})
+                            </div>
+                        </div>
+                    );
+                }
+                gridRows.push(
+                    <div key={`row-${r}`} className="flex gap-2 mb-2">
+                        <div className="w-10 flex items-center justify-center font-bold text-purple-700 bg-white/50 rounded-lg">
+                            {r}行
+                        </div>
+                        {cells}
+                    </div>
+                );
+            }
+            // 添加列号标头
+            const colHeaders = (
+                <div className="flex gap-2 mb-2 ml-12">
+                    {[...Array(cols)].map((_, idx) => (
+                        <div key={`col-${idx+1}`} className="flex-1 text-center font-bold text-purple-700 bg-white/50 rounded-lg py-1">
+                            {idx+1}列
+                        </div>
+                    ))}
+                </div>
+            );
+            return (
+                <div>
+                    {colHeaders}
+                    {gridRows}
+                    <div className="text-xs text-center text-gray-500 mt-2">💡 提示：数对 (列,行) ，例如 (2,3) 表示第2列第3行</div>
+                </div>
+            );
+        };
+        
+        return (
+            <div className="w-full">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ================= 左侧：知识点区域 ================= */}
+                    <div className="lg:w-5/12 bg-white/85 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-white/40 transition-all">
+                        <div className="flex items-center gap-2 border-b-4 border-purple-300 pb-3 mb-4">
+                            <span className="text-4xl">📍</span>
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">数对小讲堂</h2>
+                            <span className="text-sm bg-purple-200 px-3 py-1 rounded-full ml-2">列·行</span>
+                        </div>
+                        <div className="knowledge-text text-gray-800 space-y-4">
+                            <p className="text-xl font-bold text-indigo-700">{knowledgePoints.title}</p>
+                            <p className="bg-white/60 p-3 rounded-xl">✨ {knowledgePoints.intro}</p>
+                            <ul className="list-disc list-inside space-y-1 bg-purple-50 p-3 rounded-xl">
+                                {knowledgePoints.rules.map((item, idx) => <li key={idx}>{item}</li>)}
+                            </ul>
+                            <div className="bg-amber-50 p-3 rounded-xl text-amber-800 text-sm">
+                                {knowledgePoints.example}
+                            </div>
+                            <div className="bg-cyan-50 p-2 rounded-lg text-cyan-700 text-sm italic">
+                                {knowledgePoints.tip}
+                            </div>
+                            <div className="bg-green-50 p-3 rounded-xl text-green-700 text-sm">
+                                <p className="font-bold">📐 方格图小知识：</p>
+                                <p>列 → 从左往右数，行 → 从下往上数（通常第1行在最下面）。</p>
+                                <p>如右图格子里的 (列,行) 就是每个小动物的家。</p>
+                                {knowledgePoints.gridTip}
+                            </div>
+                        </div>
+                        <div className="mt-4 text-center text-purple-600 bg-purple-100/60 rounded-xl p-2 text-sm md:text-base">
+                            🌟 先列后行，数对定位，拖拽配对记得牢！
+                        </div>
+                    </div>
+                    
+                    {/* ================= 右侧：互动游戏区（数对拖拽配对） ================= */}
+                    <div className="lg:w-7/12 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 flex flex-col border border-purple-200">
+                        <div className="flex flex-wrap justify-between items-center gap-3 border-b-2 border-purple-300 pb-3 mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-3xl">🎮</span>
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">数对配对工坊</h2>
+                                <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-purple-100 rounded-full px-4 py-1 text-purple-700 font-bold text-lg">
+                                    配对进度 {matchedCount}/{totalAnimals}
+                                </div>
+                                <button 
+                                    onClick={resetGame}
+                                    className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold py-2 px-4 rounded-full shadow-md transition transform hover:scale-105 text-base md:text-lg flex items-center gap-1"
+                                >
+                                    🔄 重置游戏
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 消息提示 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-medium transition-all big-text ${message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' : message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                            {message.text}
+                        </div>
+                        
+                        {/* 5x5网格区域 */}
+                        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-4 mb-6 shadow-inner overflow-x-auto">
+                            {renderGrid()}
+                        </div>
+                        
+                        {/* 可拖拽卡片池（数对卡片） */}
+                        <div className="mt-2">
+                            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                <h3 className="text-2xl font-bold text-purple-700 flex items-center gap-2">
+                                    🃏 数对卡片池
+                                    <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">长按/鼠标拖拽</span>
+                                </h3>
+                                <span className="text-xs md:text-sm text-purple-500">💡 把卡片拖到网格中对应动物的格子上</span>
+                            </div>
+                            
+                            {availableCards.length === 0 ? (
+                                <div className="bg-gradient-to-r from-green-100 to-emerald-100 p-6 rounded-2xl text-center text-green-700 text-xl font-bold">
+                                    🎉 完美！所有数对卡片都配对成功！ 你已经是数对小专家啦 🎉
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                    {availableCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable={true}
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-amber-200 to-orange-300 rounded-2xl p-3 shadow-md flex flex-col items-center cursor-grab active:cursor-grabbing hover:shadow-xl transition-all transform hover:scale-[1.02]"
+                                        >
+                                            <span className="text-3xl font-mono font-bold text-gray-800">{card.text}</span>
+                                            <p className="text-xs text-amber-800 mt-1">数对卡片</p>
+                                            <p className="text-[10px] text-purple-600 mt-1">👉 拖拽配对</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 玩法说明 */}
+                            <div className="mt-5 bg-purple-100/70 p-3 rounded-xl text-purple-700 text-sm">
+                                <p className="font-bold">📌 拖拉拽玩法：</p>
+                                <ul className="list-disc list-inside space-y-1">
+                                    <li>① 手指/鼠标长按数对卡片（例如“(2,3)”）</li>
+                                    <li>② 拖拽到上方网格中对应动物所在的格子上（动物未配对时可见）</li>
+                                    <li>③ 配对正确，动物消失，卡片也会消失，格子显示“已完成”</li>
+                                    <li>④ 全部5个小动物都配对成功，获得胜利 🏆</li>
+                                </ul>
+                                <div className="mt-2 bg-white/60 rounded-lg p-2 text-xs">
+                                    💡 <strong>数对定位口诀</strong>：一列二行括号包，逗号隔开别乱掉。先列后行要记牢，位置精准错不了！
+                                </div>
+                            </div>
+                            
+                            {gameWin && (
+                                <div className="mt-4 bg-gradient-to-r from-green-200 to-teal-200 text-green-800 p-4 rounded-2xl text-center text-xl font-bold animate-pulse flex items-center justify-center gap-3 shadow-lg">
+                                    🏆 恭喜你完成所有配对！🏆 <span className="text-3xl">🎓📍</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="mt-3 text-center text-xs text-purple-500">
+                            💡 移动端小技巧：长按卡片并轻轻拖拽到目标格子上方，松手即可。注意观察每个小动物所在的行和列！
+                        </div>
+                    </div>
+                </div>
+                {/* 底部装饰 */}
+                <div className="text-center mt-8 text-purple-800 text-sm bg-white/30 rounded-full py-2 px-4 w-fit mx-auto backdrop-blur-sm">
+                    🌈 数对 (列,行) 就像坐标密码，拖拽配对，成为定位小高手！ 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染到根节点
+    ReactDOM.createRoot(document.getElementById("root")).render(
+        <React.StrictMode>
+            <CoordinateGame />
+        </React.StrictMode>
+    );
+</script>
+</body>
+</html>

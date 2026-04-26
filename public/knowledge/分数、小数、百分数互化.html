@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>分数·小数·百分数互化 | 魔法转盘乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫色主题背景 */
+    body {
+      font-size: 1.7rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.4rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 分数、小数、百分数互化 =======================
+  // 知识点：分数→小数→百分数的相互转化方法
+  
+  // ---------- 游戏数据：拖拽配对（三种表示方式相互配对）----------
+  // 每个条目包含：分数、小数、百分数三种等价形式
+  const conversionTriples = [
+    { id: 1, fraction: "1/2", decimal: "0.5", percent: "50%" },
+    { id: 2, fraction: "1/4", decimal: "0.25", percent: "25%" },
+    { id: 3, fraction: "3/4", decimal: "0.75", percent: "75%" },
+    { id: 4, fraction: "1/5", decimal: "0.2", percent: "20%" },
+    { id: 5, fraction: "2/5", decimal: "0.4", percent: "40%" },
+    { id: 6, fraction: "3/5", decimal: "0.6", percent: "60%" },
+    { id: 7, fraction: "1/10", decimal: "0.1", percent: "10%" }
+  ];
+  
+  // 游戏组件：三列配对（分数、小数、百分数混合配对，每个正确配对必须同组id）
+  // 设计思路：左侧随机展示分数/小数/百分数卡片，右侧展示对应等价卡片，拖拽配对。简单起见，我们做两列配对：左边是所有表示（打乱），右边是目标配对区（也打乱），匹配依据id。
+  const MatchingGame = () => {
+    // 生成所有卡片（每个 triple 生成三张卡片：分数、小数、百分数）
+    const generateAllCards = () => {
+      let cards = [];
+      conversionTriples.forEach(triple => {
+        cards.push({
+          id: `${triple.id}-frac`,
+          groupId: triple.id,
+          display: triple.fraction,
+          type: "fraction",
+          matched: false
+        });
+        cards.push({
+          id: `${triple.id}-dec`,
+          groupId: triple.id,
+          display: triple.decimal,
+          type: "decimal",
+          matched: false
+        });
+        cards.push({
+          id: `${triple.id}-per`,
+          groupId: triple.id,
+          display: triple.percent,
+          type: "percent",
+          matched: false
+        });
+      });
+      // 打乱顺序
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+      return cards;
+    };
+    
+    const [leftCards, setLeftCards] = React.useState(() => generateAllCards());
+    const [rightSlots, setRightSlots] = React.useState(() => {
+      // 右侧槽位也是所有卡片打乱，作为放置区，每个槽位只能配对一次
+      let slots = conversionTriples.flatMap(triple => [
+        { id: `${triple.id}-frac-slot`, groupId: triple.id, display: triple.fraction, matched: false },
+        { id: `${triple.id}-dec-slot`, groupId: triple.id, display: triple.decimal, matched: false },
+        { id: `${triple.id}-per-slot`, groupId: triple.id, display: triple.percent, matched: false }
+      ]);
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    const totalPairs = leftCards.length; // 总卡片数 = 配对次数
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有分数、小数、百分数都找到了自己的好伙伴！互化魔法成功！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧卡片
+    const onDragStart = (e, cardId, groupId) => {
+      const card = leftCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "card", cardId, groupId }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "card") return;
+      const { cardId, groupId } = dragData;
+      
+      const targetSlot = rightSlots.find(s => s.id === slotId);
+      const sourceCard = leftCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个卡片或槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证组id是否相同（表示等价）
+      if (groupId === targetSlot.groupId) {
+        // 配对成功
+        setLeftCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setRightSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.display} 和 ${targetSlot.display} 是相等的关系！互化成功。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = leftCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = rightSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.display} 不等于 ${targetSlot.display}，再试试看～ 想一想分数、小数、百分数的互化方法。`);
+        setTimeout(() => setFeedbackMsg(""), 1600);
+      }
+    };
+    
+    const resetGame = () => {
+      const newLeft = generateAllCards();
+      let newSlots = conversionTriples.flatMap(triple => [
+        { id: `${triple.id}-frac-slot`, groupId: triple.id, display: triple.fraction, matched: false },
+        { id: `${triple.id}-dec-slot`, groupId: triple.id, display: triple.decimal, matched: false },
+        { id: `${triple.id}-per-slot`, groupId: triple.id, display: triple.percent, matched: false }
+      ]);
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setLeftCards(newLeft);
+      setRightSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的卡片拖拽到右边等值的卡片上，组成互化对～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = leftCards.every(c => c.matched) && rightSlots.every(s => s.matched);
+    const totalCount = leftCards.length;
+    const matchedCount = leftCards.filter(c => c.matched).length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🔁 互化配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {matchedCount}/{totalCount}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>分数/小数/百分数</strong>拖拽到右边<strong>等值的卡片</strong>上，配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 可拖拽卡片 (拖拽我)</div>
+            <div className="grid grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-1">
+              {leftCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.groupId)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl font-mono">{card.display}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎁 等值伙伴 (放置区)</div>
+            <div className="grid grid-cols-2 gap-3 max-h-[450px] overflow-y-auto">
+              {rightSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-xl font-bold text-emerald-700">{slot.display}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 拖拽至此'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 太厉害了！分数、小数、百分数互化完全掌握，成为转化小魔法师！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 互化口诀：分数→小数（分子÷分母），小数→百分数（小数点右移两位加%），百分数→小数（去掉%左移两位），分数→百分数（先化小数再化百分数）。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：分数、小数、百分数互化 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">🔄</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">分数、小数、百分数互化</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 互化方法</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>分数→小数：</strong>分子 ÷ 分母 (如 3/4 = 3÷4 = 0.75)</li>
+              <li><strong>小数→百分数：</strong>小数点向右移动两位，加上% (如 0.75 = 75%)</li>
+              <li><strong>百分数→小数：</strong>去掉%，小数点向左移动两位 (如 75% = 0.75)</li>
+              <li><strong>小数→分数：</strong>根据小数位数写成分母10、100…再约分 (如 0.75 = 75/100 = 3/4)</li>
+              <li><strong>百分数→分数：</strong>写成分母100的分数，再约分 (如 75% = 75/100 = 3/4)</li>
+              <li><strong>分数→百分数：</strong>先化小数，再化百分数</li>
+            </ul>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 常见互化表</p>
+            <div className="grid grid-cols-3 gap-2 text-center text-sm mt-2">
+              <div className="bg-purple-100 p-1 rounded">1/2 = 0.5 = 50%</div>
+              <div className="bg-purple-100 p-1 rounded">1/4 = 0.25 = 25%</div>
+              <div className="bg-purple-100 p-1 rounded">3/4 = 0.75 = 75%</div>
+              <div className="bg-purple-100 p-1 rounded">1/5 = 0.2 = 20%</div>
+              <div className="bg-purple-100 p-1 rounded">2/5 = 0.4 = 40%</div>
+              <div className="bg-purple-100 p-1 rounded">1/10 = 0.1 = 10%</div>
+            </div>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>0.6 = ( )% = ( )/5 &nbsp;&nbsp; 45% = ( )/( ) = ( ) 小数</p>
+            <p className="text-sm text-purple-700">（答案：60%、3/5；45/100=9/20、0.45）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“分数小数百分数，互相转化有套路；除乘移动约分快，灵活运用不出错。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：互化填空（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ from: "0.5", toType: "percent", answer: "50%" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { from: "0.5", toType: "percent", answer: "50%" },
+      { from: "75%", toType: "decimal", answer: "0.75" },
+      { from: "3/5", toType: "percent", answer: "60%" },
+      { from: "0.25", toType: "fraction", answer: "1/4" },
+      { from: "40%", toType: "fraction", answer: "2/5" },
+      { from: "0.2", toType: "percent", answer: "20%" },
+      { from: "1/10", toType: "decimal", answer: "0.1" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const normalized = userAnswer.trim().replace(/\s/g, '').toLowerCase();
+      const correctNorm = question.answer.replace(/\s/g, '').toLowerCase();
+      if (normalized === correctNorm) {
+        setFeedback("✅ 完全正确！互化掌握得很好！");
+      } else {
+        setFeedback(`❌ 不对哦，${question.from} 转化成 ${question.toType === 'percent' ? '百分数' : (question.toType === 'decimal' ? '小数' : '分数')} 应该是 ${question.answer}。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    let targetDesc = "";
+    if (question.toType === "percent") targetDesc = "百分数";
+    else if (question.toType === "decimal") targetDesc = "小数";
+    else targetDesc = "分数";
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 互化挑战</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-mono font-bold text-2xl">{question.from} = ? ({targetDesc})</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="text" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-purple-300 rounded-lg px-3 py-1 w-36 text-center"
+              placeholder="输入结果"
+            />
+            <button onClick={checkAnswer} className="bg-purple-400 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 分数、小数、百分数互化是数学计算和数据分析的基础，掌握互化方法，轻松解决各种比例问题！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

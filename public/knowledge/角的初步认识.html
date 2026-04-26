@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>角的初步认识 · 角之乐园 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景，内容区淡橙色卡片 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #d49b3a;
+      background-color: #fff8ef;
+    }
+    .drag-over {
+      background-color: #ffe0b5;
+      transform: scale(1.02);
+      border: 2px solid #d49b3a;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #e0c8a0;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    /* 角示意图样式 */
+    .angle-demo {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0.5rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 角的初步认识 =======================
+  // 知识点：角由一个顶点和两条边组成，角的大小与两边张开程度有关，与边长无关。
+  
+  // ---------- 游戏数据：拖拽配对（角的描述/名称 ↔ 正确的角类型）----------
+  const matchPairs = [
+    { id: 1, item: "比直角小的角", target: "锐角", correct: "锐角", displayTarget: "锐角" },
+    { id: 2, item: "比直角大的角", target: "钝角", correct: "钝角", displayTarget: "钝角" },
+    { id: 3, item: "等于90度的角", target: "直角", correct: "直角", displayTarget: "直角" },
+    { id: 4, item: "角的大小与什么有关？", target: "两边张开程度", correct: "两边张开程度", displayTarget: "两边张开程度" },
+    { id: 5, item: "角的两条边是（ ）", target: "射线", correct: "射线", displayTarget: "射线" },
+    { id: 6, item: "一个角有（ ）个顶点", target: "1", correct: "1", displayTarget: "1个顶点" }
+  ];
+  
+  // 游戏组件：拖拽配对（将左边角的描述拖拽到右边正确的答案上）
+  const MatchingGame = () => {
+    // 左侧描述卡片（未配对）
+    const [descCards, setDescCards] = React.useState(() => 
+      matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.item,
+        matchTarget: pair.target,
+        matched: false
+      }))
+    );
+    
+    // 右侧答案槽位（打乱顺序）
+    const [answerSlots, setAnswerSlots] = React.useState(() => {
+      let slots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.displayTarget,
+        matchTarget: pair.target,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有角的知识都配对成功！你已是角的小专家！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧描述卡片
+    const onDragStart = (e, cardId, matchTarget) => {
+      const card = descCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "desc", cardId, matchTarget }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "desc") return;
+      const { cardId, matchTarget } = dragData;
+      
+      const targetSlot = answerSlots.find(s => s.id === slotId);
+      const sourceCard = descCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个知识或答案槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配
+      if (matchTarget === targetSlot.matchTarget) {
+        // 配对成功
+        setDescCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setAnswerSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！“${sourceCard.text}” 的答案是 ${targetSlot.text}。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = descCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = answerSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！“${sourceCard.text}” 的正确答案不是 ${targetSlot.text}。再想想角的知识～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newDescs = matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.item,
+        matchTarget: pair.target,
+        matched: false
+      }));
+      let newSlots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.displayTarget,
+        matchTarget: pair.target,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setDescCards(newDescs);
+      setAnswerSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的角知识拖拽到右边正确的答案上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = descCards.every(c => c.matched) && answerSlots.every(s => s.matched);
+    const totalPairs = matchPairs.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#d49b3a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-amber-800">📐 角的知识配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>角的知识描述</strong>拖拽到右边<strong>正确的答案</strong>上，配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧描述卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">📦 知识卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {descCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchTarget)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧答案槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 正确答案 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto">
+              {answerSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把知识拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-amber-100 p-2 rounded-xl text-amber-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 角之魔法师！你已掌握角的所有基础知识！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-full">
+          💡 角的知识：一个角有一个顶点和两条边。角的大小与两边张开程度有关，与边长无关。锐角&lt;90°&lt;钝角。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：角的初步认识 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#fff4e6] to-[#ffe0b5] rounded-3xl p-5 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">🔺</span>
+          <h2 className="text-3xl font-extrabold text-amber-900">角的初步认识</h2>
+        </div>
+        <div className="space-y-4 text-base text-amber-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是角？</p>
+            <p>角是由一个<strong>顶点</strong>和从顶点出发的两条<strong>边</strong>组成的图形。两条边是射线。</p>
+            <div className="mt-2 flex justify-center gap-4">
+              <div className="angle-demo">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <line x1="10" y1="70" x2="70" y2="70" stroke="#d97706" stroke-width="3"/>
+                  <line x1="10" y1="70" x2="40" y2="20" stroke="#d97706" stroke-width="3"/>
+                  <circle cx="10" cy="70" r="4" fill="#b45309"/>
+                  <text x="15" y="65" font-size="12" fill="#b45309">顶点</text>
+                  <text x="50" y="72" font-size="12" fill="#b45309">边</text>
+                  <text x="35" y="35" font-size="12" fill="#b45309">边</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 角的分类</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong className="text-green-700">锐角</strong>：比直角小（小于90°）</li>
+              <li><strong className="text-blue-700">直角</strong>：等于90°</li>
+              <li><strong className="text-purple-700">钝角</strong>：比直角大（大于90°）</li>
+            </ul>
+            <div className="mt-2 flex justify-around">
+              <div className="text-center"><span className="text-sm">锐角</span><br/>∠</div>
+              <div className="text-center"><span className="text-sm">直角</span><br/>⊔</div>
+              <div className="text-center"><span className="text-sm">钝角</span><br/>∠（大）</div>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 角的大小</p>
+            <p>角的大小与两边<strong>张开的程度</strong>有关，张开越大角越大，与边的长短无关。</p>
+            <p className="text-sm mt-1">🌰 一个角的两边画得很长，但角度不变。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>红领巾上有（ ）个锐角和一个钝角； 黑板上的角是（ ）角； 比直角小的角叫（ ）角。</p>
+            <p className="text-sm text-amber-700">（答案：2，直，锐）</p>
+          </div>
+          <div className="bg-amber-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“一个角，一个顶，两条射线两边伸；锐角直角和钝角，大小只看张口深。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断角的大小和类型 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ desc: "比直角小的角", options: ["锐角", "直角", "钝角"], correct: "锐角" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { desc: "比直角小的角", options: ["锐角", "直角", "钝角"], correct: "锐角" },
+      { desc: "等于90度的角", options: ["锐角", "直角", "钝角"], correct: "直角" },
+      { desc: "比直角大的角", options: ["锐角", "直角", "钝角"], correct: "钝角" },
+      { desc: "角的大小与什么有关", options: ["边的长短", "张口大小", "顶点位置"], correct: "张口大小" },
+      { desc: "一个角有几个顶点", options: ["1个", "2个", "无数个"], correct: "1个" },
+      { desc: "角的两条边是什么线", options: ["线段", "直线", "射线"], correct: "射线" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.desc} 的答案是 ${question.correct}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.desc} 的正确答案是 ${question.correct}。再想想～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-amber-800">快问快答 · 角的知识</h3>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.desc}</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-amber-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-amber-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-amber-700 text-sm border border-amber-200">
+            🌈 角是几何世界的基本元素，从三角形到多边形，处处有角。掌握角的初步知识，为图形学习打下坚实基础！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>正方体表面积探险 - 小学数学互动课程</title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义主题色 & 全局样式 -->
+    <style>
+        /* 自定义淡紫色主题 & 儿童友好圆润风格 */
+        body {
+            background: linear-gradient(145deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, sans-serif;
+        }
+        /* 自定义滚动条可爱风格 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f0e2f5;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a67cac;
+            border-radius: 20px;
+        }
+        /* 拖拽时的半透明效果 */
+        .drag-active {
+            opacity: 0.6;
+            cursor: grabbing !important;
+        }
+        /* 正方体放置区高亮反馈 */
+        .drop-zone-highlight {
+            background-color: #f9e7ff !important;
+            transform: scale(1.02);
+            transition: all 0.1s ease;
+            box-shadow: 0 0 0 3px #a57cac;
+        }
+        /* 卡片禁用不可拖拽样式 */
+        .card-disabled {
+            filter: grayscale(0.3);
+            opacity: 0.6;
+            cursor: default;
+        }
+        /* 胜利彩蛋简单动效 */
+        @keyframes bounceSoft {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-8px); }
+        }
+        .win-bounce {
+            animation: bounceSoft 0.5s ease;
+        }
+        /* 字体加大 (6号字约合24px+) */
+        .text-super {
+            font-size: 1.6rem;
+            line-height: 2rem;
+        }
+        @media (min-width: 768px) {
+            .text-super {
+                font-size: 1.8rem;
+                line-height: 2.2rem;
+            }
+        }
+        /* 确保移动端拖拽操作有更好触控区域 */
+        .drag-card, .drop-cube {
+            touch-action: manipulation;
+        }
+        /* 自定义卡片样式 */
+        .drag-card {
+            transition: all 0.2s ease;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+    </style>
+    <!-- 引入 React, ReactDOM, Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // 正方体表面积配对游戏组件
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // 核心数据: 正方体边长及对应表面积 (公式 S = 6 * a^2)
+        const CUBES_DATA = [
+            { id: 'cube1', side: 2, surfaceArea: 24, label: '边长 2 cm', emoji: '🧊', displayArea: '24 cm²' },
+            { id: 'cube2', side: 3, surfaceArea: 54, label: '边长 3 cm', emoji: '📦', displayArea: '54 cm²' },
+            { id: 'cube3', side: 4, surfaceArea: 96, label: '边长 4 cm', emoji: '🎲', displayArea: '96 cm²' }
+        ];
+
+        // 游戏主组件
+        const SurfaceAreaGame = () => {
+            // 正方体配对状态: 每个cube是否已被配对
+            const [pairedCubes, setPairedCubes] = useState({});
+            // 剩余可拖拽的表面积卡片列表 (存储未配对的值, 打乱顺序)
+            const [remainingCards, setRemainingCards] = useState([]);
+            // 游戏完成标志
+            const [gameCompleted, setGameCompleted] = useState(false);
+            // 消息提示 (成功/错误反馈)
+            const [feedbackMsg, setFeedbackMsg] = useState('');
+            // 高亮放置区临时效果 (用于视觉反馈)
+            const [highlightDropId, setHighlightDropId] = useState(null);
+            
+            // 初始化 / 重置游戏
+            const initGame = useCallback(() => {
+                // 所有正方体未配对
+                const initialPaired = {};
+                CUBES_DATA.forEach(cube => {
+                    initialPaired[cube.id] = false;
+                });
+                setPairedCubes(initialPaired);
+                // 准备所有表面积值数组，并打乱顺序 (增加挑战)
+                const allSurfaceValues = CUBES_DATA.map(cube => cube.surfaceArea);
+                const shuffled = [...allSurfaceValues];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                setRemainingCards(shuffled);
+                setGameCompleted(false);
+                setFeedbackMsg('✨ 将右边的表面积卡片拖到对应的正方体上！ ✨');
+                setHighlightDropId(null);
+            }, []);
+
+            // 重置游戏
+            const resetGame = () => {
+                initGame();
+            };
+
+            // 检查是否全部配对成功
+            useEffect(() => {
+                const allPaired = Object.values(pairedCubes).every(paired => paired === true);
+                if (allPaired && remainingCards.length === 0 && !gameCompleted && Object.keys(pairedCubes).length === CUBES_DATA.length) {
+                    setGameCompleted(true);
+                    setFeedbackMsg('🎉 太棒啦！全部配对正确！你完全掌握了正方体表面积！ 🎉');
+                } else if (allPaired && remainingCards.length === 0 && !gameCompleted) {
+                    setGameCompleted(true);
+                    setFeedbackMsg('🎉 恭喜小天才！所有表面积配对成功！ 🎉');
+                }
+            }, [pairedCubes, remainingCards, gameCompleted]);
+
+            // 拖拽放置的处理函数 (通过原生 drag & drop)
+            // 注意: 需要在正方体区域监听 onDrop, 获取拖拽卡片的值
+            const handleDrop = (e, targetCube) => {
+                e.preventDefault();
+                setHighlightDropId(null); // 移除高亮
+                
+                // 获取拖拽存储的表面积数值
+                let dragValue = e.dataTransfer.getData("text/plain");
+                if (!dragValue) return;
+                const draggedArea = parseInt(dragValue, 10);
+                if (isNaN(draggedArea)) return;
+
+                // 检查目标正方体是否已经配对
+                if (pairedCubes[targetCube.id]) {
+                    setFeedbackMsg(`⚠️ ${targetCube.label} 的正方体已经配对过了！不能重复哦 ⚠️`);
+                    return;
+                }
+                
+                // 检查拖拽的卡片是否还在剩余卡片中 (防止拖拽已经配对的卡片, 理论上draggable控制不会，但双重验证)
+                if (!remainingCards.includes(draggedArea)) {
+                    setFeedbackMsg(`🔁 这张卡片已经被配对过了！试试其他卡片吧~ 🔁`);
+                    return;
+                }
+                
+                // 验证表面积是否匹配目标正方体
+                const isMatch = (draggedArea === targetCube.surfaceArea);
+                
+                if (isMatch) {
+                    // 配对成功逻辑
+                    // 更新配对状态
+                    setPairedCubes(prev => ({
+                        ...prev,
+                        [targetCube.id]: true
+                    }));
+                    // 从剩余卡片中移除当前配对的值
+                    const newRemaining = remainingCards.filter(value => value !== draggedArea);
+                    setRemainingCards(newRemaining);
+                    setFeedbackMsg(`✅ 正确！ ${targetCube.label} 的表面积是 ${targetCube.surfaceArea} cm²，配对成功！ ✅`);
+                    
+                    // 播放小彩蛋（简单震动无伤大雅）
+                    if (!gameCompleted && newRemaining.length === 0) {
+                        // 稍后由 useEffect 触发胜利，但立刻给个笑容
+                        setTimeout(() => {
+                            setFeedbackMsg('🎉 完美通关！你是表面积小英雄！ 🎉');
+                        }, 200);
+                    }
+                } else {
+                    // 配对错误
+                    let correctValue = targetCube.surfaceArea;
+                    setFeedbackMsg(`❌ 配对错误！ ${targetCube.label} 的表面积应该是 ${correctValue} cm²，再试试看哟~ ❌`);
+                }
+            };
+
+            // 拖拽经过时允许放置 & 视觉高亮
+            const handleDragOver = (e, cubeId) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+                if (highlightDropId !== cubeId) {
+                    setHighlightDropId(cubeId);
+                }
+            };
+            
+            const handleDragLeave = () => {
+                setHighlightDropId(null);
+            };
+            
+            // 拖拽开始: 存储被拖拽卡片的值, 并设置拖拽效果
+            const handleDragStart = (e, areaValue) => {
+                // 检查该卡片值是否还在剩余卡片中 (未被配对)
+                if (!remainingCards.includes(areaValue)) {
+                    e.preventDefault();
+                    e.dataTransfer.effectAllowed = "none";
+                    setFeedbackMsg("这张卡片已经配对过啦！不能重复拖拽~");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", areaValue);
+                e.dataTransfer.effectAllowed = "copy";
+                // 设置拖拽时的图标 (可选透明提升体验)
+                if (e.target && e.target.style) {
+                    e.target.classList.add('drag-active');
+                }
+                // 允许拖拽时显示光标
+            };
+            
+            const handleDragEnd = (e) => {
+                if (e.target && e.target.classList) {
+                    e.target.classList.remove('drag-active');
+                }
+                setHighlightDropId(null);
+            };
+            
+            // 初始化游戏
+            useEffect(() => {
+                initGame();
+            }, [initGame]);
+            
+            // 已配对数量计算
+            const pairedCount = Object.values(pairedCubes).filter(v => v === true).length;
+            const totalCubes = CUBES_DATA.length;
+            
+            return (
+                <div className="w-full rounded-3xl shadow-2xl p-4 md:p-6 bg-white/30 backdrop-blur-sm border border-white/40">
+                    {/* 主布局：左知识点 + 右游戏，响应式堆叠 */}
+                    <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                        {/* 左侧：知识点区域 */}
+                        <div className="lg:w-2/5 bg-white/80 rounded-2xl p-5 md:p-6 shadow-lg backdrop-blur-sm border border-purple-100">
+                            <div className="border-l-8 border-[#a67cac] pl-4 mb-4">
+                                <h1 className="text-3xl md:text-4xl font-extrabold text-[#5e3a63] drop-shadow-sm">📐 正方体表面积</h1>
+                                <p className="text-xl text-gray-700 mt-1 font-semibold">✨ 小小数学家必修课 ✨</p>
+                            </div>
+                            
+                            <div className="space-y-4 text-base md:text-xl text-gray-800">
+                                <div className="bg-gradient-to-r from-[#f4e8fa] to-[#fdf5ff] p-4 rounded-xl">
+                                    <p className="font-black text-2xl text-[#5e3a63]">📖 什么是表面积？</p>
+                                    <p className="mt-2 leading-relaxed">正方体有 <strong className="text-purple-700 text-xl">6个完全相同的正方形面</strong>，<br/>
+                                    所有面的面积总和叫做<strong className="text-purple-800 bg-purple-50 px-2 py-0.5 rounded-lg">表面积</strong>。</p>
+                                </div>
+                                
+                                <div className="bg-white/70 p-4 rounded-xl">
+                                    <p className="font-black text-2xl text-[#5e3a63]">🧮 计算公式</p>
+                                    <div className="mt-2 text-center bg-[#dccae8] rounded-2xl p-3 shadow-inner">
+                                        <p className="text-3xl font-mono font-bold">S = 6 × a²</p>
+                                        <p className="text-md mt-1">(a 为棱长，S 为表面积)</p>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm md:text-base">
+                                        <div className="bg-purple-50 rounded-xl p-2">✨ 棱长2cm<br/>表面积24cm²</div>
+                                        <div className="bg-purple-50 rounded-xl p-2">✨ 棱长3cm<br/>表面积54cm²</div>
+                                        <div className="bg-purple-50 rounded-xl p-2">✨ 棱长4cm<br/>表面积96cm²</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200">
+                                    <p className="font-bold text-amber-800 flex items-center gap-1">💡 小提示：</p>
+                                    <p className="text-lg">先算一个面的面积（a×a），再乘6就得到表面积啦！动手拖拖看右边的卡片吧 🧩</p>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-6 text-center text-sm text-purple-800 bg-white/40 rounded-full py-2 px-3">
+                                ⭐ 配对进度: {pairedCount} / {totalCubes} ⭐
+                            </div>
+                        </div>
+                        
+                        {/* 右侧：小游戏区域 - 拖拽配对 (钓鱼/扭蛋风格拖拽) */}
+                        <div className="lg:w-3/5 bg-[#faf3ff]/90 rounded-2xl p-5 md:p-6 shadow-lg backdrop-blur-sm border-2 border-[#CBAACB]">
+                            <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                                <h2 className="text-2xl md:text-3xl font-black text-[#6b3f74] flex items-center gap-2">
+                                    🎮 拖拽配对游戏 <span className="text-lg bg-white/60 px-3 py-1 rounded-full">抓娃娃机风格</span>
+                                </h2>
+                                <button 
+                                    onClick={resetGame}
+                                    className="bg-gradient-to-r from-[#a17bb5] to-[#cba3db] hover:from-[#8f68a3] hover:to-[#b887cf] text-white font-bold py-2 px-5 rounded-full shadow-md transition transform active:scale-95 text-lg"
+                                >
+                                    🔄 新的一局
+                                </button>
+                            </div>
+                            
+                            {/* 反馈消息条 */}
+                            <div className={`mb-5 p-3 rounded-xl text-center font-bold text-lg transition-all ${feedbackMsg.includes('✅') || feedbackMsg.includes('🎉') ? 'bg-green-100 text-green-800 border border-green-300' : (feedbackMsg.includes('❌') || feedbackMsg.includes('⚠️') ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')}`}>
+                                {feedbackMsg || "🐣 把右边卡片拖到对应的正方体上面！"}
+                            </div>
+                            
+                            {/* 拖拽放置区：三个正方体展示区 */}
+                            <div className="mb-8">
+                                <p className="text-xl font-bold text-purple-800 mb-3 flex items-center gap-2">📦 正方体伙伴们 (放置区)</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {CUBES_DATA.map(cube => {
+                                        const isPaired = pairedCubes[cube.id];
+                                        const isHighlight = highlightDropId === cube.id;
+                                        return (
+                                            <div
+                                                key={cube.id}
+                                                className={`drop-cube relative bg-white rounded-2xl p-4 text-center shadow-md transition-all cursor-grab border-2 ${isPaired ? 'border-green-400 bg-green-50/70' : (isHighlight ? 'border-purple-500 bg-purple-50 drop-zone-highlight' : 'border-purple-200')}`}
+                                                onDragOver={(e) => handleDragOver(e, cube.id)}
+                                                onDragLeave={handleDragLeave}
+                                                onDrop={(e) => handleDrop(e, cube)}
+                                            >
+                                                <div className="text-5xl mb-2">{cube.emoji}</div>
+                                                <div className="font-black text-2xl text-gray-800">{cube.label}</div>
+                                                <div className="text-md text-gray-500 mt-1">表面积: 
+                                                    <span className="font-bold text-purple-700 ml-1 text-xl">
+                                                        {isPaired ? cube.surfaceArea + " cm² ✓" : " ? cm²"}
+                                                    </span>
+                                                </div>
+                                                {isPaired && (
+                                                    <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold shadow">✓</div>
+                                                )}
+                                                {!isPaired && (
+                                                    <div className="mt-2 text-xs text-purple-400 bg-purple-50 rounded-full inline-block px-2 py-0.5">拖拽卡片放到这里→</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            
+                            {/* 可拖拽卡片区：类似扭蛋机/抓娃娃机卡片 */}
+                            <div>
+                                <div className="flex justify-between items-center mb-3">
+                                    <p className="text-xl font-bold text-purple-800 flex items-center gap-2">🎴 表面积扭蛋卡片 (拖拽配对)</p>
+                                    <span className="bg-purple-200 rounded-full px-3 py-1 text-sm font-bold">剩余: {remainingCards.length}</span>
+                                </div>
+                                {remainingCards.length === 0 && !gameCompleted && (
+                                    <div className="text-center py-6 bg-yellow-50 rounded-2xl border border-yellow-300 text-yellow-700 font-bold text-xl">
+                                        ✨ 全部配对成功！点击上方[新的一局]继续挑战 ✨
+                                    </div>
+                                )}
+                                {remainingCards.length > 0 && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                        {remainingCards.map((areaValue, idx) => {
+                                            // 找到对应的显示文本 (展示带单位的面积)
+                                            const matchedCube = CUBES_DATA.find(c => c.surfaceArea === areaValue);
+                                            const displayText = matchedCube ? `${areaValue} cm²` : `${areaValue} cm²`;
+                                            return (
+                                                <div
+                                                    key={`card-${areaValue}-${idx}`}
+                                                    draggable="true"
+                                                    onDragStart={(e) => handleDragStart(e, areaValue)}
+                                                    onDragEnd={handleDragEnd}
+                                                    className="drag-card bg-gradient-to-br from-[#e2c7f5] to-[#f6e6ff] rounded-2xl p-4 text-center shadow-md cursor-grab active:cursor-grabbing border-2 border-purple-300 hover:shadow-xl transform transition hover:-translate-y-1"
+                                                    style={{ touchAction: 'manipulation' }}
+                                                >
+                                                    <div className="text-3xl mb-1">🎁</div>
+                                                    <div className="font-black text-2xl md:text-3xl text-purple-800">{displayText}</div>
+                                                    <div className="text-sm text-purple-500 mt-1">拖拽我 →</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {/* 游戏提示：教小朋友如何拖拽 */}
+                                <div className="mt-5 bg-[#E9D4F0] rounded-xl p-3 text-center text-purple-800 text-base flex flex-wrap justify-center gap-2 items-center">
+                                    <span className="font-bold">📢 如何玩：</span>
+                                    <span>🐣 用手指长按右侧卡片 → 拖拽到对应的正方体区域 → 松开配对！</span>
+                                    <span className="text-sm bg-white rounded-full px-2 py-0.5">移动端长按卡片即可拖动</span>
+                                </div>
+                            </div>
+                            
+                            {/* 胜利时额外展示彩蛋 */}
+                            {gameCompleted && (
+                                <div className="mt-5 p-4 bg-gradient-to-r from-yellow-200 to-amber-200 rounded-2xl text-center win-bounce">
+                                    <div className="text-5xl mb-2">🏆🎉🧸</div>
+                                    <p className="font-extrabold text-2xl text-amber-800">恭喜完成全部配对！ 你已是表面积小专家！</p>
+                                    <button onClick={resetGame} className="mt-3 bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow">再来一局 🚀</button>
+                                </div>
+                            )}
+                            
+                            {/* 额外趣味: 动态小表情 */}
+                            <div className="mt-4 text-right text-sm text-purple-600 flex justify-end items-center gap-1">
+                                <span>🐨 拖动卡片配对，锻炼几何思维~ </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-center mt-6 text-sm text-purple-900/70 bg-white/30 rounded-full py-2 px-3 mx-auto w-fit">
+                        🌟 正方体表面积 = 棱长 × 棱长 × 6  🌟
+                    </div>
+                </div>
+            );
+        };
+        
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<SurfaceAreaGame />);
+    </script>
+</body>
+</html>

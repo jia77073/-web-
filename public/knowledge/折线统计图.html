@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>折线统计图小探险家 | 拖拽配对·看趋势</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义主题：淡紫色 + 大字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lavender-light': '#CBAACB',
+                        'lavender-soft': '#D9C2E6',
+                        'lavender-deep': '#B38CB8',
+                    },
+                    fontSize: {
+                        '6xl': '3.75rem',
+                    },
+                    fontFamily: {
+                        'kid': ['"Comic Neue"', '"Comic Sans MS"', 'Chalkboard SE', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .drag-card {
+            cursor: grab;
+            transition: transform 0.1s, box-shadow 0.2s;
+            touch-action: manipulation;
+        }
+        .drag-card:active { cursor: grabbing; }
+        .drop-zone {
+            transition: all 0.2s ease;
+            min-height: 70px;
+        }
+        .drop-zone.drag-over {
+            background-color: #e9d4ff;
+            border-color: #9b59b6;
+            transform: scale(1.02);
+        }
+        @keyframes bounceHappy {
+            0% { transform: scale(0.95); opacity: 0; }
+            80% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .feedback-pop {
+            animation: bounceHappy 0.3s ease forwards;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #fef9e8;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        /* 移动端优化 */
+        @media (max-width: 640px) {
+            .drag-card { cursor: pointer; }
+            .drop-zone { min-height: 60px; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-lavender-light to-lavender-soft font-kid min-h-screen p-4 md:p-6">
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // ---------- 辅助函数 ----------
+    // 生成一周不重复的随机数据（范围0~10，为了趋势有趣，0~10之间）
+    const generateWeekData = () => {
+        let nums = [];
+        while(nums.length < 7) {
+            let r = Math.floor(Math.random() * 11); // 0-10
+            if(!nums.includes(r)) nums.push(r);
+        }
+        return nums; // [周一...周日]
+    };
+    
+    // 根据目标数据构建卡片池（每个数值一张独立卡片，打乱顺序）
+    const buildCardPool = (dataArray) => {
+        let cards = dataArray.map((value, idx) => ({
+            id: `card_${Date.now()}_${idx}_${Math.random()}`,
+            value: value
+        }));
+        // 洗牌
+        for (let i = cards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cards[i], cards[j]] = [cards[j], cards[i]];
+        }
+        return cards;
+    };
+    
+    // 星期几标签
+    const WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+    
+    // 折线图绘制组件 (接收已配对的数据，未配对为null)
+    const LineChart = React.memo(({ matchedData, targetData }) => {
+        const canvasRef = React.useRef(null);
+        const containerRef = React.useRef(null);
+        
+        // 绘制折线图
+        const drawChart = React.useCallback(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const container = containerRef.current;
+            if (!container) return;
+            
+            // 设置画布尺寸（适配高分辨率）
+            const width = container.clientWidth;
+            const height = 280; // 固定高度便于阅读
+            canvas.width = width;
+            canvas.height = height;
+            
+            ctx.clearRect(0, 0, width, height);
+            if (width === 0) return;
+            
+            // 边距
+            const padding = { top: 30, right: 25, bottom: 35, left: 40 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            if (chartWidth <= 0 || chartHeight <= 0) return;
+            
+            // 纵轴范围0~10
+            const yMin = 0, yMax = 10;
+            const yRange = yMax - yMin;
+            
+            // 绘制背景网格线 (浅紫色)
+            ctx.save();
+            ctx.strokeStyle = "#D9C2E6";
+            ctx.lineWidth = 0.8;
+            // 横网格线 (对应0,2,4,6,8,10)
+            for (let i = 0; i <= 5; i++) {
+                let yVal = i * 2; // 0,2,4,6,8,10
+                let y = padding.top + chartHeight - (yVal - yMin) / yRange * chartHeight;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+                ctx.stroke();
+                // 标注数值
+                ctx.fillStyle = "#6b21a5";
+                ctx.font = "bold 12px 'Comic Neue'";
+                ctx.fillText(yVal.toString(), padding.left - 20, y + 3);
+            }
+            
+            // 绘制纵轴和横轴
+            ctx.beginPath();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#8b5cf6";
+            // 纵轴
+            ctx.moveTo(padding.left, padding.top);
+            ctx.lineTo(padding.left, padding.top + chartHeight);
+            ctx.stroke();
+            // 横轴
+            ctx.moveTo(padding.left, padding.top + chartHeight);
+            ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+            ctx.stroke();
+            
+            // 绘制横轴刻度 & 标签
+            const stepX = chartWidth / 6;
+            for (let i = 0; i < 7; i++) {
+                const x = padding.left + i * stepX;
+                ctx.fillStyle = "#5b21b6";
+                ctx.font = "bold 14px 'Comic Neue'";
+                ctx.fillText(WEEKDAYS[i], x - 12, padding.top + chartHeight + 20);
+                // 刻度小竖线
+                ctx.beginPath();
+                ctx.moveTo(x, padding.top + chartHeight);
+                ctx.lineTo(x, padding.top + chartHeight + 5);
+                ctx.stroke();
+            }
+            
+            // 标题
+            ctx.fillStyle = "#4c1d95";
+            ctx.font = "bold 16px 'Comic Neue'";
+            ctx.fillText("📈 冰淇淋销量变化趋势", width/2 - 100, padding.top - 8);
+            
+            // 绘制数据点与折线 (仅绘制已配对的有效点)
+            const points = [];
+            for (let i = 0; i < 7; i++) {
+                const value = matchedData[i];
+                if (value !== null && value !== undefined) {
+                    const x = padding.left + i * stepX;
+                    const y = padding.top + chartHeight - (value - yMin) / yRange * chartHeight;
+                    points.push({ x, y, value, index: i });
+                } else {
+                    points.push(null);
+                }
+            }
+            
+            // 画折线（连续有效点之间连线）
+            ctx.beginPath();
+            ctx.strokeStyle = "#f97316";
+            ctx.lineWidth = 3;
+            let firstPoint = null;
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                if (p) {
+                    if (firstPoint === null) {
+                        firstPoint = p;
+                        ctx.moveTo(p.x, p.y);
+                    } else {
+                        // 检查前一点是否存在且连续
+                        if (points[i-1] && points[i-1] !== null) {
+                            ctx.lineTo(p.x, p.y);
+                        } else {
+                            ctx.moveTo(p.x, p.y);
+                        }
+                    }
+                } else {
+                    firstPoint = null;
+                }
+            }
+            ctx.stroke();
+            
+            // 绘制数据点圆圈及数值标签
+            for (let p of points) {
+                if (p) {
+                    ctx.beginPath();
+                    ctx.fillStyle = "#ff7e5e";
+                    ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = "#fff";
+                    ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = "#2d1b4e";
+                    ctx.font = "bold 14px 'Comic Neue'";
+                    ctx.fillText(p.value, p.x - 8, p.y - 8);
+                }
+            }
+            
+            // 如果没有配对任何点，显示提示文字
+            if (points.every(p => p === null)) {
+                ctx.fillStyle = "#a78bfa";
+                ctx.font = "16px 'Comic Neue'";
+                ctx.fillText("⭐ 拖拽数字卡片到下方星期格子，折线图就会出现！", padding.left + 20, padding.top + chartHeight/2);
+            }
+            
+            ctx.restore();
+        }, [matchedData]);
+        
+        React.useEffect(() => {
+            drawChart();
+            window.addEventListener('resize', drawChart);
+            return () => window.removeEventListener('resize', drawChart);
+        }, [drawChart, matchedData]);
+        
+        React.useEffect(() => {
+            drawChart();
+        }, [drawChart]);
+        
+        return (
+            <div ref={containerRef} className="w-full">
+                <canvas ref={canvasRef} style={{ width: '100%', height: '280px' }}></canvas>
+            </div>
+        );
+    });
+    
+    // 右侧游戏主组件
+    const LineGame = () => {
+        // 当前题目的目标数据 (周一~周日)
+        const [targetData, setTargetData] = React.useState(() => generateWeekData());
+        // 已配对的数据，未配对为null
+        const [matchedData, setMatchedData] = React.useState(Array(7).fill(null));
+        // 卡片池 (可拖拽的数字卡片)
+        const [cardsPool, setCardsPool] = React.useState(() => buildCardPool(targetData));
+        // 各星期是否已配对 (辅助)
+        const [matchedFlags, setMatchedFlags] = React.useState(Array(7).fill(false));
+        // 反馈消息
+        const [feedback, setFeedback] = React.useState({ message: "", isError: false, show: false });
+        // 全部完成标志
+        const [allCompleted, setAllCompleted] = React.useState(false);
+        
+        const showFeedback = (msg, isError) => {
+            setFeedback({ message: msg, isError, show: true });
+            setTimeout(() => setFeedback(prev => ({ ...prev, show: false })), 1800);
+        };
+        
+        // 检查是否全部配对完成
+        const checkAllCompleted = (newMatchedFlags) => {
+            if (newMatchedFlags.every(flag => flag === true)) {
+                setAllCompleted(true);
+                showFeedback("🎉 完美！折线图完成啦！快看销量是上升还是下降？ 🎉", false);
+            } else {
+                setAllCompleted(false);
+            }
+        };
+        
+        // 处理拖拽放置
+        const handleDrop = (e, dayIndex) => {
+            e.preventDefault();
+            const dropZone = document.getElementById(`dropzone-${dayIndex}`);
+            if (dropZone) dropZone.classList.remove('drag-over');
+            
+            // 如果该天已经配对过了，不能再放
+            if (matchedFlags[dayIndex]) {
+                showFeedback(`📌 ${WEEKDAYS[dayIndex]} 已经配对过啦！不能重复哦～`, true);
+                return;
+            }
+            
+            const dragRaw = e.dataTransfer.getData("text/plain");
+            if (!dragRaw) return;
+            const { cardId, cardValue } = JSON.parse(dragRaw);
+            const requiredValue = targetData[dayIndex];
+            
+            if (cardValue === requiredValue) {
+                // 配对成功
+                // 1. 从卡片池中删除该卡片
+                const newCardsPool = cardsPool.filter(card => card.id !== cardId);
+                setCardsPool(newCardsPool);
+                // 2. 更新该天的配对数据
+                const newMatchedData = [...matchedData];
+                newMatchedData[dayIndex] = requiredValue;
+                setMatchedData(newMatchedData);
+                const newMatchedFlags = [...matchedFlags];
+                newMatchedFlags[dayIndex] = true;
+                setMatchedFlags(newMatchedFlags);
+                showFeedback(`✅ 正确！${WEEKDAYS[dayIndex]} 销量 ${requiredValue} 个，折线图出现新点！`, false);
+                checkAllCompleted(newMatchedFlags);
+            } else {
+                showFeedback(`❌ 配对错误！${WEEKDAYS[dayIndex]} 的正确销量是 ${requiredValue}，你拖了 ${cardValue}，再试试～`, true);
+            }
+        };
+        
+        const handleDragOver = (e, dayIndex) => {
+            e.preventDefault();
+            if (!matchedFlags[dayIndex]) {
+                const dropZone = document.getElementById(`dropzone-${dayIndex}`);
+                if (dropZone) dropZone.classList.add('drag-over');
+            }
+        };
+        
+        const handleDragLeave = (e, dayIndex) => {
+            const dropZone = document.getElementById(`dropzone-${dayIndex}`);
+            if (dropZone) dropZone.classList.remove('drag-over');
+        };
+        
+        const handleDragStart = (e, card) => {
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, cardValue: card.value }));
+            e.dataTransfer.effectAllowed = "copy";
+            e.target.style.opacity = "0.5";
+        };
+        
+        const handleDragEnd = (e) => {
+            e.target.style.opacity = "";
+        };
+        
+        // 换一题: 重置整个游戏
+        const resetGame = () => {
+            const newTargets = generateWeekData();
+            setTargetData(newTargets);
+            const newCards = buildCardPool(newTargets);
+            setCardsPool(newCards);
+            setMatchedData(Array(7).fill(null));
+            setMatchedFlags(Array(7).fill(false));
+            setAllCompleted(false);
+            setFeedback({ message: "", isError: false, show: false });
+            showFeedback("✨ 全新一周数据！把数字卡片拖到对应星期格子，构建折线图吧 ✨", false);
+        };
+        
+        // 分析当前趋势（基于已配对的数据）
+        const getTrendAnalysis = () => {
+            const validPairs = [];
+            for (let i = 0; i < 7; i++) {
+                if (matchedFlags[i]) {
+                    validPairs.push({ index: i, value: matchedData[i] });
+                }
+            }
+            if (validPairs.length < 2) {
+                if (validPairs.length === 1) return <div className="mt-2 text-center text-purple-700">📊 再配对几天，就能看出销量变化趋势啦！</div>;
+                return null;
+            }
+            // 找上升/下降趋势: 比较首尾已配对点
+            const first = validPairs[0];
+            const last = validPairs[validPairs.length - 1];
+            let trendText = "";
+            if (last.value > first.value) trendText = "总体呈📈上升趋势，销量越来越好！";
+            else if (last.value < first.value) trendText = "总体呈📉下降趋势，需要想想办法～";
+            else trendText = "总体持平，销量稳定。";
+            
+            // 找最高点和最低点
+            let maxPoint = validPairs.reduce((max, p) => p.value > max.value ? p : max, validPairs[0]);
+            let minPoint = validPairs.reduce((min, p) => p.value < min.value ? p : min, validPairs[0]);
+            
+            return (
+                <div className="mt-3 bg-yellow-100 rounded-xl p-2 text-sm md:text-base font-semibold text-purple-900">
+                    🔍 当前趋势：{trendText}<br/>
+                    🏆 最高销量：{WEEKDAYS[maxPoint.index]} {maxPoint.value}个 &nbsp;&nbsp;
+                    🍃 最低销量：{WEEKDAYS[minPoint.index]} {minPoint.value}个
+                </div>
+            );
+        };
+        
+        const finalAnalysis = () => {
+            if (!allCompleted) return null;
+            // 整体趋势完整分析
+            const values = matchedData;
+            let upCount = 0, downCount = 0;
+            for (let i = 1; i < 7; i++) {
+                if (values[i] > values[i-1]) upCount++;
+                else if (values[i] < values[i-1]) downCount++;
+            }
+            let trendDesc = "";
+            if (upCount > downCount) trendDesc = "整体上升，销量一天比一天棒！";
+            else if (downCount > upCount) trendDesc = "整体下降，可以想想促销活动～";
+            else trendDesc = "有升有降，波动有趣！";
+            
+            const maxVal = Math.max(...values);
+            const minVal = Math.min(...values);
+            const maxIdx = values.indexOf(maxVal);
+            const minIdx = values.indexOf(minVal);
+            return (
+                <div className="mt-4 bg-green-100 rounded-xl p-3 text-center text-base md:text-lg font-bold text-purple-900 shadow-md">
+                    🎯 折线图大总结 🎯<br/>
+                    📈 {trendDesc}<br/>
+                    🌟 销量最高是 {WEEKDAYS[maxIdx]}，共卖出 {maxVal} 个；<br/>
+                    🍃 销量最低是 {WEEKDAYS[minIdx]}，共卖出 {minVal} 个。<br/>
+                    💡 折线图让我们清晰看到数据的变化过程，预测下周可能继续这个趋势！
+                </div>
+            );
+        };
+        
+        return (
+            <div className="flex flex-col">
+                {/* 折线图画布区 */}
+                <div className="bg-white/80 rounded-2xl p-3 shadow-lg mb-4">
+                    <LineChart matchedData={matchedData} targetData={targetData} />
+                    <p className="text-center text-xs text-gray-500 mt-1">✨ 横轴：星期 &nbsp;|&nbsp; 纵轴：销量(个) &nbsp;|&nbsp; 点：实际销量</p>
+                </div>
+                
+                {/* 星期配对槽区域 */}
+                <div className="bg-white/70 rounded-2xl p-3 mb-3">
+                    <p className="text-lg md:text-xl font-bold text-purple-800 mb-2 flex items-center gap-2">📅 把数字卡片拖到对应星期格子：</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                        {WEEKDAYS.map((day, idx) => {
+                            const isMatched = matchedFlags[idx];
+                            const currentVal = matchedData[idx];
+                            return (
+                                <div key={idx} className="flex flex-col items-center">
+                                    <div className="font-bold text-purple-700 text-sm md:text-base">{day}</div>
+                                    <div
+                                        id={`dropzone-${idx}`}
+                                        onDrop={(e) => handleDrop(e, idx)}
+                                        onDragOver={(e) => handleDragOver(e, idx)}
+                                        onDragLeave={(e) => handleDragLeave(e, idx)}
+                                        className={`drop-zone w-full mt-1 p-2 rounded-xl border-2 border-dashed text-center text-xs md:text-sm transition-all
+                                            ${isMatched ? 'bg-green-100 border-green-400' : 'bg-purple-50 border-purple-300 cursor-pointer'}`}
+                                    >
+                                        {isMatched ? (
+                                            <span className="font-bold text-green-700">✅ {currentVal}个</span>
+                                        ) : (
+                                            <span className="text-gray-500">⬅️ 拖数字</span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                
+                {/* 可拖拽数字卡片池 */}
+                <div className="bg-white/70 rounded-2xl p-3 mb-3">
+                    <p className="text-lg md:text-xl font-bold text-purple-800 mb-2">🎴 数字卡片（拖拽到上方对应星期）</p>
+                    {cardsPool.length === 0 && allCompleted && (
+                        <div className="bg-green-200 p-2 rounded-xl text-center text-green-800 font-bold text-base">
+                            🎉 全部配对成功！点击“换一题”继续挑战 🎉
+                        </div>
+                    )}
+                    {cardsPool.length > 0 ? (
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            {cardsPool.map(card => (
+                                <div
+                                    key={card.id}
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, card)}
+                                    onDragEnd={handleDragEnd}
+                                    className="drag-card w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl flex items-center justify-center shadow-xl text-3xl md:text-5xl font-black text-purple-900 border-4 border-white hover:scale-105 transition-transform"
+                                >
+                                    {card.value}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        !allCompleted && <div className="text-center text-purple-600 text-base">✨ 正在配对中，继续拖动卡片 ✨</div>
+                    )}
+                </div>
+                
+                {/* 反馈消息 */}
+                {feedback.show && (
+                    <div className={`text-center p-2 rounded-xl text-base md:text-lg font-bold mb-2 ${feedback.isError ? 'bg-rose-200 text-rose-700' : 'bg-green-200 text-green-800'} feedback-pop`}>
+                        {feedback.message}
+                    </div>
+                )}
+                
+                {/* 动态趋势分析 */}
+                {!allCompleted && getTrendAnalysis()}
+                {finalAnalysis()}
+                
+                {/* 换一题按钮 */}
+                <button onClick={resetGame}
+                        className="mt-3 w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-xl transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3">
+                    🔄 换一题
+                    <span>🌟</span>
+                </button>
+                <p className="text-xs text-center text-purple-700 mt-2 bg-white/50 rounded-full px-2 py-1">
+                    💡 玩法：把右侧数字卡片拖到对应星期格子，配对正确后折线图就会出现点和线，观察销量变化趋势！
+                </p>
+            </div>
+        );
+    };
+    
+    // 左侧知识点组件
+    const KnowledgePanel = () => {
+        return (
+            <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                <div className="flex items-center gap-2 mb-4 border-b-4 border-lavender-deep pb-2">
+                    <span className="text-4xl">📈</span>
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">折线统计图小课堂</h2>
+                </div>
+                <div className="space-y-4 text-lg md:text-xl leading-relaxed text-gray-800">
+                    <div className="bg-purple-50 p-3 rounded-xl">
+                        <p className="font-black text-purple-900">🔍 什么是折线统计图？</p>
+                        <p>由<span className="bg-yellow-200 px-1 rounded">点、线段、坐标轴</span>组成，用折线的起伏表示数据<span className="font-bold">变化趋势</span>：上升、下降或平稳。</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                        <p className="font-black text-purple-900">📌 与条形统计图的区别：</p>
+                        <ul className="list-disc pl-5 space-y-1 text-base md:text-xl">
+                            <li><strong>条形图</strong>：对比数量的多少（直条高低）</li>
+                            <li><strong>折线图</strong>：反映数据增减变化、发展趋势（连线起伏）</li>
+                        </ul>
+                    </div>
+                    <div className="bg-indigo-50 p-3 rounded-xl">
+                        <p className="font-black">✏️ 绘制步骤：</p>
+                        <p>1️⃣ 画横轴、纵轴，标刻度 → 2️⃣ 描点（根据数据）→ 3️⃣ 用线段顺次连接 → 4️⃣ 标数据、写标题。</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 shadow-inner">
+                        <p className="font-black">📖 生活实例：</p>
+                        <p>气温变化🌡️、身高增长📏、销量波动🛒、水位变化💧——折线图帮我们看清“怎么变”！</p>
+                    </div>
+                    <div className="text-sm md:text-base text-purple-800 bg-lavender-soft/50 p-2 rounded-lg">
+                        💡 折线统计图的优势：一眼看出上升/下降趋势，还能预测未来走向！
+                    </div>
+                </div>
+                <div className="mt-4 text-center text-purple-500 text-xs md:text-sm">
+                    🎮 右侧游戏：将数字卡片拖到对应星期，折线图会一步步呈现，并分析销量变化趋势！
+                </div>
+            </div>
+        );
+    };
+    
+    // 主应用
+    const App = () => {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center">
+                <div className="w-full max-w-6xl mb-4 text-center">
+                    <h1 className="text-5xl md:text-7xl font-extrabold text-white drop-shadow-lg bg-purple-800/30 inline-block px-6 py-2 rounded-full backdrop-blur-sm">
+                        🧸 折线统计图探险岛 📉📈
+                    </h1>
+                    <p className="text-white/90 text-xl md:text-2xl mt-2 font-semibold">学习趋势·拖拽配对·观察变化</p>
+                </div>
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="lg:w-1/2">
+                        <KnowledgePanel />
+                    </div>
+                    <div className="lg:w-1/2">
+                        <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 mb-3 flex items-center gap-2">
+                                🎮 小小数据分析师 <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对游戏</span>
+                            </h3>
+                            <LineGame />
+                        </div>
+                    </div>
+                </div>
+                <footer className="mt-6 text-center text-purple-800 text-sm md:text-base bg-white/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                    🌟 把数字卡片拖到对应星期格子里，折线图自动描点连线！全部配对后看趋势总结 🌟
+                </footer>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

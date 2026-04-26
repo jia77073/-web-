@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>数轴上的负数 · 拖拽大冒险 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大5号（极大），淡紫色主题背景 */
+    body {
+      font-size: 2.2rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    /* 数轴容器样式 */
+    .number-line {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fef9e6;
+      border-radius: 3rem;
+      padding: 1rem 1.5rem;
+      box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+    }
+    .point {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 5rem;
+    }
+    .point-label {
+      font-weight: bold;
+      font-size: 1.6rem;
+      background: #e9d4f5;
+      padding: 0.3rem 0.6rem;
+      border-radius: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .drop-zone {
+      width: 4rem;
+      height: 4rem;
+      background-color: #faf5ff;
+      border: 3px dashed #b87cd6;
+      border-radius: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #4a2670;
+      transition: all 0.2s;
+    }
+    .drop-zone.drag-over {
+      background-color: #f3e0ff;
+      border-color: #9b6bc0;
+      transform: scale(1.05);
+    }
+    .drop-zone.filled {
+      background-color: #c7f0c2;
+      border: 3px solid #2e7d32;
+      color: #1e5a1e;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+      background: linear-gradient(135deg, #f9a825, #f57c00);
+      color: white;
+      font-weight: bold;
+      border-radius: 2rem;
+      padding: 1rem 1.5rem;
+      text-align: center;
+      box-shadow: 0 0.3rem 0.6rem rgba(0,0,0,0.2);
+      font-size: 2rem;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.matched {
+      opacity: 0.5;
+      background: #9e9e9e;
+      cursor: default;
+      pointer-events: none;
+      text-decoration: line-through;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.4rem;
+      }
+      .point {
+        width: 3rem;
+      }
+      .drop-zone {
+        width: 2.8rem;
+        height: 2.8rem;
+        font-size: 1.2rem;
+      }
+      .drag-card {
+        font-size: 1.2rem;
+        padding: 0.5rem 1rem;
+      }
+      .point-label {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 直线上表示正数、0、负数 =======================
+  // 知识点：数轴是一条直线，有原点、正方向、单位长度。0是分界点，右边是正数，左边是负数。
+  
+  // ---------- 游戏数据：数轴上的点（从 -3 到 3）----------
+  const points = [
+    { value: -3, label: "-3", position: -3 },
+    { value: -2, label: "-2", position: -2 },
+    { value: -1, label: "-1", position: -1 },
+    { value: 0, label: "0", position: 0 },
+    { value: 1, label: "1", position: 1 },
+    { value: 2, label: "2", position: 2 },
+    { value: 3, label: "3", position: 3 }
+  ];
+  
+  // 右侧卡片数据（打乱顺序）
+  const getShuffledCards = () => {
+    const cardValues = [-3, -2, -1, 0, 1, 2, 3];
+    for (let i = cardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cardValues[i], cardValues[j]] = [cardValues[j], cardValues[i]];
+    }
+    return cardValues.map((val, idx) => ({
+      id: `card-${idx}`,
+      value: val,
+      matched: false
+    }));
+  };
+  
+  // 游戏组件：拖拽数字卡片到数轴对应的槽位
+  const NumberLineGame = () => {
+    const [cards, setCards] = React.useState(() => getShuffledCards());
+    // 槽位状态：记录每个点的放置值（null表示未放置）
+    const [slots, setSlots] = React.useState(() => {
+      const init = {};
+      points.forEach(p => { init[p.value] = null; });
+      return init;
+    });
+    const [dragOverSlotValue, setDragOverSlotValue] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    const totalPoints = points.length;
+    const matchedCount = Object.values(slots).filter(v => v !== null).length;
+    
+    const checkWin = (currentSlots) => {
+      const allFilled = Object.values(currentSlots).every(v => v !== null);
+      if (allFilled && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有数字都找到了自己在数轴上的家！你已经是数轴小行家！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, cardValue) => {
+      const card = cards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardValue }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, pointValue) => {
+      e.preventDefault();
+      setDragOverSlotValue(pointValue);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotValue(null);
+    
+    const onDropToSlot = (e, pointValue) => {
+      e.preventDefault();
+      setDragOverSlotValue(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardValue } = dragData;
+      
+      const sourceCard = cards.find(c => c.id === cardId);
+      if (!sourceCard || sourceCard.matched) {
+        setFeedbackMsg("⏳ 这张卡片已经用过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      // 检查槽位是否已被填充
+      if (slots[pointValue] !== null) {
+        setFeedbackMsg("⚠️ 这个数轴位置已经有数字了！不能重复放置。");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      // 验证数字是否匹配该槽位的数值
+      if (cardValue === pointValue) {
+        // 配对成功
+        setCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setSlots(prev => ({ ...prev, [pointValue]: cardValue }));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${cardValue} 放在数轴 ${pointValue} 的位置，数轴上0的右边是正数，左边是负数。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newSlots = { ...slots, [pointValue]: cardValue };
+        checkWin(newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${cardValue} 应该放在数轴的 ${cardValue} 位置，而不是 ${pointValue}。再观察一下数轴的顺序～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      setCards(getShuffledCards());
+      const emptySlots = {};
+      points.forEach(p => { emptySlots[p.value] = null; });
+      setSlots(emptySlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把数字卡片拖拽到数轴正确的刻度上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-4">
+          <h3 className="text-2xl font-extrabold text-purple-800">📏 数轴指挥官 · 拖拽归位</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 正确 {matchedCount}/{totalPoints}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将右边的<strong>数字卡片</strong>拖拽到数轴上<strong>正确的位置</strong>（虚线框里）。全部放对就胜利啦！
+        </p>
+        
+        {/* 数轴区域 */}
+        <div className="bg-amber-50/80 rounded-2xl p-4 mb-5">
+          <div className="text-center font-bold text-purple-800 mb-2">🌡️ 数轴（从左到右越来越大的数字）</div>
+          <div className="number-line">
+            {points.map(point => (
+              <div key={point.value} className="point">
+                <div className="point-label">{point.label}</div>
+                <div 
+                  onDragOver={(e) => onDragOverSlot(e, point.value)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, point.value)}
+                  className={`drop-zone ${dragOverSlotValue === point.value ? 'drag-over' : ''} ${slots[point.value] !== null ? 'filled' : ''}`}
+                >
+                  {slots[point.value] !== null ? slots[point.value] : "?"}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between text-xs text-purple-600 mt-2 px-2">
+            <span>负数 ←</span>
+            <span>原点(0)</span>
+            <span>→ 正数</span>
+          </div>
+        </div>
+        
+        {/* 右侧数字卡片区 */}
+        <div className="bg-amber-50/60 rounded-2xl p-3">
+          <div className="font-bold text-amber-800 text-center mb-2">🎲 数字卡片 (拖拽我)</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {cards.map(card => (
+              <div 
+                key={card.id}
+                draggable={!card.matched}
+                onDragStart={(e) => onDragStart(e, card.id, card.value)}
+                onDragEnd={onDragEnd}
+                className={`drag-card ${card.matched ? 'matched' : ''}`}
+              >
+                {card.matched ? "✓ 已用" : card.value}
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-center text-amber-700 mt-2">💡 每个数字只能放一次，全部放对就能通关！</div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 太棒啦！你完全掌握了数轴上表示正数、0和负数！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 数轴小知识：0是正数和负数的分界点，0右边的数是正数，0左边的数是负数。数轴上的点越往右数越大。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：直线上表示正数、0、负数 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📈</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">直线上表示正数、0、负数</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是数轴？</p>
+            <p>在数学中，可以用一条<strong>直线</strong>上的点来表示数，这条直线叫做<strong className="bg-purple-200 px-1 rounded">数轴</strong>。</p>
+            <p>数轴三要素：<strong>原点、正方向、单位长度</strong>。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 正数、0、负数的位置</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong className="text-green-700">正数</strong>都在0的<strong>右边</strong>，数字越大离0越远。</li>
+              <li><strong className="text-red-600">负数</strong>都在0的<strong>左边</strong>，数字越小（负得越多）离0越远。</li>
+              <li><strong className="text-blue-700">0</strong>是正数和负数的分界点，它既不是正数也不是负数。</li>
+            </ul>
+            <div className="mt-3 bg-amber-50 p-2 rounded-lg text-center font-mono text-sm">
+              例如：-3, -2, -1, 0, 1, 2, 3 在数轴上从左到右排列。
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 数轴比较大小</p>
+            <p>数轴上，右边的数总比左边的数<strong>大</strong>。所以负数 &lt; 0 &lt; 正数。</p>
+            <p className="text-sm mt-1">🌰 -2 比 -1 小，因为 -2 在 -1 的左边。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>在数轴上，-5 在 0 的（ ）边； 3 在 0 的（ ）边； 负数都比0（ ）。</p>
+            <p className="text-sm text-purple-700">（答案：左，右，小）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“数轴一条线，0在正中间；左边负数站，右边正数连；越右数越大，方向记心间。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：比大小 & 位置（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ text: "-5 和 -2，谁大？", answer: "-2" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { text: "-5 和 -2，谁大？", answer: "-2" },
+      { text: "0 和 -3，谁大？", answer: "0" },
+      { text: "4 和 -1，谁大？", answer: "4" },
+      { text: "-7 在 0 的左边还是右边？", answer: "左边" },
+      { text: "正数都在 0 的哪一边？", answer: "右边" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const normalized = userAnswer.trim().toLowerCase();
+      const correct = question.answer.toLowerCase();
+      if (normalized === correct) {
+        setFeedback("✅ 完全正确！数轴的位置和大小关系掌握很棒！");
+      } else {
+        setFeedback(`❌ 不对哦，正确答案是 ${question.answer}。再观察一下数轴：右边数更大，负数在左边。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 数轴小侦探</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="text" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-purple-300 rounded-lg px-3 py-1 w-36 text-center"
+              placeholder="输入答案"
+            />
+            <button onClick={checkAnswer} className="bg-purple-400 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 数轴是数学中非常重要的工具，它帮我们直观理解数的大小和顺序。学会了数轴，负数就不再神秘啦！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <NumberLineGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

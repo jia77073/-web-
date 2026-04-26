@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>两位数乘两位数 | 不进位笔算 · 数学小英雄</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升拖拽手感 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #FDF8F0;  /* 奶油底 */
+            font-family: 'Segoe UI', 'Fredoka One', 'Comic Neue', 'Poppins', system-ui, -apple-system, 'Nunito', 'Quicksand', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主卡片容器 */
+        .math-lab {
+            max-width: 1300px;
+            width: 100%;
+            background: #FFF9EF;
+            border-radius: 56px;
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右布局 */
+        .two-columns {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区域 */
+        .knowledge {
+            flex: 1.2;
+            min-width: 240px;
+            background: #FFFDF7;
+            padding: 28px 24px;
+            border-right: 2px solid #FFE6CC;
+        }
+
+        /* 右侧游戏区 */
+        .game-zone {
+            flex: 1.8;
+            min-width: 280px;
+            padding: 28px 24px;
+            background: #FFF9EF;
+        }
+
+        /* 响应式：手机竖屏时上下排列 */
+        @media (max-width: 780px) {
+            .two-columns {
+                flex-direction: column;
+            }
+            .knowledge {
+                border-right: none;
+                border-bottom: 2px solid #FFE6CC;
+            }
+            body {
+                padding: 12px;
+            }
+            .math-lab {
+                border-radius: 40px;
+            }
+        }
+
+        /* ========= 左侧样式 温暖复古 ========= */
+        .knowledge h2 {
+            font-size: 1.8rem;
+            color: #D48C4A;
+            letter-spacing: -0.3px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .knowledge h2 span {
+            background: #FFE1B9;
+            padding: 4px 12px;
+            border-radius: 60px;
+            font-size: 1rem;
+            font-weight: normal;
+            color: #B4622A;
+        }
+        .rule-box {
+            background: #FFF2E2;
+            border-radius: 32px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02), 0 6px 12px -6px rgba(0,0,0,0.05);
+        }
+        .step {
+            display: flex;
+            gap: 14px;
+            margin: 18px 0;
+            align-items: flex-start;
+        }
+        .step-num {
+            background: #FADB9F;
+            width: 32px;
+            height: 32px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #9B5E2C;
+            flex-shrink: 0;
+        }
+        .step p {
+            font-size: 1rem;
+            line-height: 1.45;
+            color: #6B3E1C;
+        }
+        .example-vertical {
+            background: #FFF6EA;
+            border-radius: 28px;
+            padding: 16px 20px;
+            font-family: 'Courier New', 'JetBrains Mono', monospace;
+            font-size: 1.3rem;
+            text-align: center;
+            margin-top: 15px;
+            border: 1px solid #FFE0B5;
+            color: #A9591C;
+        }
+        .example-vertical div {
+            display: inline-block;
+            text-align: right;
+        }
+        .tiny-note {
+            font-size: 0.85rem;
+            color: #BA8B5A;
+            margin-top: 16px;
+            background: #FFF1E0;
+            padding: 10px 14px;
+            border-radius: 28px;
+        }
+
+        /* ========= 右侧游戏区 ========= */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            gap: 12px;
+        }
+        .score-board {
+            background: #FFE8D4;
+            padding: 8px 20px;
+            border-radius: 60px;
+            font-weight: bold;
+            color: #CA7A3A;
+            font-size: 1.3rem;
+        }
+        .score-board span {
+            font-size: 1.9rem;
+            margin-right: 6px;
+            color: #E5933E;
+        }
+        .refresh-btn {
+            background: #FFF0E0;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #B96F2D;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .refresh-btn:active {
+            transform: scale(0.96);
+            background: #FFE2C6;
+        }
+
+        /* 题目大卡片 */
+        .question-card {
+            background: #FFF6ED;
+            border-radius: 48px;
+            padding: 28px 16px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 12px 22px -12px rgba(0,0,0,0.08);
+            border: 1px solid #FFE2C2;
+        }
+        .big-equation {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #BF6F2C;
+            letter-spacing: 4px;
+            word-break: break-word;
+        }
+        .big-equation span {
+            background: #FFE9D4;
+            padding: 0 8px;
+            border-radius: 30px;
+        }
+
+        /* 拖拽放置区 目标篮筐 */
+        .drop-zone {
+            background: #FFF2E4;
+            border-radius: 48px;
+            padding: 22px 12px;
+            margin: 20px 0;
+            text-align: center;
+            border: 3px dashed #F7CFA4;
+            transition: all 0.15s;
+            box-shadow: inset 0 1px 4px #FDE7D2, 0 6px 0 #EAD0B0;
+        }
+        .drop-zone p {
+            font-size: 1rem;
+            color: #C58246;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+        .drop-target-icon {
+            background: #FFE0BE;
+            width: 70px;
+            height: 70px;
+            border-radius: 70px;
+            margin: 0 auto 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+        .drop-label {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #AB6B34;
+        }
+
+        /* 可拖拽卡片容器 */
+        .drag-items {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 22px;
+            margin: 28px 0 20px;
+        }
+        .drag-card {
+            background: #FFF2E6;
+            width: 120px;
+            padding: 20px 0;
+            text-align: center;
+            border-radius: 36px;
+            font-size: 1.9rem;
+            font-weight: bold;
+            color: #D1843A;
+            box-shadow: 0 12px 0 #EACBA8;
+            cursor: grab;
+            transition: 0.08s linear;
+            border: 1px solid #FFDEBB;
+            backdrop-filter: blur(2px);
+            touch-action: manipulation;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+            transform: translateY(2px);
+            box-shadow: 0 6px 0 #EACBA8;
+        }
+        /* 移动端辅助提示 */
+        .drag-hint {
+            background: #FFEFE2;
+            border-radius: 32px;
+            padding: 8px 16px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #BA7A40;
+            margin-top: 8px;
+            display: inline-block;
+            width: auto;
+        }
+        .feedback {
+            font-size: 1rem;
+            margin: 10px auto;
+            text-align: center;
+            font-weight: 500;
+            min-height: 60px;
+            padding: 8px;
+            color: #AA6733;
+        }
+        button {
+            font-family: inherit;
+            background: none;
+            border: none;
+        }
+        /* 小装饰 */
+        .cute-icon {
+            font-size: 1.2rem;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .attribution {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #E5C8A8;
+            margin-top: 18px;
+        }
+    </style>
+</head>
+<body>
+<div class="math-lab">
+    <div class="two-columns">
+        <!-- 左侧：知识点讲解 -->
+        <div class="knowledge">
+            <h2>📐 两位数 × 两位数 <span>不进位笔算</span></h2>
+            <div class="rule-box">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <p><strong>拆分相乘</strong> · 先用第二个因数的个位去乘第一个因数，积的末位对齐个位。</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <p><strong>十位相乘</strong> · 再用第二个因数的十位去乘第一个因数，积的末位对齐十位。</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <p><strong>结果相加</strong> · 把两个部分积加起来就是最终答案 ✨ 注意“不进位”是指每位乘积都不满十，相加时也无需进位。</p>
+                </div>
+            </div>
+            <div class="example-vertical">
+                🌰 例子：23 × 12<br>
+                <div style="font-family: monospace; font-size:1.2rem;">
+                    23<br>
+                  × 12<br>
+                  ————<br>
+                    46   (23×2)<br>
+                   23    (23×10)<br>
+                  ————<br>
+                   276
+                </div>
+                <div class="tiny-note">
+                    💡 2×2=4, 2×3=6, 1×2=2, 1×3=3 → 部分积 46 + 230 = 276，没有进位！
+                </div>
+            </div>
+            <div class="tiny-note">
+                🧸 小技巧：先算个位乘，再算十位乘，最后加起来～ 试试右边的游戏吧！
+            </div>
+        </div>
+
+        <!-- 右侧：拖拽游戏区 -->
+        <div class="game-zone">
+            <div class="game-header">
+                <div class="score-board">
+                    🏆 得分 <span id="scoreValue">0</span>
+                </div>
+                <button class="refresh-btn" id="newGameBtn">🔄 新的一局</button>
+            </div>
+            <!-- 当前题目显示 -->
+            <div class="question-card">
+                <div class="big-equation">
+                    <span id="factor1">23</span>  ×  <span id="factor2">12</span>  =  ❓
+                </div>
+            </div>
+            <!-- 拖拽放置区（答题区） -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-target-icon">📦</div>
+                <p class="drop-label">✨ 把正确数字拖到这里 ✨</p>
+                <p style="font-size: 0.8rem;">👇 按住卡片并拖拽至此区域</p>
+            </div>
+            <!-- 可拖拽答案卡片列表 -->
+            <div class="drag-items" id="dragItemsContainer">
+                <!-- 动态生成三个可拖拽卡片 -->
+            </div>
+            <div class="feedback" id="feedbackMsg">
+                🧸 拖拽一个答案到上方篮筐里～
+            </div>
+            <div class="drag-hint">
+                💡 长按或鼠标按住数字卡片，拖拽到“✨拖到这里”区域松开即可！
+            </div>
+            <div class="attribution">
+                🌟 两位数乘两位数·不进位特训
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 游戏核心 ----------
+    // 两位数乘两位数不进位条件判定
+    // 条件：十位×十位 <10, 十位×个位<10, 个位×十位<10, 个位×个位<10，且交叉积之和(十位×个位 + 个位×十位) <10（保证十位相加不进位）
+    function isValidNoCarry(a, b) {
+        let t1 = Math.floor(a / 10);
+        let u1 = a % 10;
+        let t2 = Math.floor(b / 10);
+        let u2 = b % 10;
+        // 防止数字含0? 0不影响但允许，但注意个位十位范围1-9也可以有0，但为了典型题目，十位不为0即可
+        if (t1 === 0 || t2 === 0) return false; // 两位数十位不能为0
+        // 每一位乘积小于10
+        if (t1 * t2 >= 10) return false;
+        if (t1 * u2 >= 10) return false;
+        if (u1 * t2 >= 10) return false;
+        if (u1 * u2 >= 10) return false;
+        // 交叉积之和（十位相乘的进位影响？实际部分积相加时十位上的和 = t1*u2 + u1*t2，必须小于10才不进位到百位）
+        let crossSum = t1 * u2 + u1 * t2;
+        if (crossSum >= 10) return false;
+        return true;
+    }
+
+    // 生成满足不进位的随机两位数对 (10~49 范围较安全，因乘积限制)
+    function generateNoCarryPair() {
+        let maxAttempts = 60;
+        for (let i = 0; i < maxAttempts; i++) {
+            let a = Math.floor(Math.random() * 40) + 11; // 11~50
+            let b = Math.floor(Math.random() * 40) + 11;
+            // 确保十位不为0，且符合不进位条件
+            if (isValidNoCarry(a, b)) {
+                return [a, b];
+            }
+        }
+        // 保底经典题目
+        return [23, 12];
+    }
+
+    // 计算正确积
+    function computeProduct(a, b) {
+        return a * b;
+    }
+
+    // 生成两个合理的干扰项（不等于正确结果，且正数，看起来像是附近值）
+    function generateDistractors(correct, factorA, factorB) {
+        let distractors = new Set();
+        distractors.add(correct);
+        let delta = [2, 3, 4, 5, 6, 7, 8, 9, 10, -2, -3, -4, -5];
+        // 基于正确结果微调,并保证是正数且不要与正确答案重复，并且不太离谱
+        while (distractors.size < 3) {
+            let offset = delta[Math.floor(Math.random() * delta.length)];
+            let candidate = correct + offset;
+            if (candidate > 0 && candidate !== correct && candidate >= 10 && candidate < 3000) {
+                // 避免干扰项恰好等于其他合法类似，也避免负数
+                distractors.add(candidate);
+            } else {
+                // 再随机一点备选
+                let extra = correct + (Math.floor(Math.random() * 15) - 7);
+                if (extra > 0 && extra !== correct) distractors.add(extra);
+            }
+            if (distractors.size > 5) break;
+        }
+        let result = Array.from(distractors).filter(v => v !== correct).slice(0, 2);
+        result.push(correct);
+        // 打乱顺序
+        for (let i = result.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [result[i], result[j]] = [result[j], result[i]];
+        }
+        return result;
+    }
+
+    // 全局游戏状态
+    let currentFactor1 = 23, currentFactor2 = 12;
+    let currentProduct = 276;
+    let currentOptions = [276, 266, 286]; // 占位
+    let score = 0;
+    let lockDrop = false;       // 防止正确后短时间内重复判定
+    let waitingUpdate = false;
+
+    // DOM 元素
+    const factor1Span = document.getElementById('factor1');
+    const factor2Span = document.getElementById('factor2');
+    const dragContainer = document.getElementById('dragItemsContainer');
+    const dropZone = document.getElementById('dropZone');
+    const feedbackDiv = document.getElementById('feedbackMsg');
+    const scoreSpan = document.getElementById('scoreValue');
+
+    // 显示反馈消息 (临时)
+    function showMessage(msg, isError = false) {
+        feedbackDiv.innerHTML = isError ? `❌ ${msg}` : `🎉 ${msg}`;
+        feedbackDiv.style.opacity = '1';
+        if (!isError) {
+            setTimeout(() => {
+                if (feedbackDiv.innerHTML.includes('🎉')) {
+                    feedbackDiv.innerHTML = '🧸 继续挑战！拖拽新题目的答案吧～';
+                }
+            }, 1500);
+        } else {
+            setTimeout(() => {
+                if (feedbackDiv.innerHTML.includes('❌')) {
+                    feedbackDiv.innerHTML = '🧸 再试试看，拖拽正确的数字吧！';
+                }
+            }, 1200);
+        }
+    }
+
+    // 刷新游戏区 (题目、选项、重置拖拽)
+    function refreshGame(resetScoreFlag = false) {
+        if (resetScoreFlag) {
+            score = 0;
+            updateScoreUI();
+        }
+        // 生成新题目 (不进位)
+        const [f1, f2] = generateNoCarryPair();
+        currentFactor1 = f1;
+        currentFactor2 = f2;
+        currentProduct = computeProduct(currentFactor1, currentFactor2);
+        // 生成选项 (正确 + 2个干扰)
+        const optionsArray = generateDistractors(currentProduct, currentFactor1, currentFactor2);
+        currentOptions = optionsArray;
+
+        // 更新UI 题目显示
+        factor1Span.innerText = currentFactor1;
+        factor2Span.innerText = currentFactor2;
+        // 重新绘制可拖拽卡片
+        renderDragCards(currentOptions);
+        // 清空锁定标识
+        lockDrop = false;
+        waitingUpdate = false;
+        // 重置提示（温和）
+        feedbackDiv.innerHTML = '🌟 新题目！把正确答案拖到篮筐里～';
+        // 给放置区恢复样式
+        dropZone.style.background = "#FFF2E4";
+        dropZone.style.borderColor = "#F7CFA4";
+    }
+
+    // 更新得分显示
+    function updateScoreUI() {
+        scoreSpan.innerText = score;
+    }
+
+    // 正确反应：加分 + 刷新题目（新的一题）
+    function handleCorrect() {
+        if (lockDrop) return;
+        lockDrop = true;
+        // 加分
+        score++;
+        updateScoreUI();
+        showMessage(`答对了！ +1分 (${currentFactor1}×${currentFactor2}=${currentProduct})`, false);
+        // 刷新题目（保持得分，不清零）
+        // 重新生成题目与选项
+        const [f1, f2] = generateNoCarryPair();
+        currentFactor1 = f1;
+        currentFactor2 = f2;
+        currentProduct = computeProduct(currentFactor1, currentFactor2);
+        const newOptions = generateDistractors(currentProduct, currentFactor1, currentFactor2);
+        currentOptions = newOptions;
+        // 更新UI题目
+        factor1Span.innerText = currentFactor1;
+        factor2Span.innerText = currentFactor2;
+        renderDragCards(currentOptions);
+        // 解锁延迟，避免连点，且重置放置区视觉
+        setTimeout(() => {
+            lockDrop = false;
+        }, 300);
+        // 额外高亮一下放置区
+        dropZone.style.background = "#FFF9E8";
+        setTimeout(() => {
+            dropZone.style.background = "#FFF2E4";
+        }, 200);
+    }
+
+    // 错误处理
+    function handleIncorrect(draggedVal) {
+        if (lockDrop) return;
+        showMessage(`不对哦，${draggedVal} 不是正确答案，再观察一下竖式～`, true);
+        // 错误抖动效果（轻微）
+        dropZone.style.transform = "translateX(3px)";
+        setTimeout(() => { dropZone.style.transform = ""; }, 150);
+        dropZone.style.background = "#FFEFE2";
+        setTimeout(() => { dropZone.style.background = "#FFF2E4"; }, 300);
+    }
+
+    // 渲染可拖拽卡片，并绑定 drag 事件
+    function renderDragCards(options) {
+        dragContainer.innerHTML = '';
+        options.forEach(optVal => {
+            const card = document.createElement('div');
+            card.className = 'drag-card';
+            card.setAttribute('draggable', 'true');
+            card.setAttribute('data-value', optVal);
+            card.innerText = optVal;
+            // 为了让触摸屏更好的视觉，添加touch样式，但利用原生dragdrop需设置dragstart
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+            // 移动端辅助：避免拖动时默认选中文案
+            card.ondragstart = (e) => {
+                e.dataTransfer.setData('text/plain', optVal);
+                e.dataTransfer.effectAllowed = 'copy';
+                card.style.opacity = '0.6';
+            };
+            card.ondragend = (e) => {
+                card.style.opacity = '1';
+            };
+            dragContainer.appendChild(card);
+        });
+        // 重新绑定dragstart确保每个卡片都可以 (已在上方绑定)
+    }
+
+    // 单独定义dragstart处理
+    function handleDragStart(e) {
+        const val = e.target.getAttribute('data-value');
+        if (val !== null) {
+            e.dataTransfer.setData('text/plain', val);
+            e.dataTransfer.effectAllowed = 'copy';
+        }
+        e.target.style.opacity = '0.6';
+    }
+    function handleDragEnd(e) {
+        e.target.style.opacity = '1';
+    }
+
+    // 放置区监听
+    function setupDropZone() {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();  // 必须，允许放置
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (lockDrop) {
+                showMessage("别着急，题目马上更新～", false);
+                return;
+            }
+            let draggedValue = e.dataTransfer.getData('text/plain');
+            if (!draggedValue) return;
+            const numDragged = parseInt(draggedValue, 10);
+            if (isNaN(numDragged)) return;
+
+            // 比对当前题目正确结果
+            if (numDragged === currentProduct) {
+                // 正确！
+                handleCorrect();
+            } else {
+                handleIncorrect(numDragged);
+            }
+            // 清除数据，防止重复
+            e.dataTransfer.clearData();
+        });
+        // 额外确保防止页面默认行为
+        document.body.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+        document.body.addEventListener('drop', (e) => {
+            e.preventDefault();
+        });
+    }
+
+    // 新游戏按钮（重置分数，全新题目）
+    function resetFullGame() {
+        score = 0;
+        updateScoreUI();
+        // 重新生成全新题目
+        const [f1, f2] = generateNoCarryPair();
+        currentFactor1 = f1;
+        currentFactor2 = f2;
+        currentProduct = computeProduct(currentFactor1, currentFactor2);
+        const newOpts = generateDistractors(currentProduct, currentFactor1, currentFactor2);
+        currentOptions = newOpts;
+        factor1Span.innerText = currentFactor1;
+        factor2Span.innerText = currentFactor2;
+        renderDragCards(currentOptions);
+        lockDrop = false;
+        waitingUpdate = false;
+        feedbackDiv.innerHTML = '✨ 新的一局！继续挑战两位数乘法 ✨';
+        dropZone.style.background = "#FFF2E4";
+    }
+
+    // 初始化以及绑定按钮事件
+    function initGame() {
+        // 生成第一组合规题目
+        const [f1, f2] = generateNoCarryPair();
+        currentFactor1 = f1;
+        currentFactor2 = f2;
+        currentProduct = computeProduct(currentFactor1, currentFactor2);
+        currentOptions = generateDistractors(currentProduct, currentFactor1, currentFactor2);
+        factor1Span.innerText = currentFactor1;
+        factor2Span.innerText = currentFactor2;
+        renderDragCards(currentOptions);
+        setupDropZone();
+        score = 0;
+        updateScoreUI();
+        // 新游戏按钮
+        const newBtn = document.getElementById('newGameBtn');
+        newBtn.addEventListener('click', () => {
+            resetFullGame();
+        });
+        // 移动端提示优化：避免拖动时页面滚动干扰 (touch-action 已经在卡片上做)
+        // 额外预防拖拽时浏览器默认打开链接
+        window.addEventListener('dragstart', (e) => {
+            if (!e.target.closest('.drag-card')) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // 启动游戏
+    initGame();
+</script>
+</body>
+</html>

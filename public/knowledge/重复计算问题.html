@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>重叠小英雄 | 数学思维拓展：包含与排除</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- 自定义样式调整 -->
+    <style>
+        /* 拖拽时的透明效果 */
+        .dragging-card {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        /* 简单的自定义滚动条 */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #b794f4;
+            border-radius: 10px;
+        }
+        /* 确保移动端拖拽不太卡顿 (drag 兼容优化) */
+        [draggable=true] {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        /* 放置区域高亮效果 */
+        .drop-zone-active {
+            transition: all 0.1s ease;
+            box-shadow: 0 0 0 3px #c084fc, 0 0 0 6px rgba(192,132,252,0.3);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-purple-100 min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root"></div>
+
+<script type="text/babel">
+    // 主组件 —— 重叠计数·思维拓展课程
+    const { useState, useCallback, useRef, useEffect } = React;
+
+    // 生成随机题目 (保证重叠数合理)
+    const generateRandomProblem = () => {
+        // 美术组人数 (8~28)
+        const artTotal = Math.floor(Math.random() * 21) + 10; // 10~30
+        // 音乐组人数 (8~28)
+        const musicTotal = Math.floor(Math.random() * 21) + 10;
+        // 重叠部分 <= min(artTotal, musicTotal) 且 >=0
+        const maxBoth = Math.min(artTotal, musicTotal);
+        // 至少保证重叠数不小于0，上限为最小值的 80% 左右让题目灵活
+        const both = maxBoth > 0 ? Math.floor(Math.random() * (maxBoth + 1)) : 0;
+        // 边缘控制：避免出现负数人数
+        return { artTotal, musicTotal, both };
+    };
+
+    // 根据题目生成卡片数组 (每个卡片代表一个“同学”/“元素”)
+    // 为了增加趣味性，卡片本身有独立的 id 和 原始“正确归属” (仅用于后台验证，不直接展示给玩家)
+    // 但游戏目标是根据题目计算出三个区域应该有多少人，然后通过拖拽使各区域人数匹配公式:
+    // onlyArt = artTotal - both, onlyMusic = musicTotal - both, bothCount = both
+    // 教师或者小朋友通过拖拽卡片达到区域人数正确 → 胜利！
+    const generateCardsFromProblem = (artTotal, musicTotal, both) => {
+        const onlyArtCount = artTotal - both;
+        const onlyMusicCount = musicTotal - both;
+        const bothCount = both;
+        const totalCards = onlyArtCount + onlyMusicCount + bothCount;
+        const cards = [];
+        let id = 0;
+        // 生成仅美术卡片 (正确分类 target: 'left')
+        for (let i = 0; i < onlyArtCount; i++) {
+            cards.push({ id: id++, target: 'left', region: 'unassigned', label: '🎨' });
+        }
+        // 生成仅音乐卡片 (正确分类 target: 'right')
+        for (let i = 0; i < onlyMusicCount; i++) {
+            cards.push({ id: id++, target: 'right', region: 'unassigned', label: '🎵' });
+        }
+        // 生成重叠卡片 (两者都喜欢) target: 'both'
+        for (let i = 0; i < bothCount; i++) {
+            cards.push({ id: id++, target: 'both', region: 'unassigned', label: '⭐' });
+        }
+        // 随机打乱卡片顺序，让游戏更有挑战
+        for (let i = cards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cards[i], cards[j]] = [cards[j], cards[i]];
+        }
+        return cards;
+    };
+
+    // 统计各区域人数 (根据 region 值)
+    const countRegions = (cards) => {
+        let leftCount = 0;   // 仅美术
+        let rightCount = 0;  // 仅音乐
+        let bothCount = 0;   // 重叠区域
+        let unassigned = 0;
+        cards.forEach(card => {
+            if (card.region === 'left') leftCount++;
+            else if (card.region === 'right') rightCount++;
+            else if (card.region === 'both') bothCount++;
+            else unassigned++;
+        });
+        return { leftCount, rightCount, bothCount, unassigned };
+    };
+
+    // 游戏主组件
+    const MathOverlapGame = () => {
+        // 题目数据
+        const [problem, setProblem] = useState({ artTotal: 18, musicTotal: 15, both: 7 });
+        // 卡片数组
+        const [cards, setCards] = useState(() => generateCardsFromProblem(18, 15, 7));
+        // 反馈消息
+        const [message, setMessage] = useState('');
+        const [isWin, setIsWin] = useState(false);
+        // 当前拖拽的卡片id
+        const dragCardIdRef = useRef(null);
+        // 存放各个拖拽区域DOM引用，用于高亮
+        const dropZonesRef = useRef({
+            left: null,
+            right: null,
+            both: null,
+            unassigned: null
+        });
+
+        // 根据现有problem重新生成卡片 (重置游戏)
+        const resetGameWithProblem = useCallback((newProblem) => {
+            const newCards = generateCardsFromProblem(newProblem.artTotal, newProblem.musicTotal, newProblem.both);
+            setCards(newCards);
+            setIsWin(false);
+            setMessage('');
+        }, []);
+
+        // 换一题 (随机生成新题，重置游戏状态)
+        const handleNewProblem = useCallback(() => {
+            const newProb = generateRandomProblem();
+            setProblem(newProb);
+            resetGameWithProblem(newProb);
+            setMessage('✨ 新题目来啦！快把同学拖拽到正确区域吧 ✨');
+            setIsWin(false);
+        }, [resetGameWithProblem]);
+
+        // 手动重置所有卡片到未分类区
+        const resetAllToUnassigned = useCallback(() => {
+            setCards(prevCards => prevCards.map(card => ({ ...card, region: 'unassigned' })));
+            setIsWin(false);
+            setMessage('🔄 卡片已全部放回等候区，重新挑战吧！');
+        }, []);
+
+        // 验证当前摆放是否正确 (对比各区域人数是否匹配公式)
+        const checkAnswer = useCallback(() => {
+            const { leftCount, rightCount, bothCount } = countRegions(cards);
+            const expectedLeft = problem.artTotal - problem.both;      // 仅美术期望
+            const expectedRight = problem.musicTotal - problem.both;    // 仅音乐期望
+            const expectedBoth = problem.both;                         // 重叠期望
+
+            if (leftCount === expectedLeft && rightCount === expectedRight && bothCount === expectedBoth) {
+                setIsWin(true);
+                setMessage('🎉 完全正确！你理解了重叠计数！太厉害了！ 🎉');
+            } else {
+                setIsWin(false);
+                setMessage(`❌ 再试试看！ 当前仅美术:${leftCount}/${expectedLeft}，仅音乐:${rightCount}/${expectedRight}，重叠:${bothCount}/${expectedBoth}。 记得减去重复部分哟！`);
+            }
+        }, [cards, problem]);
+
+        // 拖拽处理: 开始拖拽
+        const onDragStart = (e, cardId) => {
+            dragCardIdRef.current = cardId;
+            e.dataTransfer.setData('text/plain', cardId);
+            e.dataTransfer.effectAllowed = 'move';
+            // 改善拖拽体验
+            if (e.target && e.target.style) {
+                e.target.classList.add('dragging-card');
+            }
+        };
+        const onDragEnd = (e) => {
+            if (e.target && e.target.classList) {
+                e.target.classList.remove('dragging-card');
+            }
+            dragCardIdRef.current = null;
+            // 清除所有区域高亮
+            Object.values(dropZonesRef.current).forEach(zone => {
+                if (zone) zone.classList.remove('drop-zone-active');
+            });
+        };
+
+        // 拖拽经过区域时高亮、阻止默认
+        const onDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        };
+        const onDragEnter = (zoneKey) => {
+            const zone = dropZonesRef.current[zoneKey];
+            if (zone) zone.classList.add('drop-zone-active');
+        };
+        const onDragLeave = (zoneKey) => {
+            const zone = dropZonesRef.current[zoneKey];
+            if (zone) zone.classList.remove('drop-zone-active');
+        };
+
+        // 放置区域更新卡片 region
+        const onDrop = (e, targetRegion) => {
+            e.preventDefault();
+            // 消除高亮
+            Object.values(dropZonesRef.current).forEach(zone => {
+                if (zone) zone.classList.remove('drop-zone-active');
+            });
+            const cardId = dragCardIdRef.current;
+            if (cardId === null) return;
+            // 更新卡片归属区域
+            setCards(prevCards => {
+                const updated = prevCards.map(card => {
+                    if (card.id === cardId) {
+                        // 如果放置的目标区域和当前区域相同，不做任何改变
+                        if (card.region === targetRegion) return card;
+                        return { ...card, region: targetRegion };
+                    }
+                    return card;
+                });
+                return updated;
+            });
+            // 拖拽后清除消息胜利提示（新的移动可能需要重新验证胜利状态）
+            setIsWin(false);
+            setMessage('💪 继续分类，拖拽完成记得点击“核对答案”！');
+            dragCardIdRef.current = null;
+        };
+
+        // 获取各区域人数期望值
+        const expectedLeft = problem.artTotal - problem.both;
+        const expectedRight = problem.musicTotal - problem.both;
+        const expectedBoth = problem.both;
+        const currentCounts = countRegions(cards);
+
+        // 每个区域渲染卡片列表 (展示可拖拽卡片)
+        const renderCardList = (regionType, cardsInRegion, titleColor = "text-purple-800") => {
+            if (cardsInRegion.length === 0) {
+                return <div class="text-center text-gray-400 text-sm py-4">暂无卡片，从下方拖拽过来吧~</div>;
+            }
+            return (
+                <div class="flex flex-wrap gap-2 max-h-32 md:max-h-40 overflow-y-auto custom-scroll p-1">
+                    {cardsInRegion.map(card => (
+                        <div
+                            key={card.id}
+                            draggable={true}
+                            onDragStart={(e) => onDragStart(e, card.id)}
+                            onDragEnd={onDragEnd}
+                            class="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl shadow-md flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition transform hover:scale-105 border-2 border-purple-300"
+                        >
+                            <span class="text-2xl">{card.label}</span>
+                            <span class="text-[10px] font-bold text-gray-600">{card.id + 1}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // 获得某个区域的所有卡片
+        const getCardsByRegion = (region) => cards.filter(c => c.region === region);
+        const unassignedCards = getCardsByRegion('unassigned');
+        const leftCards = getCardsByRegion('left');
+        const rightCards = getCardsByRegion('right');
+        const bothCards = getCardsByRegion('both');
+
+        // 设置Drop区域Ref回调
+        const setDropRef = (key, element) => {
+            dropZonesRef.current[key] = element;
+        };
+
+        return (
+            <div class="max-w-7xl mx-auto">
+                {/* 主标题 */}
+                <div class="text-center mb-6">
+                    <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-800 to-fuchsia-700 drop-shadow-sm">
+                        🧸 重叠小英雄 · 容斥大冒险 🧩
+                    </h1>
+                    <p class="text-purple-700 font-medium mt-1 text-lg">包含与排除 · 重复部分不再怕！</p>
+                </div>
+
+                {/* 左右布局 响应式 移动端flex-col */}
+                <div class="flex flex-col lg:flex-row gap-6">
+                    {/* 左侧：知识点讲解 华丽卡片风格 */}
+                    <div class="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 border border-purple-200">
+                        <div class="flex items-center gap-2 mb-3 border-b-2 border-purple-300 pb-2">
+                            <span class="text-3xl">📖</span>
+                            <span class="text-2xl font-bold text-purple-900">核心知识点</span>
+                        </div>
+                        <div class="space-y-4 text-gray-800 text-base md:text-lg"> {/* 5号字体接近默认16px */}
+                            <div class="bg-purple-50 p-3 rounded-xl">
+                                <p class="font-bold text-purple-800 flex items-center gap-1">✨ 包含与排除原理（容斥原理）✨</p>
+                                <p class="mt-1 leading-relaxed">当两个事物有<strong class="text-purple-700">重叠部分</strong>时，直接相加会多算一次重复的，所以需要<strong class="text-fuchsia-700">减去重叠部分</strong>！</p>
+                            </div>
+                            <div class="bg-indigo-50 p-3 rounded-xl">
+                                <p class="font-bold">📌 公式记忆：</p>
+                                <p class="font-mono bg-white p-2 rounded-md mt-1 text-center shadow-inner">总人数 = A组 + B组 - 既A又B</p>
+                                <p class="text-sm mt-1 text-gray-600">即：|A∪B| = |A| + |B| - |A∩B|</p>
+                            </div>
+                            <div class="bg-fuchsia-50 p-3 rounded-xl">
+                                <p class="font-bold">🎯 重叠问题三区域：</p>
+                                <ul class="list-disc list-inside space-y-1 mt-1 ml-1">
+                                    <li>🔹 <span class="font-semibold">仅属于A</span> = A组人数 - 重叠人数</li>
+                                    <li>🔹 <span class="font-semibold">仅属于B</span> = B组人数 - 重叠人数</li>
+                                    <li>🔹 <span class="font-semibold">两者都属于</span> = 重叠人数</li>
+                                    <li>🔹 <span class="font-semibold">总人数</span> = 仅A + 仅B + 重叠</li>
+                                </ul>
+                            </div>
+                            <div class="bg-amber-50 p-3 rounded-xl">
+                                <p class="font-bold">💡 生活小例子：</p>
+                                <p>班级里喜欢画画18人，喜欢唱歌15人，其中7人既爱画画又爱唱歌，那么至少喜欢一种的人数 = 18+15-7 = 26人！</p>
+                                <p class="text-sm text-purple-600 mt-1">✅ 减去重复计数的7人，避免多算~</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center text-sm text-gray-500 italic">
+                            🌟 右边游戏请拖拽“同学卡片”到正确区域！完成✅核对答案
+                        </div>
+                    </div>
+
+                    {/* 右侧：拖拽互动游戏区 (重叠分类挑战) */}
+                    <div class="lg:w-3/5 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 border border-purple-300">
+                        {/* 当前题目卡片 */}
+                        <div class="bg-gradient-to-r from-purple-100 to-indigo-50 rounded-2xl p-4 mb-5 shadow-md">
+                            <div class="flex flex-wrap justify-between items-center gap-3">
+                                <div>
+                                    <span class="inline-block bg-purple-600 text-white text-sm px-3 py-1 rounded-full">📋 今日挑战</span>
+                                    <p class="text-xl font-bold mt-2 text-purple-900">
+                                        美术组 🎨 {problem.artTotal}人 &nbsp;|&nbsp; 音乐组 🎵 {problem.musicTotal}人
+                                    </p>
+                                    <p class="text-md text-purple-800 font-medium">✨ 重叠人数 (两个组都喜欢) : <span class="bg-yellow-200 px-2 rounded-full">{problem.both}</span> 人</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button 
+                                        onClick={handleNewProblem}
+                                        class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-5 rounded-full transition shadow-md flex items-center gap-1 text-sm md:text-base"
+                                    >
+                                        🔄 换一题
+                                    </button>
+                                    <button 
+                                        onClick={resetAllToUnassigned}
+                                        class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full transition shadow-md text-sm md:text-base"
+                                    >
+                                        🧹 重置卡片
+                                    </button>
+                                </div>
+                            </div>
+                            {/* 期望小提示 */}
+                            <div class="mt-3 text-sm bg-purple-50 p-2 rounded-lg grid grid-cols-3 gap-1 text-center">
+                                <div>🎯 仅美术组目标: <strong class="text-purple-700 text-lg">{expectedLeft}</strong> 人</div>
+                                <div>🎯 仅音乐组目标: <strong class="text-purple-700 text-lg">{expectedRight}</strong> 人</div>
+                                <div>⭐ 重叠区目标: <strong class="text-purple-700 text-lg">{expectedBoth}</strong> 人</div>
+                            </div>
+                        </div>
+
+                        {/* 当前分类区域 (韦恩图三区域) */}
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            {/* 左边：仅美术组区域 */}
+                            <div 
+                                ref={el => setDropRef('left', el)}
+                                onDragOver={onDragOver}
+                                onDragEnter={() => onDragEnter('left')}
+                                onDragLeave={() => onDragLeave('left')}
+                                onDrop={(e) => onDrop(e, 'left')}
+                                class="bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl p-3 shadow-inner border-2 border-red-300 min-h-[180px] flex flex-col"
+                            >
+                                <div class="flex justify-between items-center border-b border-red-200 pb-1">
+                                    <span class="font-bold text-red-700 text-lg">🎨 仅美术组</span>
+                                    <span class="bg-red-200 text-red-800 px-2 py-0.5 rounded-full text-sm font-bold">{currentCounts.leftCount} / {expectedLeft}</span>
+                                </div>
+                                <div class="flex-1 mt-2 overflow-y-auto custom-scroll">
+                                    {renderCardList('left', leftCards)}
+                                </div>
+                                <p class="text-[11px] text-gray-500 mt-1 text-center">拖拽卡片到这里 ➕</p>
+                            </div>
+
+                            {/* 中间：重叠区域 (两者都喜欢) */}
+                            <div 
+                                ref={el => setDropRef('both', el)}
+                                onDragOver={onDragOver}
+                                onDragEnter={() => onDragEnter('both')}
+                                onDragLeave={() => onDragLeave('both')}
+                                onDrop={(e) => onDrop(e, 'both')}
+                                class="bg-gradient-to-br from-purple-100 to-fuchsia-100 rounded-2xl p-3 shadow-inner border-2 border-purple-500 min-h-[180px] flex flex-col"
+                            >
+                                <div class="flex justify-between items-center border-b border-purple-300 pb-1">
+                                    <span class="font-bold text-purple-800 text-lg">⭐ 重叠区 (两者都喜欢)</span>
+                                    <span class="bg-purple-300 text-purple-900 px-2 py-0.5 rounded-full text-sm font-bold">{currentCounts.bothCount} / {expectedBoth}</span>
+                                </div>
+                                <div class="flex-1 mt-2 overflow-y-auto custom-scroll">
+                                    {renderCardList('both', bothCards)}
+                                </div>
+                                <p class="text-[11px] text-gray-500 mt-1 text-center">拖拽到这里~既美术又音乐</p>
+                            </div>
+
+                            {/* 右边：仅音乐组区域 */}
+                            <div 
+                                ref={el => setDropRef('right', el)}
+                                onDragOver={onDragOver}
+                                onDragEnter={() => onDragEnter('right')}
+                                onDragLeave={() => onDragLeave('right')}
+                                onDrop={(e) => onDrop(e, 'right')}
+                                class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-3 shadow-inner border-2 border-green-300 min-h-[180px] flex flex-col"
+                            >
+                                <div class="flex justify-between items-center border-b border-emerald-200 pb-1">
+                                    <span class="font-bold text-green-700 text-lg">🎵 仅音乐组</span>
+                                    <span class="bg-green-200 text-green-800 px-2 py-0.5 rounded-full text-sm font-bold">{currentCounts.rightCount} / {expectedRight}</span>
+                                </div>
+                                <div class="flex-1 mt-2 overflow-y-auto custom-scroll">
+                                    {renderCardList('right', rightCards)}
+                                </div>
+                                <p class="text-[11px] text-gray-500 mt-1 text-center">拖拽卡片到这里 ➕</p>
+                            </div>
+                        </div>
+
+                        {/* 未分类等候区 (起始所有卡片均在此) */}
+                        <div 
+                            ref={el => setDropRef('unassigned', el)}
+                            onDragOver={onDragOver}
+                            onDragEnter={() => onDragEnter('unassigned')}
+                            onDragLeave={() => onDragLeave('unassigned')}
+                            onDrop={(e) => onDrop(e, 'unassigned')}
+                            class="bg-gray-100 rounded-2xl p-4 border-2 border-dashed border-purple-400 mt-2 shadow-sm"
+                        >
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-bold text-gray-700 text-lg flex items-center gap-1"><span class="text-2xl">🏠</span> 等候区（未分类卡片）</span>
+                                <span class="bg-purple-200 text-purple-800 px-3 py-0.5 rounded-full text-sm">{currentCounts.unassigned} 张</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scroll p-1">
+                                {unassignedCards.length === 0 ? (
+                                    <div class="text-gray-400 w-full text-center py-3">✨ 所有同学都已分配到组啦！快核对答案 ✨</div>
+                                ) : (
+                                    unassignedCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable={true}
+                                            onDragStart={(e) => onDragStart(e, card.id)}
+                                            onDragEnd={onDragEnd}
+                                            class="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-slate-200 to-gray-300 rounded-xl shadow-md flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition hover:scale-105 border-2 border-gray-400"
+                                        >
+                                            <span class="text-2xl">{card.label}</span>
+                                            <span class="text-[10px] font-bold text-gray-600">{card.id + 1}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            <p class="text-xs text-center text-gray-500 mt-2">👉 把每位“同学”拖拽到上面的区域，组成正确的分组！</p>
+                        </div>
+
+                        {/* 操作&核对答案按钮 + 反馈消息 */}
+                        <div class="mt-6 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                            <button 
+                                onClick={checkAnswer}
+                                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105 text-lg flex items-center gap-2"
+                            >
+                                ✅ 核对答案 & 验证重叠计数
+                            </button>
+                            <div class={`text-center text-base font-medium px-4 py-2 rounded-full ${isWin ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-700'} shadow-inner max-w-sm`}>
+                                {message || '💡 把卡片拖拽到对应小组，再点击核对～'}
+                            </div>
+                        </div>
+                        <div class="text-xs text-gray-400 text-center mt-3">
+                            💡 小贴士：每个卡片都可拖拽移动，反复调整；目标让「各区域人数」等于上方的目标人数，就是运用“包含排除”正确计算的结果！
+                        </div>
+                    </div>
+                </div>
+
+                {/* 底部说明 */}
+                <div class="text-center text-purple-700 mt-6 text-sm opacity-80">
+                    🧸 游戏玩法：将右下角“等候区”的卡片拖拽至 【仅美术组】【仅音乐组】【重叠区】。最终使三个区域的人数和题目计算目标一致！核心就是<strong>减去重复部分，分类清晰</strong> ✨
+                </div>
+            </div>
+        );
+    };
+
+    // 渲染到root
+    ReactDOM.createRoot(document.getElementById("root")).render(<MathOverlapGame />);
+</script>
+</body>
+</html>

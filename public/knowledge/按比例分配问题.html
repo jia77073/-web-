@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>按比例分配·思维特训营 | 连比份数法 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽库 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        .sortable-drag {
+            opacity: 0.4;
+            background-color: #f3e8ff;
+            transform: scale(0.96);
+        }
+        .sortable-ghost {
+            opacity: 0.3;
+            background-color: #d8b4fe;
+        }
+        .slot-card {
+            transition: all 0.2s;
+        }
+        .slot-filled {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+        }
+        .number-card {
+            cursor: grab;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .number-card:active {
+            cursor: grabbing;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2rem !important;
+            }
+            .number-card {
+                font-size: 1rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
+        /* 绿色背景 + 紫色主题 */
+        body {
+            background: linear-gradient(145deg, #c8e6b5 0%, #a9d48e 100%);
+            font-family: 'Segoe UI', 'Comic Neue', system-ui, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 题库：按比例分配拓展应用题 (三项分配，连比，隐藏总量，逆向求部分) -----------------------------
+        // 每个题目包含: 题干描述, 三个项目名称, 比例数组(三元比例), 对应的分配数量数组(整数答案)
+        // 为了增加挑战，部分题目需要先求出一份量再计算，但答案均为整数。
+        const PROBLEMS = [
+            {
+                id: 1,
+                text: "🏢 某工厂将一批零件按3:5:8的比例分配给甲、乙、丙三个车间，已知丙车间比甲车间多150个，求三个车间各得多少个？",
+                items: ["甲车间", "乙车间", "丙车间"],
+                ratio: [3, 5, 8],
+                answers: [90, 150, 240],
+                hint: "份数差：8-3=5份对应150个，每份30个。甲=3×30=90，乙=5×30=150，丙=8×30=240。"
+            },
+            {
+                id: 2,
+                text: "🍬 水果糖、奶糖、巧克力糖按4:3:2混合成什锦糖，总质量为270千克，求每种糖各多少千克？",
+                items: ["水果糖", "奶糖", "巧克力糖"],
+                ratio: [4, 3, 2],
+                answers: [120, 90, 60],
+                hint: "总份数4+3+2=9份，每份270÷9=30千克，水果糖4×30=120，奶糖3×30=90，巧克力2×30=60。"
+            },
+            {
+                id: 3,
+                text: "📐 三角形三个内角度数比为2:3:5，这个三角形的三个角分别是多少度？",
+                items: ["∠A", "∠B", "∠C"],
+                ratio: [2, 3, 5],
+                answers: [36, 54, 90],
+                hint: "三角形内角和180°，总份数10，每份18°，三个角分别为36°、54°、90°。"
+            },
+            {
+                id: 4,
+                text: "💰 甲、乙、丙三人合租商铺，房租按面积分摊，面积比是5:4:3，甲付的租金比丙多400元，求三人各付多少租金？",
+                items: ["甲付租金", "乙付租金", "丙付租金"],
+                ratio: [5, 4, 3],
+                answers: [1000, 800, 600],
+                hint: "甲比丙多2份对应400元，每份200元，甲5×200=1000，乙4×200=800，丙3×200=600。"
+            },
+            {
+                id: 5,
+                text: "🏆 六年级三个班共捐款840元，其中一班与二班的比是4:5，二班与三班的比是3:2，求三个班各捐多少？",
+                items: ["一班", "二班", "三班"],
+                ratio: [12, 15, 10],
+                answers: [288, 360, 192],
+                hint: "连比：一班:二班=4:5=12:15，二班:三班=3:2=15:10，所以连比12:15:10，总份数37，每份840÷37≈22.7？不对，840÷37不是整数，调整数据：改为总捐888元，每份24元。但为了整数，原题可换为总捐888。重新预设：一班:二班=4:5=12:15，二班:三班=3:2=15:10 → 12:15:10，总数888元，每份888÷37=24，一班12×24=288，二班15×24=360，三班10×24=240？但三班240不对应192？调整，经典题一班:二班=4:5,二班:三班=3:2 → 连比12:15:10，总份37，一班:二班:三班=12:15:10。总数应该是888? 我们直接用比例设未知数也行，但是答案最好整数。本数据总份数12+15+10=37，若总数740，每份20，各班240,300,200。为了减少出错，我们采用一个简单且答案漂亮的题目：甲乙丙三个数比是4:5:6，它们的和是150，求各数？那太简单。使用经典：已知甲:乙=2:3，乙:丙=4:5，三数和为235，求各数。连比8:12:15，总份35，每份约6.7。不好。为了完美，我改用已知总量且份数总和可整除题目：故事书、科技书、文艺书本数比是3:4:5，共360本，各多少本？可以。替换第5题。"
+            }
+        ];
+        // 修正第五题为整除简单题
+        PROBLEMS[4] = {
+            id: 5,
+            text: "📚 图书馆故事书、科技书、文艺书的本数比为3:4:5，三种书一共有360本，求每种书各多少本？",
+            items: ["故事书", "科技书", "文艺书"],
+            ratio: [3, 4, 5],
+            answers: [90, 120, 150],
+            hint: "总份数3+4+5=12份，每份360÷12=30本，故事书3×30=90，科技书4×30=120，文艺书5×30=150。"
+        };
+        
+        // 再添加一个逆向分配+连比的经典拓展题，确保总题数5题以上
+        const EXTRA_PROBLEM = {
+            id: 6,
+            text: "🧪 配制一种混凝土，水泥、沙子、石子的比是2:3:5，现在沙子比水泥多120千克，求水泥、沙子、石子各多少千克？",
+            items: ["水泥", "沙子", "石子"],
+            ratio: [2, 3, 5],
+            answers: [240, 360, 600],
+            hint: "沙子比水泥多1份对应120千克，每份120千克，水泥2×120=240，沙子3×120=360，石子5×120=600。"
+        };
+        const ALL_PROBLEMS = [...PROBLEMS, EXTRA_PROBLEM];
+        
+        // ----------------------------- 左侧知识讲解组件 ------------------------------------
+        const KnowledgeBase = () => {
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">⚖️</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 main-title">按比例分配·思维特训营</h1>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200">
+                        <h2 className="text-2xl font-bold text-purple-800 flex items-center gap-2">🧠 核心秘籍 · 份数法 + 连比思维</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong className="text-purple-800">按比例分配</strong>：把一个总量按一定的比分成若干部分。核心方法——<span className="font-bold text-green-700">份数法</span>。</p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 份数法四步骤：</p>
+                                <p>① 求出总份数；② 求出一份量 = 总量 ÷ 总份数；③ 各部分量 = 一份量 × 对应份数；④ 验算。</p>
+                                <p className="text-sm mt-1">🔁 <strong>逆向分配</strong>：已知部分量或部分差 → 先求一份量，再求整体或其它部分。</p>
+                                <p className="text-sm">🔗 <strong>连比问题</strong>：利用中间量统一比例，转化为三项连比。</p>
+                            </div>
+                            <p>⚡ <strong className="text-purple-800">拓展题型</strong>：<br/>
+                            - 已知两个量的比和它们的和/差 → 求各量<br/>
+                            - 已知三个量的连比与总量 → 分配<br/>
+                            - 已知分配后的部分量，反求总量或另一个分量<br/>
+                            - 比例与分数、份数综合应用，工程/配比/几何等场景。</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">📖 解题锦囊·实战举例</h3>
+                        <div className="mt-2 space-y-2 text-gray-700 text-sm md:text-base">
+                            <p>🍎 <strong>例1</strong>：甲乙丙三数比2:3:5，和是200 → 总份10，每份20 → 甲40、乙60、丙100。</p>
+                            <p>🚗 <strong>例2</strong>：甲:乙=3:4，乙:丙=2:5，求甲:乙:丙 → 统一乙为4和2的最小公倍数4 → 甲:乙=3:4，乙:丙=4:10 → 连比3:4:10。</p>
+                            <p>🎯 <strong>逆向题</strong>：甲比乙少40，甲乙比3:5 → 差2份对应40 → 每份20 → 甲60、乙100。</p>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 右侧小游戏 → 将正确的数字卡片拖拽到对应物品的答案槽，成功分配比例！挑战连比与逆向思维。
+                    </div>
+                </div>
+            );
+        };
+        
+        // ----------------------------- 右侧拖拽配对游戏 (按比例分配，数字配对) ------------------------------------
+        const AllocationGame = () => {
+            // 当前题目
+            const [currentProblem, setCurrentProblem] = React.useState(ALL_PROBLEMS[0]);
+            // 题目相关的三个物品名称和答案
+            const [items, setItems] = React.useState(ALL_PROBLEMS[0].items);
+            const [answers, setAnswers] = React.useState(ALL_PROBLEMS[0].answers);
+            const [ratio, setRatio] = React.useState(ALL_PROBLEMS[0].ratio);
+            // 每个槽位已放置的数字值
+            const [slotValues, setSlotValues] = React.useState([null, null, null]);
+            // 配对正确标志
+            const [allCorrect, setAllCorrect] = React.useState(false);
+            // 反馈消息
+            const [feedback, setFeedback] = React.useState('');
+            // 刷新key重置Sortable
+            const [gameKey, setGameKey] = React.useState(0);
+            
+            // Refs: 三个答案槽的容器
+            const slotRefs = [React.useRef(null), React.useRef(null), React.useRef(null)];
+            // 数字卡片池容器
+            const cardPoolRef = React.useRef(null);
+            // Sortable实例
+            const sortablePool = React.useRef(null);
+            const sortableSlots = React.useRef([]);
+            
+            // 根据正确答案生成数字卡片池 (包含三个正确数字 + 若干干扰项)
+            const generateNumberCards = (correctAnswers) => {
+                let candidates = new Set();
+                // 添加正确答案
+                correctAnswers.forEach(ans => candidates.add(ans));
+                // 添加干扰：每个答案附近 ±1, ±2, ±3，以及一些随机数
+                correctAnswers.forEach(ans => {
+                    for (let offset = -4; offset <= 4; offset++) {
+                        if (offset === 0) continue;
+                        let cand = ans + offset;
+                        if (cand > 0 && cand < 500 && !candidates.has(cand)) candidates.add(cand);
+                    }
+                });
+                // 额外加一些特殊干扰
+                [5, 10, 20, 30, 50, 100, 150, 200].forEach(v => { if (!candidates.has(v) && v < 500) candidates.add(v); });
+                let cardNumbers = Array.from(candidates);
+                // 限制最多10张卡片
+                cardNumbers = cardNumbers.slice(0, 12);
+                // 随机打乱
+                for (let i = cardNumbers.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cardNumbers[i], cardNumbers[j]] = [cardNumbers[j], cardNumbers[i]];
+                }
+                return cardNumbers;
+            };
+            
+            // 重建UI：清空所有槽位和卡片池，重新生成卡片
+            const rebuildUI = () => {
+                // 清空所有槽位
+                for (let i = 0; i < 3; i++) {
+                    if (slotRefs[i].current) {
+                        slotRefs[i].current.innerHTML = '';
+                        // 添加槽位内部的占位提示
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'text-gray-400 text-sm italic text-center w-full py-2 pointer-events-none';
+                        placeholder.innerText = `✨ 拖拽 ${items[i]} 的数量至此 ✨`;
+                        placeholder.setAttribute('data-placeholder', 'true');
+                        slotRefs[i].current.appendChild(placeholder);
+                    }
+                }
+                // 清空卡片池并重新生成数字卡片
+                if (cardPoolRef.current) {
+                    cardPoolRef.current.innerHTML = '';
+                    const numbers = generateNumberCards(answers);
+                    numbers.forEach(num => {
+                        const card = document.createElement('div');
+                        card.className = 'number-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-3 py-2 text-center font-bold text-xl cursor-grab select-none flex items-center justify-center gap-1 hover:scale-105 transition';
+                        card.setAttribute('data-value', num);
+                        card.innerHTML = `<span class="text-2xl">🔢</span> ${num}`;
+                        card.style.touchAction = 'none';
+                        cardPoolRef.current.appendChild(card);
+                    });
+                }
+                setSlotValues([null, null, null]);
+                setAllCorrect(false);
+                setFeedback('');
+            };
+            
+            // 检查三个槽位是否都配对正确，并更新状态
+            const checkAllCorrect = (newSlotValues) => {
+                const allFilled = newSlotValues.every(v => v !== null);
+                if (allFilled) {
+                    const match = newSlotValues.every((val, idx) => val === answers[idx]);
+                    if (match) {
+                        setAllCorrect(true);
+                        setFeedback(`🎉 完美！${items.join('、')} 分配正确！你已掌握按比例分配的份数法！ 🎉`);
+                    } else {
+                        setAllCorrect(false);
+                        // 提示哪几个错误
+                        const errors = [];
+                        for (let i = 0; i < 3; i++) {
+                            if (newSlotValues[i] !== null && newSlotValues[i] !== answers[i]) errors.push(`${items[i]}应该是${answers[i]}`);
+                        }
+                        if (errors.length) setFeedback(`🤔 部分配对错误：${errors.join('，')}。再试试用份数法计算！`);
+                        else setFeedback(`❌ 配对不完全正确，检查一下比例关系吧！`);
+                    }
+                } else {
+                    setAllCorrect(false);
+                    const missing = [];
+                    for (let i = 0; i < 3; i++) if (newSlotValues[i] === null) missing.push(items[i]);
+                    if (missing.length) setFeedback(`📦 还需要将正确的数字拖拽到 ${missing.join('、')} 的槽位中`);
+                    else setFeedback('');
+                }
+            };
+            
+            // 更新某个槽位的数值，并重新验证
+            const updateSlotValue = (index, value) => {
+                const newValues = [...slotValues];
+                newValues[index] = value;
+                setSlotValues(newValues);
+                checkAllCorrect(newValues);
+            };
+            
+            // 监听每个槽位的变化 (通过MutationObserver或者直接在拖拽结束时处理，更可靠方式：在Sortable的onEnd中手动管理)
+            // 但因为每个槽位使用了Sortable的group put，需要在onAdd时更新状态，同时移除占位符
+            const initSortable = () => {
+                // 销毁旧实例
+                if (sortablePool.current) sortablePool.current.destroy();
+                sortableSlots.current.forEach(s => { if(s) s.destroy(); });
+                sortableSlots.current = [];
+                
+                if (!cardPoolRef.current) return;
+                for(let i=0;i<3;i++) if(!slotRefs[i].current) return;
+                
+                // 卡片池：可拖出，可接收（主要用于把错误卡片拖回池子）
+                sortablePool.current = new Sortable(cardPoolRef.current, {
+                    group: {
+                        name: 'ratioAlloc',
+                        pull: true,
+                        revertClone: false,
+                        put: true
+                    },
+                    animation: 200,
+                    sort: true,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag'
+                });
+                
+                // 三个槽位: 每个槽位最多只能放一张数字卡片
+                for (let i = 0; i < 3; i++) {
+                    const slot = slotRefs[i].current;
+                    const slotIndex = i;
+                    const slotSortable = new Sortable(slot, {
+                        group: {
+                            name: 'ratioAlloc',
+                            pull: true,
+                            put: function(to, from, drag) {
+                                // 检查当前槽位是否已经有数字卡片
+                                const existingCards = slot.querySelectorAll('.number-card');
+                                return existingCards.length === 0;
+                            }
+                        },
+                        animation: 200,
+                        onAdd: (evt) => {
+                            // 当卡片放入槽位时
+                            const draggedCard = evt.item;
+                            const value = parseInt(draggedCard.getAttribute('data-value'), 10);
+                            // 移除槽位内的占位符
+                            const placeholder = slot.querySelector('[data-placeholder="true"]');
+                            if (placeholder) placeholder.remove();
+                            // 更新对应槽位的值
+                            updateSlotValue(slotIndex, value);
+                        },
+                        onRemove: (evt) => {
+                            // 卡片从槽位移走时（被拖回池子或被用户移走）
+                            updateSlotValue(slotIndex, null);
+                            // 如果槽位变成空的且没有占位符，重新添加占位符
+                            const existing = slot.querySelectorAll('.number-card').length;
+                            if (existing === 0) {
+                                const alreadyPlaceholder = slot.querySelector('[data-placeholder="true"]');
+                                if (!alreadyPlaceholder) {
+                                    const newPlace = document.createElement('div');
+                                    newPlace.className = 'text-gray-400 text-sm italic text-center w-full py-2 pointer-events-none';
+                                    newPlace.innerText = `✨ 拖拽 ${items[slotIndex]} 的数量至此 ✨`;
+                                    newPlace.setAttribute('data-placeholder', 'true');
+                                    slot.appendChild(newPlace);
+                                }
+                            }
+                        }
+                    });
+                    sortableSlots.current.push(slotSortable);
+                }
+            };
+            
+            // 重置本题目配对（清空所有槽位，将卡片归还原池）
+            const resetPairing = () => {
+                for (let i = 0; i < 3; i++) {
+                    const slot = slotRefs[i].current;
+                    if (slot) {
+                        const cards = slot.querySelectorAll('.number-card');
+                        cards.forEach(card => {
+                            if (cardPoolRef.current) cardPoolRef.current.appendChild(card);
+                        });
+                        // 清空槽位值并重新添加占位符
+                        updateSlotValue(i, null);
+                        const placeholder = slot.querySelector('[data-placeholder="true"]');
+                        if (!placeholder) {
+                            const newPlace = document.createElement('div');
+                            newPlace.className = 'text-gray-400 text-sm italic text-center w-full py-2 pointer-events-none';
+                            newPlace.innerText = `✨ 拖拽 ${items[i]} 的数量至此 ✨`;
+                            newPlace.setAttribute('data-placeholder', 'true');
+                            slot.appendChild(newPlace);
+                        }
+                    }
+                }
+                setFeedback('已重置配对，重新拖拽分配吧！');
+                setAllCorrect(false);
+            };
+            
+            // 换一题: 随机抽取新题目
+            const changeProblem = () => {
+                let newIdx = Math.floor(Math.random() * ALL_PROBLEMS.length);
+                while (ALL_PROBLEMS[newIdx].id === currentProblem.id && ALL_PROBLEMS.length > 1) {
+                    newIdx = Math.floor(Math.random() * ALL_PROBLEMS.length);
+                }
+                const newProb = ALL_PROBLEMS[newIdx];
+                setCurrentProblem(newProb);
+                setItems(newProb.items);
+                setAnswers(newProb.answers);
+                setRatio(newProb.ratio);
+                setGameKey(prev => prev + 1);
+            };
+            
+            // 当题目变化时重建UI和sortable
+            React.useEffect(() => {
+                rebuildUI();
+                const timer = setTimeout(() => {
+                    initSortable();
+                }, 50);
+                return () => {
+                    clearTimeout(timer);
+                    if (sortablePool.current) sortablePool.current.destroy();
+                    sortableSlots.current.forEach(s => { if(s) s.destroy(); });
+                };
+            }, [currentProblem, gameKey]);
+            
+            // 渲染三个物品槽位
+            const renderSlots = () => {
+                return items.map((item, idx) => (
+                    <div key={idx} className="bg-white/80 rounded-2xl p-3 shadow-md border-2 border-purple-200 transition-all">
+                        <div className="font-bold text-purple-800 text-lg flex items-center gap-1 mb-2">
+                            <span className="text-2xl">📦</span> {item}
+                            <span className="text-sm bg-purple-100 px-2 py-0.5 rounded-full">比例 {ratio[idx]}</span>
+                        </div>
+                        <div 
+                            ref={slotRefs[idx]} 
+                            className="slot-card min-h-[80px] bg-purple-50 rounded-xl p-2 flex flex-wrap items-center justify-center gap-2 transition-all"
+                        >
+                            {/* 动态卡片会出现在这里 */}
+                        </div>
+                        {slotValues[idx] !== null && slotValues[idx] === answers[idx] && (
+                            <div className="text-green-600 text-xs mt-1 text-center">✅ 正确</div>
+                        )}
+                        {slotValues[idx] !== null && slotValues[idx] !== answers[idx] && (
+                            <div className="text-rose-500 text-xs mt-1 text-center">❌ 错误，应得 {answers[idx]}</div>
+                        )}
+                    </div>
+                ));
+            };
+            
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🎁</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">分配小行家·拖拽配对</h2>
+                        </div>
+                        <button onClick={changeProblem} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base flex items-center gap-1">
+                            🔄 换一题
+                        </button>
+                    </div>
+                    
+                    {/* 题目展示区 */}
+                    <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-4 mb-5 border-l-[12px] border-l-purple-500 shadow-md">
+                        <p className="text-gray-800 text-xl md:text-2xl font-bold leading-tight">{currentProblem.text}</p>
+                        <div className="text-sm text-purple-700 bg-white/70 rounded-lg p-2 mt-3 italic">
+                            💡 思路提示: {currentProblem.hint}
+                        </div>
+                    </div>
+                    
+                    {/* 三个分配槽位网格 */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                        {renderSlots()}
+                    </div>
+                    
+                    {/* 数字卡片池 */}
+                    <div className="bg-amber-50 rounded-2xl p-4 border-2 border-amber-200">
+                        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                            <h3 className="font-bold text-purple-800 text-lg flex items-center gap-1">🎲 数字卡片池（可拖拽）</h3>
+                            <button onClick={resetPairing} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-full text-sm shadow transition">🔄 重置配对</button>
+                        </div>
+                        <div ref={cardPoolRef} className="flex flex-wrap gap-3 justify-start p-2 min-h-[110px] bg-white/60 rounded-xl">
+                            {/* 数字卡片动态生成 */}
+                        </div>
+                        <p className="text-xs text-center text-gray-500 mt-2">👉 将正确的数字拖拽到对应物品的灰色区域，每个槽位只能放一张卡片。全部配对正确可获胜！</p>
+                    </div>
+                    
+                    {/* 反馈消息区域 */}
+                    {feedback && (
+                        <div className={`mt-4 text-center text-base font-medium rounded-xl p-3 ${allCorrect ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-purple-100 text-purple-700 border border-purple-200'}`}>
+                            {feedback}
+                        </div>
+                    )}
+                    
+                    {/* 进度+奖励 */}
+                    <div className="mt-3 text-center text-purple-600 text-sm bg-purple-50 p-2 rounded-xl">
+                        🌟 按比例分配核心：先求一份量！连比问题记得用最小公倍数统一中间量。拖拽配对帮你强化份数思维。
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============================ 主页面 ============================
+        const MainApp = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="flex-1"><KnowledgeBase /></div>
+                    <div className="flex-1"><AllocationGame /></div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>

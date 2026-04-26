@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>平均数小探险家 | 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义主题：淡紫色调 + 大字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lavender-light': '#CBAACB',
+                        'lavender-soft': '#D9C2E6',
+                        'lavender-deep': '#B38CB8',
+                    },
+                    fontSize: {
+                        '6xl': '3.75rem',
+                    },
+                    fontFamily: {
+                        'kid': ['"Comic Neue"', '"Comic Sans MS"', 'Chalkboard SE', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .drag-card {
+            cursor: grab;
+            transition: transform 0.1s, box-shadow 0.2s;
+            touch-action: manipulation;
+        }
+        .drag-card:active { cursor: grabbing; }
+        .drop-zone {
+            transition: all 0.2s ease;
+            min-height: 70px;
+        }
+        .drop-zone.drag-over {
+            background-color: #e9d4ff;
+            border-color: #9b59b6;
+            transform: scale(1.02);
+        }
+        @keyframes bounceHappy {
+            0% { transform: scale(0.95); opacity: 0; }
+            80% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .feedback-pop {
+            animation: bounceHappy 0.3s ease forwards;
+        }
+        .equation {
+            background: #fff0e0;
+            border-radius: 2rem;
+            padding: 0.5rem 1rem;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        @media (max-width: 640px) {
+            .drag-card { cursor: pointer; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-lavender-light to-lavender-soft font-kid min-h-screen p-4 md:p-6">
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // ---------- 平均数游戏数据 ----------
+    // 定义题目库: 每组数据为 { numbers: [数组], 平均数: 数值, 上下文: 描述 }
+    // 为增加趣味性，生成随机但简单的题目 (整数，平均数可能是小数一位)
+    const generateQuestion = () => {
+        // 随机生成3~5个数字，范围 5~30，平均数可能是整数或一位小数
+        const count = Math.floor(Math.random() * 3) + 3; // 3,4,5
+        let numbers = [];
+        let sum = 0;
+        for (let i = 0; i < count; i++) {
+            let val = Math.floor(Math.random() * 26) + 5; // 5-30
+            numbers.push(val);
+            sum += val;
+        }
+        let avg = sum / count;
+        // 保留一位小数，如果整除就整数
+        let avgRounded = Math.round(avg * 10) / 10;
+        let avgDisplay = Number.isInteger(avgRounded) ? avgRounded.toString() : avgRounded.toFixed(1);
+        // 上下文情景
+        const scenarios = [
+            "🐼 小熊猫班的数学测验分数：",
+            "🍎 果园里5棵苹果树的产量（千克）：",
+            "🏃 运动会跳绳个数（每分钟）：",
+            "📚 小明一周阅读课外书的页数：",
+            "🎨 美术小组绘画比赛得分：",
+            "🏀 篮球训练营投篮命中个数："
+        ];
+        let scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+        return {
+            numbers: numbers,
+            avg: avgRounded,
+            avgDisplay: avgDisplay,
+            context: scenario,
+            sum: sum,
+            count: count
+        };
+    };
+    
+    // 根据题目构建卡片池：两张卡片：一个是“总和”，一个是“总份数”，正确配对需要得到平均数公式中的关键组件
+    // 但是我们希望孩子通过拖拽将“正确的平均数”配对到公式结果区，而不是总和和份数。
+    // 为了更符合平均数知识点，设计游戏玩法：右边给出题目和三个备选答案（数字卡片），小朋友需要把正确的平均数卡片拖拽到“平均数是？”区域。
+    // 同时为了互动性，使用“翻翻乐/拖拽配对”风格: 显示数据列，然后拖拽正确的平均数到放置区。
+    // 采用经典“抓娃娃机”感觉的拖拽配对: 一个显示题目卡片，三个可拖拽数字（其中一个是正确答案），拖拽到虚线框内配对。
+    // 这样更直接练习平均数的计算。
+    
+    // 构建备选答案（包含正确和两个干扰项）
+    const buildAnswerOptions = (correctAvg) => {
+        // 干扰项: 正确值上下浮动1~3，或者用数据中的最大值最小值等
+        let offset1 = correctAvg + (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 3) + 1);
+        let offset2 = correctAvg + (Math.random() > 0.5 ? 2 : -2) * (Math.floor(Math.random() * 3) + 1);
+        // 确保干扰项不为正确值，且为一位小数或整数格式
+        let options = [correctAvg];
+        let fixNum = (num) => {
+            let r = Math.round(num * 10) / 10;
+            return Number.isInteger(r) ? r.toString() : r.toFixed(1);
+        };
+        let opt1 = fixNum(offset1);
+        let opt2 = fixNum(offset2);
+        if (opt1 === correctAvg.toString() || opt1 === correctAvg.toFixed(1)) opt1 = fixNum(correctAvg + 2);
+        if (opt2 === correctAvg.toString() || opt2 === correctAvg.toFixed(1)) opt2 = fixNum(correctAvg - 2);
+        if (opt1 === opt2) opt2 = fixNum(correctAvg + 3);
+        options.push(parseFloat(opt1), parseFloat(opt2));
+        // 打乱顺序
+        for (let i = options.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [options[i], options[j]] = [options[j], options[i]];
+        }
+        return options.map(val => ({
+            id: `opt_${Math.random()}`,
+            value: val,
+            display: (Number.isInteger(val) ? val.toString() : val.toFixed(1))
+        }));
+    };
+    
+    // 主游戏组件：拖拽配对平均数
+    const AverageGame = () => {
+        // 当前题目
+        const [question, setQuestion] = React.useState(() => generateQuestion());
+        // 可拖拽的答案卡片池（包含正确和干扰）
+        const [answerCards, setAnswerCards] = React.useState(() => buildAnswerOptions(question.avg));
+        // 是否已经配对成功（正确放置后锁定）
+        const [isMatched, setIsMatched] = React.useState(false);
+        // 配对成功后显示的正确值
+        const [selectedCorrectValue, setSelectedCorrectValue] = React.useState(null);
+        // 反馈消息
+        const [feedback, setFeedback] = React.useState({ message: "", isError: false, show: false });
+        
+        const showFeedback = (msg, isError) => {
+            setFeedback({ message: msg, isError, show: true });
+            setTimeout(() => setFeedback(prev => ({ ...prev, show: false })), 2000);
+        };
+        
+        // 处理拖拽放置（放置区接收平均数）
+        const handleDrop = (e) => {
+            e.preventDefault();
+            const dropZone = document.getElementById('avgDropZone');
+            if (dropZone) dropZone.classList.remove('drag-over');
+            
+            // 如果已经配对过了不能再拖拽
+            if (isMatched) {
+                showFeedback("🎉 这题已经答对了！点'换一题'继续挑战吧～", true);
+                return;
+            }
+            
+            const dragRaw = e.dataTransfer.getData("text/plain");
+            if (!dragRaw) return;
+            const { cardId, cardValue, display } = JSON.parse(dragRaw);
+            const correctAvg = question.avg;
+            
+            // 比较数值是否匹配（保留一位小数比较）
+            const draggedNum = parseFloat(cardValue);
+            if (Math.abs(draggedNum - correctAvg) < 0.01) {
+                // 配对成功
+                // 从卡片池中移除正确卡片（或者全部卡片不再可拖拽，但为了体验移除正确那张）
+                const newCards = answerCards.filter(card => card.id !== cardId);
+                setAnswerCards(newCards);
+                setIsMatched(true);
+                setSelectedCorrectValue(cardValue);
+                showFeedback(`✅ 完美！${question.context} 的平均数是 ${display}，你真棒！`, false);
+            } else {
+                showFeedback(`❌ 配对错误！平均数是 ${correctAvg.toFixed(1)}，你拖了 ${display}，再算一算吧～`, true);
+            }
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            if (!isMatched) {
+                const dropZone = document.getElementById('avgDropZone');
+                if (dropZone) dropZone.classList.add('drag-over');
+            }
+        };
+        
+        const handleDragLeave = (e) => {
+            const dropZone = document.getElementById('avgDropZone');
+            if (dropZone) dropZone.classList.remove('drag-over');
+        };
+        
+        const handleDragStart = (e, card) => {
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, cardValue: card.value, display: card.display }));
+            e.dataTransfer.effectAllowed = "copy";
+            e.target.style.opacity = "0.5";
+        };
+        
+        const handleDragEnd = (e) => {
+            e.target.style.opacity = "";
+        };
+        
+        // 换一题：重置所有
+        const resetGame = () => {
+            const newQ = generateQuestion();
+            setQuestion(newQ);
+            const newCards = buildAnswerOptions(newQ.avg);
+            setAnswerCards(newCards);
+            setIsMatched(false);
+            setSelectedCorrectValue(null);
+            setFeedback({ message: "", isError: false, show: false });
+            showFeedback("✨ 新题目来啦！计算平均数，把正确的数字拖到方框里 ✨", false);
+        };
+        
+        // 计算总数和份数展示
+        const numbersList = question.numbers.join(" , ");
+        const sumVal = question.sum;
+        const countVal = question.count;
+        
+        // 额外展示平均数公式帮助
+        const formulaHint = `${sumVal} ÷ ${countVal} = ?`;
+        
+        return (
+            <div className="flex flex-col">
+                {/* 题目区域 */}
+                <div className="bg-white/80 rounded-2xl p-4 shadow-md mb-4">
+                    <p className="text-purple-800 text-lg md:text-xl font-bold">{question.context}</p>
+                    <div className="bg-purple-50 rounded-xl p-3 mt-2 text-center">
+                        <span className="text-2xl md:text-3xl font-mono font-bold">{numbersList}</span>
+                    </div>
+                    <div className="mt-3 text-center equation bg-yellow-50 inline-block w-full">
+                        <p className="text-base md:text-lg">📐 平均数公式: 总数量 ÷ 总份数 = 平均数</p>
+                        <p className="text-md md:text-xl font-mono font-bold">{formulaHint}</p>
+                    </div>
+                </div>
+                
+                {/* 放置区 */}
+                <div className="mb-5">
+                    <div className="text-center text-purple-700 font-bold text-xl mb-1">⭐ 平均数是？ ⭐</div>
+                    <div
+                        id="avgDropZone"
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        className={`drop-zone w-full p-5 rounded-2xl border-4 border-dashed transition-all flex items-center justify-center min-h-[100px]
+                                    ${isMatched ? 'bg-green-100 border-green-400' : 'bg-purple-50 border-purple-300'}`}
+                    >
+                        {isMatched ? (
+                            <div className="text-center">
+                                <span className="text-5xl font-black text-green-700">{selectedCorrectValue}</span>
+                                <p className="text-sm text-purple-600 mt-1">✅ 正确！平均数代表这组数据的整体水平</p>
+                            </div>
+                        ) : (
+                            <div className="text-center text-gray-500 text-xl">
+                                🎯 把正确的平均数卡片拖拽到这里 ➕
+                            </div>
+                        )}
+                    </div>
+                </div>
+                
+                {/* 可拖拽卡片池 (备选答案) */}
+                <div className="bg-white/70 rounded-2xl p-4 mb-3">
+                    <p className="text-xl md:text-2xl font-bold text-purple-800 mb-3 flex items-center gap-2">
+                        🃏 数字卡片（拖拽正确的平均数到上方虚线框）
+                    </p>
+                    {answerCards.length > 0 ? (
+                        <div className="flex flex-wrap gap-4 justify-center">
+                            {answerCards.map(card => (
+                                <div
+                                    key={card.id}
+                                    draggable={!isMatched}
+                                    onDragStart={(e) => !isMatched && handleDragStart(e, card)}
+                                    onDragEnd={handleDragEnd}
+                                    className={`drag-card w-28 h-28 md:w-32 md:h-32 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl flex items-center justify-center shadow-xl text-4xl md:text-5xl font-black text-purple-900 border-4 border-white hover:scale-105 transition-transform
+                                        ${isMatched ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    {card.display}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        isMatched && <div className="text-center text-green-700 text-xl font-bold">🎉 配对完成！点击换一题继续练习 🎉</div>
+                    )}
+                </div>
+                
+                {/* 反馈区域 */}
+                {feedback.show && (
+                    <div className={`text-center p-2 rounded-xl text-lg font-bold mb-2 ${feedback.isError ? 'bg-rose-200 text-rose-700' : 'bg-green-200 text-green-800'} feedback-pop`}>
+                        {feedback.message}
+                    </div>
+                )}
+                
+                {/* 平均数小知识额外提示 */}
+                <div className="bg-indigo-50/70 rounded-xl p-2 text-sm md:text-base text-purple-800 mt-1 text-center">
+                    💡 平均数 = 所有数据总和 ÷ 数据个数。它不代表某个具体数据，但能反映整体水平哦！
+                </div>
+                
+                {/* 换一题按钮 */}
+                <button onClick={resetGame}
+                        className="mt-4 w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-xl transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3">
+                    🔄 换一题
+                    <span>🌟</span>
+                </button>
+                <p className="text-xs text-center text-purple-700 mt-2 bg-white/50 rounded-full px-2 py-1">
+                    💡 玩法：先计算数据的平均数，然后把正确的数字卡片拖拽到虚线框里配对！
+                </p>
+            </div>
+        );
+    };
+    
+    // 左侧知识点组件（完整丰富）
+    const KnowledgePanel = () => {
+        return (
+            <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                <div className="flex items-center gap-2 mb-4 border-b-4 border-lavender-deep pb-2">
+                    <span className="text-4xl">📊</span>
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">平均数小课堂</h2>
+                </div>
+                <div className="space-y-4 text-lg md:text-xl leading-relaxed text-gray-800">
+                    <div className="bg-purple-50 p-3 rounded-xl">
+                        <p className="font-black text-purple-900">🧠 什么是平均数？</p>
+                        <p>平均数代表一组数据的<span className="bg-yellow-200 px-1 rounded">整体平均水平</span>，是反映数据集中趋势的统计量。例如：班级平均分、平均身高。</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                        <p className="font-black text-purple-900">📐 平均数的计算公式：</p>
+                        <div className="bg-white rounded-xl p-2 text-center font-mono text-2xl font-bold shadow-inner">
+                            平均数 = 总数量 ÷ 总份数
+                        </div>
+                        <ul className="list-disc pl-5 space-y-1 text-base md:text-xl mt-1">
+                            <li>总数量：所有数据加起来的总和</li>
+                            <li>总份数：数据有多少个</li>
+                        </ul>
+                    </div>
+                    <div className="bg-indigo-50 p-3 rounded-xl">
+                        <p className="font-black">⭐ 平均数 vs 单个数据：</p>
+                        <p>平均数不代表某一个具体数据，它是一组数据的“代表”。比如班级平均身高150cm，并不是每个人都正好150cm。</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 shadow-inner">
+                        <p className="font-black">🌍 生活中的平均数：</p>
+                        <p>✏️ 平均成绩、📏 平均身高、🚗 平均速度、🍎 平均产量……平均数帮我们公平比较、整体评估！</p>
+                    </div>
+                    <div className="text-sm md:text-base text-purple-800 bg-lavender-soft/50 p-2 rounded-lg">
+                        💡 小提示：平均数容易受极端数据影响。比如一个特别高的分可能会拉高平均分。但平均数依然是反映整体水平的好帮手！
+                    </div>
+                </div>
+                <div className="mt-4 text-center text-purple-500 text-xs md:text-sm">
+                    🎮 右侧游戏：先计算平均数，再把正确答案拖拽到虚线框中，练习平均数的计算方法！
+                </div>
+            </div>
+        );
+    };
+    
+    // 主应用
+    const App = () => {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center">
+                <div className="w-full max-w-6xl mb-4 text-center">
+                    <h1 className="text-5xl md:text-7xl font-extrabold text-white drop-shadow-lg bg-purple-800/30 inline-block px-6 py-2 rounded-full backdrop-blur-sm">
+                        🧸 平均数探险岛 🧮
+                    </h1>
+                    <p className="text-white/90 text-xl md:text-2xl mt-2 font-semibold">学习平均数·拖拽配对·玩转数据</p>
+                </div>
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="lg:w-1/2">
+                        <KnowledgePanel />
+                    </div>
+                    <div className="lg:w-1/2">
+                        <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 mb-3 flex items-center gap-2">
+                                🎮 拖拽配对 <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">平均数大挑战</span>
+                            </h3>
+                            <AverageGame />
+                        </div>
+                    </div>
+                </div>
+                <footer className="mt-6 text-center text-purple-800 text-sm md:text-base bg-white/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                    🌟 计算每组数据的平均数，把正确的数字卡片拖到方框里！全部正确，成为平均数小达人 🌟
+                </footer>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

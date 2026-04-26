@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>扇形的面积 · 披萨切切乐 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .sector-svg {
+      background: white;
+      border-radius: 1rem;
+      display: inline-block;
+      box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 扇形的面积 =======================
+  // 知识点：扇形面积 = 圆心角/360 × πr²，π≈3.14。
+  
+  // ---------- 游戏数据：6个扇形（半径r，圆心角n），需要配对正确的面积（π取3.14）----------
+  const sectorData = [
+    { id: 1, r: 4, n: 90, unit: "cm", area: 12.56, display: "r=4cm, 圆心角90°", areaText: "12.56 cm²" },
+    { id: 2, r: 6, n: 60, unit: "cm", area: 18.84, display: "r=6cm, 圆心角60°", areaText: "18.84 cm²" },
+    { id: 3, r: 5, n: 120, unit: "cm", area: 26.1667, areaText: "26.17 cm²", displayRound: "r=5cm, 圆心角120°" },
+    { id: 4, r: 3, n: 180, unit: "cm", area: 14.13, display: "r=3cm, 圆心角180°", areaText: "14.13 cm²" },
+    { id: 5, r: 8, n: 45, unit: "cm", area: 25.12, display: "r=8cm, 圆心角45°", areaText: "25.12 cm²" },
+    { id: 6, r: 10, n: 36, unit: "cm", area: 31.4, display: "r=10cm, 圆心角36°", areaText: "31.4 cm²" }
+  ];
+  
+  // 修正第3个的面积保留两位小数显示
+  sectorData[2].areaText = "26.17 cm²";
+  sectorData[2].area = 26.1667;
+  
+  // 生成右侧可拖拽卡片：包含正确面积和干扰项
+  const generateAreaCards = () => {
+    const correctAreas = sectorData.map(c => c.areaText);
+    // 干扰项
+    const distractors = ["3.14 cm²", "6.28 cm²", "9.42 cm²", "15.7 cm²", "21.98 cm²", "28.26 cm²", "37.68 cm²", "43.96 cm²", "50.24 cm²", "56.52 cm²"];
+    let allCards = [...correctAreas];
+    for (let d of distractors) {
+      if (!allCards.includes(d)) allCards.push(d);
+      if (allCards.length >= 12) break;
+    }
+    // 打乱顺序
+    for (let i = allCards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
+    }
+    return allCards.map((text, idx) => ({
+      id: `card-${idx}`,
+      text: text,
+      matched: false,
+      areaValue: parseFloat(text.split(' ')[0])
+    }));
+  };
+  
+  // 绘制扇形示意图（带半径和圆心角标注）
+  const SectorSvg = ({ r, n }) => {
+    const size = 100;
+    const center = size/2;
+    const scale = Math.min(40 / r, 1);
+    const radiusPx = r * scale;
+    // 计算弧线终点
+    const rad = n * Math.PI / 180;
+    const endX = center + radiusPx * Math.cos(rad);
+    const endY = center - radiusPx * Math.sin(rad);
+    // 路径：圆心 -> 圆弧 -> 闭合
+    const largeArcFlag = rad > Math.PI ? 1 : 0;
+    const path = `M ${center} ${center} L ${center+radiusPx} ${center} A ${radiusPx} ${radiusPx} 0 ${largeArcFlag} 1 ${endX} ${endY} Z`;
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="sector-svg" style={{ background: 'white' }}>
+        <path d={path} fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2" />
+        {/* 半径标注 */}
+        <line x1={center} y1={center} x2={center+radiusPx} y2={center} stroke="#d97706" strokeWidth="1.5" strokeDasharray="3,2" />
+        <text x={center+radiusPx/2} y={center-4} fontSize="9" fill="#d97706">r</text>
+        {/* 圆心角弧线标注 */}
+        <path d={`M ${center+radiusPx*0.5} ${center} A ${radiusPx*0.5} ${radiusPx*0.5} 0 0 1 ${center+radiusPx*0.5*Math.cos(rad)} ${center-radiusPx*0.5*Math.sin(rad)}`} fill="none" stroke="#b45309" strokeWidth="1.5" />
+        <text x={center+radiusPx*0.6} y={center-radiusPx*0.3} fontSize="9" fill="#b45309">{n}°</text>
+        <circle cx={center} cy={center} r="2" fill="black" />
+      </svg>
+    );
+  };
+  
+  // 游戏组件：拖拽配对（将面积卡片拖拽到对应扇形的槽位）
+  const MatchingGame = () => {
+    const [areaCards, setAreaCards] = React.useState(() => generateAreaCards());
+    // 槽位状态：每个扇形一个槽位
+    const [slots, setSlots] = React.useState(() => {
+      const init = {};
+      sectorData.forEach(c => {
+        init[c.id] = { filled: false, value: null, correctArea: c.areaText };
+      });
+      return init;
+    });
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalSlots = sectorData.length;
+    const filledCount = Object.values(slots).filter(s => s.filled).length;
+    
+    const checkVictory = (currentSlots) => {
+      const allFilled = Object.values(currentSlots).every(s => s.filled);
+      if (allFilled && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有扇形的面积都配对成功！你已是扇形面积小高手！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, cardText) => {
+      const card = areaCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardText }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardText } = dragData;
+      
+      const sourceCard = areaCards.find(c => c.id === cardId);
+      const targetSlot = slots[slotId];
+      if (!sourceCard || !targetSlot) return;
+      if (sourceCard.matched || targetSlot.filled) {
+        setFeedbackMsg("⏳ 这张面积卡片或这个槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      const targetSector = sectorData.find(c => c.id === slotId);
+      // 比较面积文本（处理浮点显示差异）
+      let isMatch = (cardText === targetSector.areaText);
+      if (!isMatch && targetSector.id === 3 && cardText === "26.17 cm²") isMatch = true;
+      if (!isMatch) {
+        setFeedbackMsg(`❌ 配对错误！“${cardText}” 不是 ${targetSector.display} 的面积。正确面积是 ${targetSector.areaText}。再算一遍吧～ S = n/360 × πr²。`);
+        setTimeout(() => setFeedbackMsg(""), 2000);
+        return;
+      }
+      
+      // 配对成功
+      setAreaCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setSlots(prev => ({
+        ...prev,
+        [slotId]: { ...prev[slotId], filled: true, value: cardText }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！${targetSector.display} 的面积是 ${cardText}。`);
+      setTimeout(() => setFeedbackMsg(""), 1500);
+      
+      const newSlots = { ...slots, [slotId]: { ...slots[slotId], filled: true, value: cardText } };
+      checkVictory(newSlots);
+    };
+    
+    const resetGame = () => {
+      setAreaCards(generateAreaCards());
+      const initSlots = {};
+      sectorData.forEach(c => {
+        initSlots[c.id] = { filled: false, value: null, correctArea: c.areaText };
+      });
+      setSlots(initSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把右边的面积卡片拖拽到左边正确扇形的槽位下吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">🍕 扇形配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalSlots}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：计算每个扇形的面积（π取3.14），然后将右侧<strong>面积卡片</strong>拖拽到对应图形下方的槽位中。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧图形区 */}
+          <div className="flex-1 bg-green-50/60 rounded-2xl p-3">
+            <div className="font-bold text-green-800 text-center mb-2">📦 扇形工坊</div>
+            <div className="space-y-5 max-h-[550px] overflow-y-auto pr-1">
+              {sectorData.map(c => (
+                <div key={c.id} className="bg-white rounded-xl p-3 shadow border border-green-200">
+                  <div className="text-center font-bold text-green-700 text-sm">{c.display}</div>
+                  <div className="flex justify-center my-2">
+                    <SectorSvg r={c.r} n={c.n} />
+                  </div>
+                  <div 
+                    onDragOver={(e) => onDragOverSlot(e, c.id)}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, c.id)}
+                    className={`drop-slot rounded-xl p-3 text-center transition-all mt-2 ${dragOverSlotId === c.id ? 'drag-over' : ''} ${slots[c.id].filled ? 'slot-filled' : ''}`}
+                  >
+                    <div className="text-sm font-bold text-green-800">📌 面积槽位</div>
+                    {slots[c.id].filled ? (
+                      <div className="text-xl font-mono text-green-700">{slots[c.id].value}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500">⬅️ 拖拽面积卡片至此</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧卡片池 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 面积卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[550px] overflow-y-auto">
+              {areaCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.text)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-36 h-24 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-base px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个面积卡片只能用一次，拖拽到对应扇形的面积槽位。π取3.14。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 披萨大师！你已完全掌握扇形的面积计算！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 扇形面积 = (圆心角/360) × πr²。可以把扇形看作圆的一部分，圆心角占360°的几分之几，面积就占圆面积的几分之几。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：扇形的面积 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">🍕</span>
+          <h2 className="text-3xl font-extrabold text-green-900">扇形的面积</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是扇形？</p>
+            <p>由圆心角的两条半径和圆心角所对的弧围成的图形叫做扇形。扇形是圆的一部分。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 面积公式</p>
+            <p><strong>S = n/360 × πr²</strong></p>
+            <p>其中 n 是圆心角的度数，r 是半径，π≈3.14。</p>
+            <div className="mt-2 bg-green-100 p-2 rounded-lg font-mono text-center">S = (n/360) × πr²</div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 示例</p>
+            <p>一个扇形，半径 r=4cm，圆心角 n=90°，面积 = 90/360 × 3.14 × 4² = 1/4 × 3.14 × 16 = 12.56 cm²。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>r=6cm，n=60°，扇形面积（ ）cm²；r=8cm，n=45°，扇形面积（ ）cm²。</p>
+            <p className="text-sm text-green-700">（答案：18.84，25.12）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“扇形面积怎么算？圆心角比上三百六，乘上圆面积就得到。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：计算扇形面积（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ r: 4, n: 90, answer: 12.56, text: "半径r=4cm，圆心角90°，扇形面积是多少cm²？" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { r: 4, n: 90, answer: 12.56, text: "半径r=4cm，圆心角90°，扇形面积是多少cm²？" },
+      { r: 6, n: 60, answer: 18.84, text: "半径r=6cm，圆心角60°，扇形面积是多少cm²？" },
+      { r: 5, n: 120, answer: 26.1667, answerDisp: "26.17", text: "半径r=5cm，圆心角120°，扇形面积是多少cm²？（保留两位小数）" },
+      { r: 3, n: 180, answer: 14.13, text: "半径r=3cm，圆心角180°，扇形面积是多少cm²？" },
+      { r: 8, n: 45, answer: 25.12, text: "半径r=8cm，圆心角45°，扇形面积是多少cm²？" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const userVal = parseFloat(userAnswer);
+      if (isNaN(userVal)) {
+        setFeedback("📛 输入数字答案哟～");
+        return;
+      }
+      let expected = question.answer;
+      if (question.r === 5 && question.n === 120) expected = 26.1667;
+      if (Math.abs(userVal - expected) < 0.01) {
+        setFeedback(`✅ 正确！${question.text} 答案是 ${question.answerDisp || question.answer} cm²。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.answerDisp || question.answer} cm²。扇形面积 = (n/360) × πr²。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 扇形面积</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="number" step="any" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-green-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="输入数字"
+            />
+            <button onClick={checkAnswer} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 扇形在生活中很常见：披萨切片、风扇叶片、圆形蛋糕的切块…… 掌握扇形面积计算，你就能轻松解决这些实际问题！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

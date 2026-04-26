@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>长度单位换算 · 单位魔术师 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-number {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-number:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-number, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 长度单位换算 =======================
+  // 知识点：毫米(mm)、厘米(cm)、分米(dm)、米(m)之间的进率都是10（相邻单位）
+  // 1米=10分米=100厘米=1000毫米
+  
+  // ---------- 游戏数据：拖拽填空（长度单位换算）----------
+  const conversionQuestions = [
+    { id: 1, text: "3米 = ? 分米", correct: 30, hint: "1米=10分米，3×10=30" },
+    { id: 2, text: "50厘米 = ? 分米", correct: 5, hint: "10厘米=1分米，50÷10=5" },
+    { id: 3, text: "2分米 = ? 厘米", correct: 20, hint: "1分米=10厘米，2×10=20" },
+    { id: 4, text: "400厘米 = ? 米", correct: 4, hint: "100厘米=1米，400÷100=4" },
+    { id: 5, text: "7分米 = ? 毫米", correct: 700, hint: "1分米=100毫米，7×100=700" },
+    { id: 6, text: "5米 = ? 厘米", correct: 500, hint: "1米=100厘米，5×100=500" }
+  ];
+  
+  // 生成数字卡片池（包含每道题的正确选项 + 干扰项）
+  const generateNumberCards = () => {
+    const correctAnswers = conversionQuestions.map(q => q.correct);
+    const distractors = [15, 25, 60, 80, 120, 300, 600, 800, 1000];
+    let allNumbers = [...correctAnswers];
+    for (let d of distractors) {
+      if (!allNumbers.includes(d)) allNumbers.push(d);
+      if (allNumbers.length >= 12) break;
+    }
+    // 打乱顺序
+    for (let i = allNumbers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allNumbers[i], allNumbers[j]] = [allNumbers[j], allNumbers[i]];
+    }
+    return allNumbers.map((num, idx) => ({
+      id: `num-${idx}`,
+      value: num,
+      used: false
+    }));
+  };
+  
+  // 游戏组件：拖拽填空
+  const MatchingGame = () => {
+    const [questions, setQuestions] = React.useState(() => 
+      conversionQuestions.map(q => ({
+        ...q,
+        filledValue: null,
+        isCorrect: false,
+        feedback: null
+      }))
+    );
+    const [numberCards, setNumberCards] = React.useState(() => generateNumberCards());
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    const [gameComplete, setGameComplete] = React.useState(false);
+    
+    const checkAllComplete = (newQuestions) => {
+      const allFilled = newQuestions.every(q => q.filledValue !== null);
+      if (allFilled) {
+        const correctCount = newQuestions.filter(q => q.isCorrect === true).length;
+        if (correctCount === newQuestions.length) {
+          setGameComplete(true);
+          setFeedbackMsg("🎉 完美！所有单位换算都正确！你已是长度单位换算高手！ 🎉");
+        } else {
+          setFeedbackMsg("📌 还有题目没有填正确，再检查一下吧～");
+        }
+      }
+    };
+    
+    // 拖拽数字卡片
+    const onDragStart = (e, cardId, cardValue) => {
+      const card = numberCards.find(c => c.id === cardId);
+      if (card?.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardValue }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, questionId) => {
+      e.preventDefault();
+      setDragOverSlotId(questionId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, questionId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardValue } = dragData;
+      
+      const targetQuestion = questions.find(q => q.id === questionId);
+      const sourceCard = numberCards.find(c => c.id === cardId);
+      if (!targetQuestion || !sourceCard) return;
+      if (sourceCard.used) {
+        setFeedbackMsg("⏳ 这张数字卡片已经用过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      if (targetQuestion.filledValue !== null) {
+        setFeedbackMsg("⚠️ 这个题目已经填过了，不能重复填写。如需重置请点「重置全部」");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证答案
+      const isMatch = (cardValue === targetQuestion.correct);
+      if (isMatch) {
+        // 正确填写
+        setQuestions(prev => prev.map(q => 
+          q.id === questionId ? { 
+            ...q, 
+            filledValue: cardValue, 
+            isCorrect: true,
+            feedback: `✅ 正确！${q.hint}`
+          } : q
+        ));
+        setNumberCards(prev => prev.map(c => c.id === cardId ? { ...c, used: true } : c));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`🎉 正确！${targetQuestion.text} 答案是 ${cardValue}。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newQuestions = questions.map(q => 
+          q.id === questionId ? { ...q, filledValue: cardValue, isCorrect: true } : q
+        );
+        checkAllComplete(newQuestions);
+      } else {
+        setFeedbackMsg(`❌ 答案 ${cardValue} 不对哦，${targetQuestion.text} 的正确值是 ${targetQuestion.correct}。${targetQuestion.hint}`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetAll = () => {
+      setQuestions(conversionQuestions.map(q => ({
+        ...q,
+        filledValue: null,
+        isCorrect: false,
+        feedback: null
+      })));
+      setNumberCards(generateNumberCards());
+      setScore(0);
+      setGameComplete(false);
+      setFeedbackMsg("✨ 已重置全部题目，开始挑战吧！");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const totalQuestions = questions.length;
+    const correctCount = questions.filter(q => q.isCorrect).length;
+    
+    const renderQuestionText = (q) => {
+      let text = q.text;
+      if (q.filledValue !== null) {
+        text = text.replace("?", q.filledValue);
+      }
+      return text;
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">📏 单位换算 · 拖拽填空</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 正确 {correctCount}/{totalQuestions}</span>
+            <button onClick={resetAll} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 重置全部</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：根据长度单位换算规则，将右侧正确的<strong>数字卡片</strong>拖拽到题目的问号处。全部填对即可通关！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧题目区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📋 换算挑战 (拖拽填 ?)</div>
+            <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+              {questions.map(q => (
+                <div 
+                  key={q.id}
+                  className="bg-white rounded-xl p-3 shadow border border-purple-200"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="font-mono font-bold text-xl">
+                      {renderQuestionText(q)}
+                    </div>
+                    {q.isCorrect && <span className="text-green-600 text-sm">✓</span>}
+                  </div>
+                  <div 
+                    onDragOver={(e) => onDragOverSlot(e, q.id)}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, q.id)}
+                    className={`drop-slot rounded-lg p-2 mt-2 text-center transition-all ${dragOverSlotId === q.id ? 'drag-over' : ''} ${q.filledValue !== null ? 'slot-filled' : ''}`}
+                  >
+                    {q.filledValue !== null ? (
+                      <span className="text-2xl font-bold text-green-700">已填: {q.filledValue}</span>
+                    ) : (
+                      <span className="text-gray-500 text-sm">⬅️ 将数字拖拽至此填空</span>
+                    )}
+                  </div>
+                  {q.feedback && q.isCorrect && (
+                    <div className="mt-2 text-xs text-green-700 bg-green-50 p-1 rounded">{q.feedback}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧数字卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 数字卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3">
+              {numberCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.used}
+                  onDragStart={(e) => onDragStart(e, card.id, card.value)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-number w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-3xl font-bold transition ${card.used ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  {card.used ? "✓" : card.value}
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个数字只能用一次，全部填对即可通关！</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameComplete && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 太棒啦！你完全掌握了长度单位换算，成为单位换算魔法师！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 长度单位换算口诀：相邻单位进率10，米到毫米进1000。大化小乘进率，小化大除进率。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：长度单位换算 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📏</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">长度单位换算</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 常用长度单位</p>
+            <p>毫米(mm)、厘米(cm)、分米(dm)、米(m) 是常见的长度单位。相邻两个单位之间的进率是<strong className="bg-purple-200 px-1 rounded">10</strong>。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              1米 = 10分米 = 100厘米 = 1000毫米
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 换算方法</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>大单位 → 小单位</strong>：乘进率（×10、×100、×1000）</li>
+              <li><strong>小单位 → 大单位</strong>：除以进率（÷10、÷100、÷1000）</li>
+            </ul>
+            <div className="mt-2 bg-amber-50 p-2 rounded-lg text-sm">
+              🌰 3米 = 3×10 = 30分米<br/>
+              🌰 500厘米 = 500÷100 = 5米
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 进率总结表</p>
+            <div className="grid grid-cols-2 gap-2 text-center text-sm mt-2">
+              <div className="bg-purple-100 p-1 rounded">1米 = 10分米</div>
+              <div className="bg-purple-100 p-1 rounded">1分米 = 10厘米</div>
+              <div className="bg-purple-100 p-1 rounded">1厘米 = 10毫米</div>
+              <div className="bg-purple-100 p-1 rounded">1米 = 100厘米</div>
+              <div className="bg-purple-100 p-1 rounded">1米 = 1000毫米</div>
+              <div className="bg-purple-100 p-1 rounded">1千米 = 1000米</div>
+            </div>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>4米 = ( ) 分米 &nbsp;&nbsp; 600厘米 = ( ) 米 &nbsp;&nbsp; 5分米 = ( ) 毫米</p>
+            <p className="text-sm text-purple-700">（答案：40，6，500）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“单位换算别着急，进率关系记心里；大化小乘进率，小化大除进率；米分米厘米毫米，相邻十进要清晰。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：单位换算选择题（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ text: "5米 = ? 厘米", options: ["50", "500", "5000"], correct: "500" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { text: "5米 = ? 厘米", options: ["50", "500", "5000"], correct: "500" },
+      { text: "300厘米 = ? 米", options: ["3", "30", "300"], correct: "3" },
+      { text: "2分米 = ? 毫米", options: ["20", "200", "2000"], correct: "200" },
+      { text: "7米 = ? 分米", options: ["7", "70", "700"], correct: "70" },
+      { text: "80毫米 = ? 厘米", options: ["8", "80", "800"], correct: "8" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.text} 答案是 ${question.correct}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.correct}。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 单位换算</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-purple-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 长度单位换算在生活中无处不在：装修量尺寸、运动跑道长度、身高测量…… 掌握换算，做生活的小管家！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

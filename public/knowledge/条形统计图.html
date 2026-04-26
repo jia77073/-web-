@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>条形统计图小专家 | 清晰刻度线+拖拽配对</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义主题：淡紫配色 + 大字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lavender-light': '#CBAACB',
+                        'lavender-soft': '#D9C2E6',
+                        'lavender-deep': '#B38CB8',
+                    },
+                    fontSize: {
+                        '6xl': '3.75rem',
+                    },
+                    fontFamily: {
+                        'kid': ['"Comic Neue"', '"Comic Sans MS"', 'Chalkboard SE', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .drag-card {
+            cursor: grab;
+            transition: transform 0.1s, box-shadow 0.2s;
+            touch-action: manipulation;
+        }
+        .drag-card:active { cursor: grabbing; }
+        .drop-zone { transition: all 0.2s; }
+        .drop-zone.drag-over {
+            background-color: #e9d4ff;
+            border-color: #9b59b6;
+            transform: scale(1.02);
+        }
+        .bar-transition {
+            transition: height 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        }
+        @keyframes bounceHappy {
+            0% { transform: scale(0.95); opacity: 0; }
+            80% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .feedback-pop {
+            animation: bounceHappy 0.3s ease forwards;
+        }
+        /* 网格线样式 */
+        .chart-grid {
+            background-image: linear-gradient(to bottom, #c4b5fd 1px, transparent 1px);
+            background-size: 100% 25%;  /* 每25%高度一条线，对应0-10的刻度间距 */
+        }
+        /* 移动端优化 */
+        @media (max-width: 640px) {
+            .drag-card { cursor: pointer; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-lavender-light to-lavender-soft font-kid min-h-screen p-4 md:p-6">
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // ---------- 辅助函数 ----------
+    // 生成随机数据（1~10之间，3个不同数字，让游戏有区分度）
+    const generateRandomData = () => {
+        let nums = [];
+        while(nums.length < 3) {
+            let r = Math.floor(Math.random() * 10) + 1;
+            if(!nums.includes(r)) nums.push(r);
+        }
+        return nums;
+    };
+    
+    // 根据目标数据构建卡片池（每个数字一张卡片，打乱顺序）
+    const buildCardPool = (dataArray) => {
+        let cards = dataArray.map((value, idx) => ({
+            id: `card_${Date.now()}_${idx}_${Math.random()}`,
+            value: value
+        }));
+        for (let i = cards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cards[i], cards[j]] = [cards[j], cards[i]];
+        }
+        return cards;
+    };
+    
+    const CATEGORIES = [
+        { key: "pencil", name: "铅笔", icon: "✏️", emoji: "✏️" },
+        { key: "eraser", name: "橡皮", icon: "🧽", emoji: "🧽" },
+        { key: "ruler", name: "尺子", icon: "📏", emoji: "📏" }
+    ];
+    
+    const MAX_Y = 10;  // 纵轴最大值固定为10
+    
+    // 条形统计图游戏组件（强化轴线、刻度、网格线）
+    const BarChartGame = () => {
+        const [targetCounts, setTargetCounts] = React.useState(() => generateRandomData());
+        const [matchedCounts, setMatchedCounts] = React.useState([0, 0, 0]);
+        const [cardsPool, setCardsPool] = React.useState(() => buildCardPool(targetCounts));
+        const [matchedStatus, setMatchedStatus] = React.useState([false, false, false]);
+        const [feedback, setFeedback] = React.useState({ message: "", isError: false, show: false });
+        const [allCompleted, setAllCompleted] = React.useState(false);
+        
+        const showFeedback = (msg, isError) => {
+            setFeedback({ message: msg, isError, show: true });
+            setTimeout(() => setFeedback(prev => ({ ...prev, show: false })), 1800);
+        };
+        
+        const checkAllCompleted = (newStatus) => {
+            if (newStatus.every(v => v === true)) {
+                setAllCompleted(true);
+                showFeedback("🎉 完美！条形统计图完成啦！看看哪个直条最高 🎉", false);
+            } else {
+                setAllCompleted(false);
+            }
+        };
+        
+        const handleDrop = (e, catIndex) => {
+            e.preventDefault();
+            const dropZone = document.getElementById(`dropzone-${catIndex}`);
+            if (dropZone) dropZone.classList.remove('drag-over');
+            if (matchedStatus[catIndex]) {
+                showFeedback(`📌 ${CATEGORIES[catIndex].name}已经配对过了，不能重复哟～`, true);
+                return;
+            }
+            const dragRaw = e.dataTransfer.getData("text/plain");
+            if (!dragRaw) return;
+            const { cardId, cardValue } = JSON.parse(dragRaw);
+            const requiredValue = targetCounts[catIndex];
+            if (cardValue === requiredValue) {
+                const newCardsPool = cardsPool.filter(card => card.id !== cardId);
+                setCardsPool(newCardsPool);
+                const newMatchedCounts = [...matchedCounts];
+                newMatchedCounts[catIndex] = requiredValue;
+                setMatchedCounts(newMatchedCounts);
+                const newMatchedStatus = [...matchedStatus];
+                newMatchedStatus[catIndex] = true;
+                setMatchedStatus(newMatchedStatus);
+                showFeedback(`✅ 正确！${CATEGORIES[catIndex].name} 有 ${requiredValue} 个，直条长高啦！`, false);
+                checkAllCompleted(newMatchedStatus);
+            } else {
+                showFeedback(`❌ 配对错误！${CATEGORIES[catIndex].name} 需要的数量是 ${requiredValue}，你拖了 ${cardValue}，再试试～`, true);
+            }
+        };
+        
+        const handleDragOver = (e, catIndex) => {
+            e.preventDefault();
+            if (!matchedStatus[catIndex]) {
+                const dropZone = document.getElementById(`dropzone-${catIndex}`);
+                if (dropZone) dropZone.classList.add('drag-over');
+            }
+        };
+        
+        const handleDragLeave = (e, catIndex) => {
+            const dropZone = document.getElementById(`dropzone-${catIndex}`);
+            if (dropZone) dropZone.classList.remove('drag-over');
+        };
+        
+        const handleDragStart = (e, card) => {
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, cardValue: card.value }));
+            e.dataTransfer.effectAllowed = "copy";
+            e.target.style.opacity = "0.5";
+        };
+        
+        const handleDragEnd = (e) => {
+            e.target.style.opacity = "";
+        };
+        
+        const resetGame = () => {
+            const newTargets = generateRandomData();
+            setTargetCounts(newTargets);
+            const newCards = buildCardPool(newTargets);
+            setCardsPool(newCards);
+            setMatchedCounts([0, 0, 0]);
+            setMatchedStatus([false, false, false]);
+            setAllCompleted(false);
+            setFeedback({ message: "", isError: false, show: false });
+            showFeedback("✨ 新题目来啦！把数字卡片拖到对应文具下方 ✨", false);
+        };
+        
+        // 计算条形高度（最大高度150px，最小20px）
+        const getBarHeight = (value) => {
+            if (value === 0) return "8px";
+            const ratio = value / MAX_Y;
+            return `${Math.max(24, ratio * 150)}px`;
+        };
+        
+        // 渲染纵轴刻度（0,2,4,6,8,10）并带清晰轴线
+        const renderYAxis = () => {
+            const ticks = [0, 2, 4, 6, 8, 10];
+            return (
+                <div className="flex flex-col justify-between h-[150px] text-sm md:text-base font-bold text-purple-900 mr-2">
+                    {ticks.map(tick => (
+                        <div key={tick} className="flex items-center justify-end h-[25px] relative">
+                            <span className="mr-1 bg-white/60 px-1 rounded">{tick}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+        
+        // 动态分析当前已配对的数据（部分结论）
+        const getPartialAnalysis = () => {
+            const completedPairs = matchedStatus.map((status, idx) => status ? matchedCounts[idx] : null);
+            const completedValues = completedPairs.filter(v => v !== null);
+            if (completedValues.length === 0) return null;
+            if (completedValues.length === 1) {
+                return <div className="mt-3 bg-indigo-50 rounded-xl p-2 text-center text-sm md:text-base font-semibold text-purple-800">📊 目前已配对 {completedValues.length} 项，继续配对其他文具，比较直条高低！</div>;
+            }
+            const maxVal = Math.max(...completedValues);
+            const minVal = Math.min(...completedValues);
+            const maxIdx = matchedCounts.findIndex((v, i) => matchedStatus[i] && v === maxVal);
+            const minIdx = matchedCounts.findIndex((v, i) => matchedStatus[i] && v === minVal);
+            if (maxIdx !== -1 && minIdx !== -1 && maxVal !== minVal) {
+                return (
+                    <div className="mt-3 bg-indigo-50 rounded-xl p-2 text-center text-sm md:text-base font-semibold text-purple-800">
+                        🔍 当前对比：{CATEGORIES[maxIdx].name} 的直条最高（{maxVal}个），{CATEGORIES[minIdx].name} 的直条最矮（{minVal}个）。
+                    </div>
+                );
+            } else if (maxVal === minVal && completedValues.length > 1) {
+                return <div className="mt-3 bg-indigo-50 rounded-xl p-2 text-center text-sm md:text-base font-semibold text-purple-800">✨ 目前配对的两个文具数量相同，直条一样高！再配对一个看看～</div>;
+            }
+            return null;
+        };
+        
+        const getFinalAnalysis = () => {
+            if (!allCompleted) return null;
+            const maxVal = Math.max(...matchedCounts);
+            const minVal = Math.min(...matchedCounts);
+            const maxIdx = matchedCounts.indexOf(maxVal);
+            const minIdx = matchedCounts.indexOf(minVal);
+            return (
+                <div className="mt-4 bg-yellow-100 rounded-xl p-3 text-center text-base md:text-lg font-bold text-purple-900 shadow-md">
+                    🏆 统计小结论 🏆<br/>
+                    🌟 {CATEGORIES[maxIdx].name} 数量最多，直条最高！有 {maxVal} 个。<br/>
+                    🍃 {CATEGORIES[minIdx].name} 数量最少，直条最矮！有 {minVal} 个。<br/>
+                    📢 条形统计图的直条长短让我们一眼就看出谁多谁少！
+                </div>
+            );
+        };
+        
+        return (
+            <div className="flex flex-col">
+                {/* 条形统计图主区域 - 强化坐标轴和网格线 */}
+                <div className="bg-white/80 rounded-2xl p-4 shadow-lg mb-4">
+                    <h3 className="text-2xl md:text-3xl font-bold text-center text-purple-800 flex items-center justify-center gap-2 mb-3">
+                        📊 条形统计图 <span className="text-sm bg-purple-200 px-2 py-1 rounded-full">直条越长 = 数量越多</span>
+                    </h3>
+                    <div className="flex justify-center mt-2">
+                        <div className="overflow-x-auto w-full">
+                            <div className="flex items-start justify-center min-w-[280px]">
+                                {/* 纵轴刻度区 + 轴线 */}
+                                <div className="flex flex-col items-end">
+                                    <div className="relative h-[150px] w-10 border-r-2 border-purple-700">
+                                        {renderYAxis()}
+                                    </div>
+                                    <div className="text-xs text-center mt-1 font-bold text-purple-700">数量(个)</div>
+                                </div>
+                                
+                                {/* 条形图区域 + 网格背景 */}
+                                <div className="flex-1 flex justify-around gap-4 md:gap-8 ml-2">
+                                    {CATEGORIES.map((cat, idx) => {
+                                        const currentVal = matchedCounts[idx];
+                                        const barHeight = getBarHeight(currentVal);
+                                        const isMatched = matchedStatus[idx];
+                                        return (
+                                            <div key={cat.key} className="flex flex-col items-center w-20 md:w-28">
+                                                <div className="relative w-full">
+                                                    {/* 网格背景线 (横向辅助线，对应纵轴刻度) */}
+                                                    <div className="absolute inset-0 h-[150px] pointer-events-none flex flex-col justify-between">
+                                                        {[0,1,2,3,4,5].map(i => (
+                                                            <div key={i} className="border-t border-purple-200 w-full h-[25px]"></div>
+                                                        ))}
+                                                    </div>
+                                                    {/* 直条容器 */}
+                                                    <div className="relative h-[150px] flex items-end justify-center w-full">
+                                                        <div className="relative w-12 md:w-16 bg-purple-300 rounded-t-lg bar-transition flex flex-col items-center justify-end overflow-visible shadow-md"
+                                                             style={{ height: barHeight, backgroundColor: isMatched ? '#8b5cf6' : '#e2d4f0', border: isMatched ? '2px solid #5b21b6' : '1px dashed #c4b5fd' }}>
+                                                            {isMatched && currentVal > 0 && (
+                                                                <div className="absolute -top-7 bg-purple-700 text-white text-sm md:text-base font-bold px-2 py-0.5 rounded-full whitespace-nowrap shadow">
+                                                                    {currentVal}个
+                                                                </div>
+                                                            )}
+                                                            {!isMatched && (
+                                                                <div className="text-gray-400 text-xs mb-1">❓</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {/* 类别图标与名称 */}
+                                                <div className="mt-2 text-center">
+                                                    <span className="text-2xl md:text-3xl">{cat.icon}</span>
+                                                    <p className="text-sm md:text-lg font-bold text-purple-800">{cat.name}</p>
+                                                </div>
+                                                {/* 拖拽放置区 */}
+                                                <div
+                                                    id={`dropzone-${idx}`}
+                                                    onDrop={(e) => handleDrop(e, idx)}
+                                                    onDragOver={(e) => handleDragOver(e, idx)}
+                                                    onDragLeave={(e) => handleDragLeave(e, idx)}
+                                                    className={`drop-zone w-full mt-2 py-2 px-1 rounded-xl border-2 border-dashed text-center text-xs md:text-sm transition-all
+                                                        ${isMatched ? 'bg-green-100 border-green-400' : 'bg-purple-50 border-purple-300 cursor-pointer'}`}
+                                                >
+                                                    {isMatched ? `✅ ${currentVal}个` : "⬅️ 拖数字"}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* 横轴说明 + 轴线装饰 */}
+                    <div className="text-center text-xs text-gray-500 mt-3 flex justify-center gap-4">
+                        <span>📌 横轴：文具种类</span>
+                        <span className="border-l border-gray-300 pl-4">📏 纵轴：数量(0~10)</span>
+                    </div>
+                </div>
+                
+                {/* 可拖拽数字卡片池 */}
+                <div className="bg-white/70 rounded-2xl p-4 mb-3">
+                    <p className="text-lg md:text-xl font-bold text-purple-800 mb-3 flex items-center gap-2">
+                        🃏 数字卡片（拖拽到上方对应文具的虚线框）
+                    </p>
+                    {cardsPool.length === 0 && allCompleted && (
+                        <div className="bg-green-200 p-3 rounded-xl text-center text-green-800 font-bold text-lg">
+                            🎉 太棒了！所有数字配对完成！点“换一题”继续挑战 🎉
+                        </div>
+                    )}
+                    {cardsPool.length > 0 ? (
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            {cardsPool.map(card => (
+                                <div
+                                    key={card.id}
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, card)}
+                                    onDragEnd={handleDragEnd}
+                                    className="drag-card w-20 h-20 md:w-28 md:h-28 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl flex items-center justify-center shadow-xl text-4xl md:text-6xl font-black text-purple-900 border-4 border-white hover:scale-105 transition-transform"
+                                >
+                                    {card.value}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        !allCompleted && <div className="text-center text-purple-600 text-lg">✨ 正在配对中，继续拖动卡片 ✨</div>
+                    )}
+                </div>
+                
+                {/* 反馈消息区域 */}
+                {feedback.show && (
+                    <div className={`text-center p-2 rounded-xl text-lg font-bold mb-2 ${feedback.isError ? 'bg-rose-200 text-rose-700' : 'bg-green-200 text-green-800'} feedback-pop`}>
+                        {feedback.message}
+                    </div>
+                )}
+                
+                {/* 动态分析（部分结论） */}
+                {!allCompleted && getPartialAnalysis()}
+                {getFinalAnalysis()}
+                
+                {/* 换一题按钮 */}
+                <button onClick={resetGame}
+                        className="mt-4 w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-xl transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3">
+                    🔄 换一题
+                    <span>🌟</span>
+                </button>
+                <p className="text-xs text-center text-purple-700 mt-2 bg-white/50 rounded-full px-2 py-1">
+                    💡 玩法：把右边数字卡片拖到对应文具的虚线框中，条形图会立刻长高！刻度线和网格线帮助你清晰对比数量多少～
+                </p>
+            </div>
+        );
+    };
+    
+    // 左侧知识点组件（保持不变，清晰讲解）
+    const KnowledgePanel = () => {
+        return (
+            <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                <div className="flex items-center gap-2 mb-4 border-b-4 border-lavender-deep pb-2">
+                    <span className="text-4xl">📊</span>
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">条形统计图小课堂</h2>
+                </div>
+                <div className="space-y-4 text-lg md:text-xl leading-relaxed text-gray-800">
+                    <div className="bg-purple-50 p-3 rounded-xl">
+                        <p className="font-black text-purple-900">📌 什么是条形统计图？</p>
+                        <p>用<span className="bg-yellow-200 px-1 rounded">直条的长短</span>表示数量的多少，直条越长，数量越多！一眼就能看出谁多谁少。</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                        <p className="font-black text-purple-900">🎨 条形统计图的组成：</p>
+                        <ul className="list-disc pl-5 space-y-1 text-base md:text-xl">
+                            <li><strong>标题</strong>：概括统计内容</li>
+                            <li><strong>横轴</strong>：表示类别（如文具）</li>
+                            <li><strong>纵轴</strong>：表示数量，有单位长度和刻度线</li>
+                            <li><strong>直条</strong>：宽度相等，高度对应数据大小</li>
+                            <li><strong>数据标注</strong>：在直条上方标出具体数字</li>
+                        </ul>
+                    </div>
+                    <div className="bg-indigo-50 p-3 rounded-xl">
+                        <p className="font-black">✨ 与统计表相比的优势：</p>
+                        <p>统计表只有数字，而条形统计图<span className="font-bold text-purple-700">更直观、便于比较</span>！比如看哪个班级人数最多，条形图一目了然。</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 shadow-inner">
+                        <p className="font-black">📝 绘制小步骤：</p>
+                        <p>1️⃣ 画横轴、纵轴 → 2️⃣ 确定单位长度和刻度 → 3️⃣ 根据数据画直条 → 4️⃣ 标数据、写标题。</p>
+                    </div>
+                    <div className="text-sm md:text-base text-purple-800 bg-lavender-soft/50 p-2 rounded-lg">
+                        🌟 生活应用：班级人数、天气天数、喜欢的颜色……都可以用条形统计图！它让数据会“说话”。
+                    </div>
+                </div>
+                <div className="mt-4 text-center text-purple-500 text-xs md:text-sm">
+                    💡 右侧游戏：把数字卡片拖到正确文具下方，条形图会立刻长高，清晰的刻度线帮你比较数量！
+                </div>
+            </div>
+        );
+    };
+    
+    // 主应用
+    const App = () => {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center">
+                <div className="w-full max-w-6xl mb-4 text-center">
+                    <h1 className="text-5xl md:text-7xl font-extrabold text-white drop-shadow-lg bg-purple-800/30 inline-block px-6 py-2 rounded-full backdrop-blur-sm">
+                        🐼 条形统计图大冒险 📈
+                    </h1>
+                    <p className="text-white/90 text-xl md:text-2xl mt-2 font-semibold">学习统计·拖拽配对·刻度清晰·直条会说话</p>
+                </div>
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="lg:w-1/2">
+                        <KnowledgePanel />
+                    </div>
+                    <div className="lg:w-1/2">
+                        <div className="bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white h-full">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 mb-3 flex items-center gap-2">
+                                🎮 小小统计师 <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对游戏</span>
+                            </h3>
+                            <BarChartGame />
+                        </div>
+                    </div>
+                </div>
+                <footer className="mt-6 text-center text-purple-800 text-sm md:text-base bg-white/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                    🌟 将数字卡片拖拽到对应文具下方，条形图自动长高并显示数字！刻度线帮助你轻松比较多少 🌟
+                </footer>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>长方体和正方体的展开图 · 拆盒小工匠 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+      min-height: 180px;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.01);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-zone {
+        font-size: 1.2rem;
+      }
+    }
+    .net-svg {
+      background: white;
+      border-radius: 0.75rem;
+      display: inline-block;
+      box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 长方体和正方体的展开图 =======================
+  // 知识点：正方体展开图有11种，分为141型、231型、222型、33型；长方体展开图相对的面相隔。
+  
+  // ---------- 游戏数据：6个展开图（4个正方体典型展开图 + 2个长方体展开图）----------
+  const netsData = [
+    { id: 1, name: "正方体展开图 (141型)", type: "cube-141", svg: "cube-141", description: "中间四个连一排，上下各一个" },
+    { id: 2, name: "正方体展开图 (231型)", type: "cube-231", svg: "cube-231", description: "中间三个，上方两个，下方一个" },
+    { id: 3, name: "正方体展开图 (222型)", type: "cube-222", svg: "cube-222", description: "两行三列，阶梯状" },
+    { id: 4, name: "正方体展开图 (33型)", type: "cube-33", svg: "cube-33", description: "两行三列，上下对齐" },
+    { id: 5, name: "长方体展开图", type: "cuboid", svg: "cuboid", description: "相对的面大小相同" },
+    { id: 6, name: "长方体展开图 (另一种)", type: "cuboid2", svg: "cuboid2", description: "长宽高不同，相对面分离" }
+  ];
+  
+  // 绘制展开图SVG（简化示意图）
+  const NetSvg = ({ type }) => {
+    const commonStyle = { fill: "#c8e6c9", stroke: "#2e7d32", strokeWidth: "1.5" };
+    if (type === "cube-141") {
+      return (
+        <svg width="120" height="100" viewBox="0 0 120 100" className="net-svg">
+          <rect x="40" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="60" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="80" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="40" width="20" height="20" {...commonStyle} />
+        </svg>
+      );
+    } else if (type === "cube-231") {
+      return (
+        <svg width="120" height="100" viewBox="0 0 120 100" className="net-svg">
+          <rect x="20" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="0" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="40" width="20" height="20" {...commonStyle} />
+        </svg>
+      );
+    } else if (type === "cube-222") {
+      return (
+        <svg width="120" height="80" viewBox="0 0 120 80" className="net-svg">
+          <rect x="0" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="60" y="20" width="20" height="20" {...commonStyle} />
+        </svg>
+      );
+    } else if (type === "cube-33") {
+      return (
+        <svg width="120" height="60" viewBox="0 0 120 60" className="net-svg">
+          <rect x="0" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="0" width="20" height="20" {...commonStyle} />
+          <rect x="0" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="20" y="20" width="20" height="20" {...commonStyle} />
+          <rect x="40" y="20" width="20" height="20" {...commonStyle} />
+        </svg>
+      );
+    } else if (type === "cuboid") {
+      // 长方体展开图示意（长宽高不等）
+      return (
+        <svg width="140" height="80" viewBox="0 0 140 80" className="net-svg">
+          <rect x="40" y="0" width="30" height="20" {...commonStyle} />
+          <rect x="10" y="20" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="20" width="30" height="20" {...commonStyle} />
+          <rect x="70" y="20" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="40" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="60" width="30" height="20" {...commonStyle} />
+        </svg>
+      );
+    } else {
+      // 另一种长方体展开图
+      return (
+        <svg width="140" height="80" viewBox="0 0 140 80" className="net-svg">
+          <rect x="10" y="0" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="0" width="30" height="20" {...commonStyle} />
+          <rect x="70" y="0" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="20" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="40" width="30" height="20" {...commonStyle} />
+          <rect x="40" y="60" width="30" height="20" {...commonStyle} />
+        </svg>
+      );
+    }
+  };
+  
+  // 生成可拖拽卡片数组（名称卡片，初始顺序打乱）
+  const generateNameCards = () => {
+    let cards = netsData.map(net => ({
+      id: net.id,
+      text: net.name,
+      targetType: net.type,
+      matched: false
+    }));
+    // 打乱顺序
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    return cards;
+  };
+  
+  // 游戏组件：拖拽配对（将名称卡片拖拽到对应的展开图下方）
+  const MatchingGame = () => {
+    const [nameCards, setNameCards] = React.useState(() => generateNameCards());
+    // 每个展开图的配对状态：是否已配对，以及配对文本
+    const [netStatus, setNetStatus] = React.useState(() => {
+      const init = {};
+      netsData.forEach(net => {
+        init[net.id] = { matched: false, matchedName: null, correctName: net.name };
+      });
+      return init;
+    });
+    const [dragOverNetId, setDragOverNetId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalNets = netsData.length;
+    const matchedCount = Object.values(netStatus).filter(s => s.matched).length;
+    
+    const checkVictory = (currentStatus) => {
+      const allMatched = Object.values(currentStatus).every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有展开图都找到了自己的名字！你已是展开图小专家！ 🎉");
+      }
+    };
+    
+    // 拖拽名称卡片
+    const onDragStart = (e, cardId, targetType, cardName) => {
+      const card = nameCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, targetType, cardName }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverNet = (e, netId) => {
+      e.preventDefault();
+      setDragOverNetId(netId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveNet = () => setDragOverNetId(null);
+    
+    const onDropToNet = (e, netId) => {
+      e.preventDefault();
+      setDragOverNetId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, targetType, cardName } = dragData;
+      
+      const sourceCard = nameCards.find(c => c.id === cardId);
+      const targetNet = netsData.find(n => n.id === netId);
+      const currentNetStatus = netStatus[netId];
+      if (!sourceCard || !targetNet || !currentNetStatus) return;
+      if (sourceCard.matched || currentNetStatus.matched) {
+        setFeedbackMsg("⏳ 这张卡片或这个展开图已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证是否匹配（卡片的targetType是否等于展开图的type）
+      const isMatch = (targetType === targetNet.type);
+      if (!isMatch) {
+        setFeedbackMsg(`❌ 配对错误！“${cardName}” 不是这个展开图的名称。再观察一下展开图的形状～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+        return;
+      }
+      
+      // 配对成功
+      setNameCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setNetStatus(prev => ({
+        ...prev,
+        [netId]: { ...prev[netId], matched: true, matchedName: cardName }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！“${cardName}” 配对成功！`);
+      setTimeout(() => setFeedbackMsg(""), 1200);
+      
+      const newStatus = { ...netStatus, [netId]: { ...netStatus[netId], matched: true, matchedName: cardName } };
+      checkVictory(newStatus);
+    };
+    
+    const resetGame = () => {
+      setNameCards(generateNameCards());
+      const initStatus = {};
+      netsData.forEach(net => {
+        initStatus[net.id] = { matched: false, matchedName: null, correctName: net.name };
+      });
+      setNetStatus(initStatus);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把右边的名称卡片拖拽到左边正确的展开图下方吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    // 未配对的卡片
+    const unmatchedCards = nameCards.filter(c => !c.matched);
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">🧩 展开图配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalNets}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：观察每个展开图的形状，然后将右侧的<strong>名称卡片</strong>拖拽到对应图形下方的槽位中。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧展开图区域 */}
+          <div className="flex-1 bg-green-50/60 rounded-2xl p-3">
+            <div className="font-bold text-green-800 text-center mb-2">📦 展开图展览馆</div>
+            <div className="space-y-5 max-h-[550px] overflow-y-auto pr-1">
+              {netsData.map(net => (
+                <div key={net.id} className="bg-white rounded-xl p-3 shadow border border-green-200">
+                  <div className="flex justify-center">
+                    <NetSvg type={net.svg} />
+                  </div>
+                  <div 
+                    onDragOver={(e) => onDragOverNet(e, net.id)}
+                    onDragLeave={onDragLeaveNet}
+                    onDrop={(e) => onDropToNet(e, net.id)}
+                    className={`drop-zone rounded-xl p-2 text-center transition-all mt-2 ${dragOverNetId === net.id ? 'drag-over' : ''} ${netStatus[net.id].matched ? 'bg-green-100 border-green-600' : ''}`}
+                  >
+                    <div className="text-xs font-bold text-green-800">📌 名称槽位</div>
+                    {netStatus[net.id].matched ? (
+                      <div className="text-sm font-mono text-green-700">{netStatus[net.id].matchedName}</div>
+                    ) : (
+                      <div className="text-[10px] text-gray-500">⬅️ 拖拽名称卡片至此</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧卡片池 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 名称卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[550px] overflow-y-auto">
+              {unmatchedCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.targetType, card.text)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-48 p-3 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-sm px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个名称卡片只能用一次，拖拽到对应展开图的名称槽位。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 拆盒小工匠！你已完全掌握长方体和正方体的展开图！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 正方体展开图有11种，口诀“141型6种，231型3种，222型1种，33型1种”。长方体展开图中，相对的面不会相邻。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：长方体和正方体的展开图 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📦</span>
+          <h2 className="text-3xl font-extrabold text-green-900">长方体和正方体的展开图</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是展开图？</p>
+            <p>将立体图形的表面沿着棱剪开，展开后得到的平面图形叫做展开图。正方体的展开图共有<strong>11种</strong>。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 正方体展开图分类</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>141型</strong>：中间4个连一排，上下各1个（6种）</li>
+              <li><strong>231型</strong>：中间3个，上方2个，下方1个（3种）</li>
+              <li><strong>222型</strong>：两行三列，阶梯状（1种）</li>
+              <li><strong>33型</strong>：两行三列，上下对齐（1种）</li>
+            </ul>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 长方体展开图特点</p>
+            <p>长方体展开图中，相对的面（大小相同）一定不会相邻，它们之间至少隔着一个面。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>正方体展开图中，“141型”有（ ）种，“231型”有（ ）种。</p>
+            <p className="text-sm text-green-700">（答案：6，3）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“正方体展开图，141六种，231三种，222和33各一种，总共11种要记清。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断能否折成正方体 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ type: "141型", canFold: true });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { type: "141型", canFold: true, text: "141型展开图能否折成正方体？" },
+      { type: "231型", canFold: true, text: "231型展开图能否折成正方体？" },
+      { type: "222型", canFold: true, text: "222型展开图能否折成正方体？" },
+      { type: "33型", canFold: true, text: "33型展开图能否折成正方体？" },
+      { type: "田字型", canFold: false, text: "田字型（4个正方形连成田字）能否折成正方体？" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === (question.canFold ? "能" : "不能"));
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.type} ${question.canFold ? "能" : "不能"}折成正方体。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.type} ${question.canFold ? "能" : "不能"}折成正方体。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 能否折成正方体</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            <button onClick={() => checkAnswer("能")} className={`px-4 py-2 rounded-full font-bold transition ${userChoice === "能" ? (userChoice === (question.canFold ? "能" : "不能") ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-200'}`}>能</button>
+            <button onClick={() => checkAnswer("不能")} className={`px-4 py-2 rounded-full font-bold transition ${userChoice === "不能" ? (userChoice === (question.canFold ? "能" : "不能") ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-200'}`}>不能</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 展开图帮助我们理解立体图形的表面结构，是学习表面积的基础。动手剪一剪、折一折，你会有更多发现！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

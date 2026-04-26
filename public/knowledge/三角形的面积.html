@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>三角形的面积 · 拼图魔法师 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .triangle-svg {
+      background: #ffffffdd;
+      border-radius: 1rem;
+      display: inline-block;
+      box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 三角形的面积 =======================
+  // 知识点：三角形面积 = 底 × 高 ÷ 2，用字母表示 S = a × h ÷ 2。
+  // 通过拼补法（两个完全一样的三角形拼成平行四边形）推导。
+  
+  // ---------- 游戏数据：6个三角形（底和高已知），需要配对正确的面积数值 ----------
+  const triangleData = [
+    { id: 1, base: 4, height: 3, area: 6, unit: "cm²", label: "底4cm 高3cm", areaText: "6 cm²" },
+    { id: 2, base: 6, height: 4, area: 12, unit: "cm²", label: "底6cm 高4cm", areaText: "12 cm²" },
+    { id: 3, base: 5, height: 8, area: 20, unit: "cm²", label: "底5cm 高8cm", areaText: "20 cm²" },
+    { id: 4, base: 7, height: 6, area: 21, unit: "cm²", label: "底7cm 高6cm", areaText: "21 cm²" },
+    { id: 5, base: 10, height: 5, area: 25, unit: "cm²", label: "底10cm 高5cm", areaText: "25 cm²" },
+    { id: 6, base: 8, height: 7, area: 28, unit: "cm²", label: "底8cm 高7cm", areaText: "28 cm²" }
+  ];
+  
+  // 生成右侧可拖拽卡片：包含正确面积和干扰项
+  const generateAreaCards = () => {
+    const correctAreas = triangleData.map(t => t.areaText);
+    // 干扰项
+    const distractors = ["8 cm²", "10 cm²", "14 cm²", "16 cm²", "18 cm²", "22 cm²", "24 cm²", "30 cm²", "32 cm²"];
+    let allCards = [...correctAreas];
+    for (let d of distractors) {
+      if (!allCards.includes(d)) allCards.push(d);
+      if (allCards.length >= 12) break;
+    }
+    // 打乱顺序
+    for (let i = allCards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
+    }
+    return allCards.map((text, idx) => ({
+      id: `card-${idx}`,
+      text: text,
+      matched: false,
+      areaValue: parseFloat(text.split(' ')[0])
+    }));
+  };
+  
+  // 绘制三角形示意图（带底和高标注）
+  const TriangleSvg = ({ base, height, baseLabel = "底", heightLabel = "高" }) => {
+    const scale = Math.min(100 / Math.max(base, height), 0.9);
+    const w = base * scale;
+    const h = height * scale;
+    const svgWidth = Math.max(w + 30, 100);
+    const svgHeight = Math.max(h + 30, 80);
+    const leftX = 15;
+    const bottomY = svgHeight - 15;
+    const rightX = leftX + w;
+    const topX = leftX + w/2;
+    const topY = bottomY - h;
+    return (
+      <svg width={svgWidth} height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="triangle-svg" style={{ background: 'white' }}>
+        <polygon points={`${leftX},${bottomY} ${rightX},${bottomY} ${topX},${topY}`} fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2.5" />
+        {/* 底边标注 */}
+        <line x1={leftX} y1={bottomY+5} x2={rightX} y2={bottomY+5} stroke="#b45309" strokeWidth="2" strokeDasharray="4,3" />
+        <text x={(leftX+rightX)/2} y={bottomY+18} fontSize="11" fill="#b45309" textAnchor="middle">{baseLabel} {base}</text>
+        {/* 高线（从顶点到底边） */}
+        <line x1={topX} y1={topY} x2={topX} y2={bottomY} stroke="#d97706" strokeWidth="2" strokeDasharray="4,3" />
+        <text x={topX+8} y={(topY+bottomY)/2} fontSize="11" fill="#d97706">{heightLabel} {height}</text>
+        {/* 直角标记（如果高是垂直的） */}
+        <polyline points={`${topX-5},${bottomY} ${topX},${bottomY} ${topX},${bottomY-5}`} fill="none" stroke="#d97706" strokeWidth="1.5" />
+      </svg>
+    );
+  };
+  
+  // 游戏组件：拖拽配对（将面积卡片拖拽到对应三角形的槽位）
+  const MatchingGame = () => {
+    const [areaCards, setAreaCards] = React.useState(() => generateAreaCards());
+    // 槽位状态：每个三角形一个槽位
+    const [slots, setSlots] = React.useState(() => {
+      const init = {};
+      triangleData.forEach(t => {
+        init[t.id] = { filled: false, value: null, correctArea: t.areaText };
+      });
+      return init;
+    });
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalSlots = triangleData.length;
+    const filledCount = Object.values(slots).filter(s => s.filled).length;
+    
+    const checkVictory = (currentSlots) => {
+      const allFilled = Object.values(currentSlots).every(s => s.filled);
+      if (allFilled && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有三角形的面积都配对成功！你已是面积计算小高手！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, cardText) => {
+      const card = areaCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardText }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardText } = dragData;
+      
+      const sourceCard = areaCards.find(c => c.id === cardId);
+      const targetSlot = slots[slotId];
+      if (!sourceCard || !targetSlot) return;
+      if (sourceCard.matched || targetSlot.filled) {
+        setFeedbackMsg("⏳ 这张面积卡片或这个槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      const targetTriangle = triangleData.find(t => t.id === slotId);
+      const isMatch = (cardText === targetTriangle.areaText);
+      if (!isMatch) {
+        setFeedbackMsg(`❌ 配对错误！“${cardText}” 不是图形 ${targetTriangle.label} 的面积。正确面积是 ${targetTriangle.areaText}。再算一遍吧～ 面积 = 底×高÷2。`);
+        setTimeout(() => setFeedbackMsg(""), 2000);
+        return;
+      }
+      
+      // 配对成功
+      setAreaCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setSlots(prev => ({
+        ...prev,
+        [slotId]: { ...prev[slotId], filled: true, value: cardText }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！${targetTriangle.label} 的面积是 ${cardText}，公式：底×高÷2。`);
+      setTimeout(() => setFeedbackMsg(""), 1500);
+      
+      const newSlots = { ...slots, [slotId]: { ...slots[slotId], filled: true, value: cardText } };
+      checkVictory(newSlots);
+    };
+    
+    const resetGame = () => {
+      setAreaCards(generateAreaCards());
+      const initSlots = {};
+      triangleData.forEach(t => {
+        initSlots[t.id] = { filled: false, value: null, correctArea: t.areaText };
+      });
+      setSlots(initSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把右边的面积卡片拖拽到左边正确三角形的槽位下吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">📐 面积配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalSlots}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：计算每个三角形的面积，然后将右侧<strong>面积卡片</strong>拖拽到对应图形下方的槽位中。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧图形区 */}
+          <div className="flex-1 bg-green-50/60 rounded-2xl p-3">
+            <div className="font-bold text-green-800 text-center mb-2">📦 三角形工坊</div>
+            <div className="space-y-5 max-h-[550px] overflow-y-auto pr-1">
+              {triangleData.map(t => (
+                <div key={t.id} className="bg-white rounded-xl p-3 shadow border border-green-200">
+                  <div className="text-center font-bold text-green-700 text-sm">{t.label}</div>
+                  <div className="flex justify-center my-2">
+                    <TriangleSvg base={t.base} height={t.height} baseLabel="底" heightLabel="高" />
+                  </div>
+                  <div 
+                    onDragOver={(e) => onDragOverSlot(e, t.id)}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, t.id)}
+                    className={`drop-slot rounded-xl p-3 text-center transition-all mt-2 ${dragOverSlotId === t.id ? 'drag-over' : ''} ${slots[t.id].filled ? 'slot-filled' : ''}`}
+                  >
+                    <div className="text-sm font-bold text-green-800">📌 面积槽位</div>
+                    {slots[t.id].filled ? (
+                      <div className="text-xl font-mono text-green-700">{slots[t.id].value}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500">⬅️ 拖拽面积卡片至此</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧卡片池 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 面积卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[550px] overflow-y-auto">
+              {areaCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.text)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-36 h-24 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-base px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个面积卡片只能用一次，拖拽到对应三角形的面积槽位。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 拼图魔法师！你已完全掌握三角形的面积计算！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 三角形面积 = 底 × 高 ÷ 2。两个完全一样的三角形可以拼成一个平行四边形，所以面积是平行四边形的一半。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：三角形的面积 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📐</span>
+          <h2 className="text-3xl font-extrabold text-green-900">三角形的面积</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 面积公式</p>
+            <p><strong>三角形面积 = 底 × 高 ÷ 2</strong></p>
+            <p>用字母表示：<strong>S = a × h ÷ 2</strong></p>
+            <div className="mt-2 bg-green-100 p-2 rounded-lg font-mono text-center">S = a × h ÷ 2</div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 公式推导（拼补法）</p>
+            <p>两个完全一样的三角形可以拼成一个平行四边形。拼成的平行四边形底等于三角形的底，高等于三角形的高。所以三角形面积 = 平行四边形面积 ÷ 2 = 底×高÷2。</p>
+            <div className="mt-2 flex justify-center gap-2">
+              <svg width="80" height="60" viewBox="0 0 80 60">
+                <polygon points="10,50 70,50 40,10" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="1.5" />
+              </svg>
+              <span className="text-2xl">+</span>
+              <svg width="80" height="60" viewBox="0 0 80 60">
+                <polygon points="10,50 70,50 40,10" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="1.5" transform="scale(-1,1) translate(-80,0)" />
+              </svg>
+              <span className="text-2xl">=</span>
+              <svg width="100" height="60" viewBox="0 0 100 60">
+                <rect x="10" y="10" width="80" height="40" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="1.5" />
+              </svg>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 示例</p>
+            <p>底=4cm，高=3cm，面积 = 4×3÷2 = 6 cm²。</p>
+            <p className="text-sm mt-1">🌰 注意：底和高必须对应，即高是底边上的高。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>三角形底6dm，高4dm，面积（ ）dm²；底8m，高5m，面积（ ）m²。</p>
+            <p className="text-sm text-green-700">（答案：12，20）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“三角形面积易计算，底乘高来除以二；拼图方法记得牢，几何世界任我行。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：计算面积（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ base: 4, height: 3, answer: 6 });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { base: 4, height: 3, answer: 6, text: "底4cm，高3cm，面积是多少cm²？" },
+      { base: 6, height: 4, answer: 12, text: "底6dm，高4dm，面积是多少dm²？" },
+      { base: 5, height: 8, answer: 20, text: "底5m，高8m，面积是多少m²？" },
+      { base: 7, height: 6, answer: 21, text: "底7cm，高6cm，面积是多少cm²？" },
+      { base: 10, height: 5, answer: 25, text: "底10dm，高5dm，面积是多少dm²？" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const userVal = parseFloat(userAnswer);
+      if (isNaN(userVal)) {
+        setFeedback("📛 输入数字答案哟～");
+        return;
+      }
+      if (Math.abs(userVal - question.answer) < 0.01) {
+        setFeedback(`✅ 正确！${question.text} 答案是 ${question.answer}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.answer}。面积 = 底×高÷2。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 面积计算</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="number" step="any" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-green-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="输入数字"
+            />
+            <button onClick={checkAnswer} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 三角形面积在生活中有很多应用：三角形花坛、三角旗、屋顶斜面…… 掌握公式，你就能轻松计算这些图形的面积！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

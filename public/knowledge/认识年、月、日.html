@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小乐园：认识年、月、日 | 拖拖乐月份工厂</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 大5号字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',
+                        '6xl': '3.75rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 拖拽优化 & 移动端适配 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        /* 卡片配对成功动画 */
+        @keyframes matchPop {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-animation {
+            animation: matchPop 0.4s ease-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 认识年、月、日 —— 拖拽配对游戏 (月份天数配对)
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ----- 预定义卡片池：包含所有可能的月份/特殊卡片 -----
+        // 每个卡片: id, name(显示名称), targetDays(正确天数: 31,30,28,29), 类别用于展示
+        const CARD_POOL = [
+            { id: "jan", name: "1月", targetDays: 31, type: "大月" },
+            { id: "mar", name: "3月", targetDays: 31, type: "大月" },
+            { id: "may", name: "5月", targetDays: 31, type: "大月" },
+            { id: "jul", name: "7月", targetDays: 31, type: "大月" },
+            { id: "aug", name: "8月", targetDays: 31, type: "大月" },
+            { id: "oct", name: "10月", targetDays: 31, type: "大月" },
+            { id: "dec", name: "12月", targetDays: 31, type: "大月" },
+            { id: "apr", name: "4月", targetDays: 30, type: "小月" },
+            { id: "jun", name: "6月", targetDays: 30, type: "小月" },
+            { id: "sep", name: "9月", targetDays: 30, type: "小月" },
+            { id: "nov", name: "11月", targetDays: 30, type: "小月" },
+            { id: "feb_common", name: "二月 (平年)", targetDays: 28, type: "平年二月" },
+            { id: "feb_leap", name: "二月 (闰年)", targetDays: 29, type: "闰年二月" }
+        ];
+        
+        // 随机选取 count 个不同卡片 (保证不重复)
+        const getRandomCards = (count = 5) => {
+            // 为了避免总是大月太多，尽量混合选取: 打乱副本后取前count
+            const shuffled = [...CARD_POOL];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled.slice(0, count).map(card => ({
+                ...card,
+                uniqueId: `${card.id}_${Date.now()}_${Math.random()}`,
+                matched: false,   // 是否已配对成功
+            }));
+        };
+        
+        // 放置区域定义: 天数盒子
+        const DROP_ZONES = [
+            { days: 31, label: "31天", color: "bg-rose-100", borderColor: "border-rose-300", hint: "大月 (1,3,5,7,8,10,12)" },
+            { days: 30, label: "30天", color: "bg-sky-100", borderColor: "border-sky-300", hint: "小月 (4,6,9,11)" },
+            { days: 28, label: "28天", color: "bg-emerald-100", borderColor: "border-emerald-300", hint: "平年二月" },
+            { days: 29, label: "29天", color: "bg-amber-100", borderColor: "border-amber-300", hint: "闰年二月" }
+        ];
+        
+        // ---------- 主游戏组件: 拖拽配对年、月、日 ----------
+        const MonthDayGame = () => {
+            const [cards, setCards] = useState([]);          // 待配对卡片列表（未配对的卡片）
+            const [matchedCount, setMatchedCount] = useState(0);
+            const [totalCards, setTotalCards] = useState(0);
+            const [message, setMessage] = useState("🐣 把月份卡片拖到正确的天数盒子里，学习年、月、日！");
+            const [highlightZone, setHighlightZone] = useState(null);   // 高亮哪个放置区(days)
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            
+            // 重置 / 换一题: 生成新卡片组
+            const resetGame = () => {
+                const newCards = getRandomCards(5);  // 每次5个不同卡片
+                setCards(newCards);
+                setMatchedCount(0);
+                setTotalCards(newCards.length);
+                setMessage("🎲 新题目来啦！把卡片拖拽到正确的天数盒子，巩固大小月知识～");
+                setEffectTrigger(prev => prev+1);
+                setHighlightZone(null);
+            };
+            
+            // 初始化
+            useEffect(() => {
+                resetGame();
+            }, []);
+            
+            // 检查是否全部配对
+            const allMatched = matchedCount === totalCards && totalCards > 0;
+            
+            // 处理配对: 当卡片拖拽到放置区时调用
+            const handleDrop = (e, targetDays) => {
+                e.preventDefault();
+                setHighlightZone(null);
+                let dragData;
+                try {
+                    const raw = e.dataTransfer.getData("text/plain");
+                    if (!raw) return;
+                    dragData = JSON.parse(raw);
+                } catch(err) {
+                    setMessage("请从月份卡片上拖拽哦～");
+                    return;
+                }
+                const { cardUniqueId } = dragData;
+                if (!cardUniqueId) return;
+                
+                // 查找当前卡片（未配对）
+                const currentCard = cards.find(c => c.uniqueId === cardUniqueId && !c.matched);
+                if (!currentCard) {
+                    setMessage("这张卡片已经配对过了，不能再拖拽啦！试试其他卡片吧～");
+                    return;
+                }
+                
+                // 验证天数是否匹配
+                if (currentCard.targetDays === targetDays) {
+                    // 配对成功
+                    setCards(prevCards => 
+                        prevCards.map(card => 
+                            card.uniqueId === cardUniqueId ? { ...card, matched: true } : card
+                        )
+                    );
+                    setMatchedCount(prev => prev + 1);
+                    setMessage(`🎉 配对成功！${currentCard.name} 有 ${currentCard.targetDays} 天，完全正确！🎉`);
+                    setEffectTrigger(prev => prev+1);
+                    // 播放动画 (放置区闪烁)
+                    const zoneElem = document.getElementById(`dropzone-${targetDays}`);
+                    if (zoneElem) {
+                        zoneElem.classList.add('match-animation');
+                        setTimeout(() => zoneElem.classList.remove('match-animation'), 400);
+                    }
+                } else {
+                    // 配对错误
+                    setMessage(`❌ 配对错误！${currentCard.name} 不是 ${targetDays} 天，再想想口诀吧～ 大月31天，小月30天，二月特殊记。`);
+                }
+            };
+            
+            // 拖拽事件: 卡片
+            const onCardDragStart = (e, card) => {
+                if (card.matched) {
+                    e.preventDefault();
+                    setMessage("这张卡片已经配对成功啦，不能重复拖拽！");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ cardUniqueId: card.uniqueId }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.5";
+            };
+            const onCardDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            // 放置区拖拽悬停
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterZone = (days) => setHighlightZone(days);
+            const onDragLeaveZone = () => setHighlightZone(null);
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                resetGame();
+            };
+            
+            // 未配对的卡片列表（展示用）
+            const activeCards = cards.filter(card => !card.matched);
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区 ========= */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-4xl md:text-5xl font-extrabold text-purple-800 flex items-center gap-2">
+                                📅 年月日小课堂
+                                <span className="text-xl bg-amber-200 px-3 py-1 rounded-full">时间单位</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-lg md:text-xl text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">📆</span>
+                                <span><strong className="text-purple-700">年、月、日</strong> 是较大的时间单位，帮助我们记录重要的日子。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-2">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 月份天数口诀</p>
+                                <div className="bg-white/70 rounded-xl p-3 text-center">
+                                    <p className="text-xl">🎵 一三五七八十腊，三十一天永不差；</p>
+                                    <p className="text-xl">四六九冬三十日，平年二月二十八，</p>
+                                    <p className="text-xl">闰年二月把一加。</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                                    <div className="bg-rose-100 p-2 rounded-lg text-center"><strong>大月(31天)</strong><br/>1,3,5,7,8,10,12</div>
+                                    <div className="bg-sky-100 p-2 rounded-lg text-center"><strong>小月(30天)</strong><br/>4,6,9,11</div>
+                                    <div className="bg-emerald-100 p-2 rounded-lg text-center col-span-1"><strong>平年二月</strong><br/>28天</div>
+                                    <div className="bg-amber-100 p-2 rounded-lg text-center col-span-1"><strong>闰年二月</strong><br/>29天</div>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧠 闰年小知识：</p>
+                                <p>公历年份是4的倍数一般是闰年，但整百年份必须是400的倍数。闰年全年366天，平年365天。</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 右侧每个“月份卡片”可以拖拽，放到下方正确的天数盒子里。配对正确卡片就会消失！集齐所有卡片通关～
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* ========= 右侧游戏互动区 (拖拽配对) ========= */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-3xl md:text-4xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 拖拖乐·月份配对工厂
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽挑战</span>
+                            </h3>
+                            <button 
+                                onClick={handleChangeQuestion}
+                                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 text-xl"
+                            >
+                                🔄 换一题
+                            </button>
+                        </div>
+                        
+                        {/* 进度条和计数 */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-sm md:text-base font-semibold text-purple-800">
+                                <span>⭐ 配对进度: {matchedCount} / {totalCards}</span>
+                                <span>🎯 学习目标: 年、月、日天数</span>
+                            </div>
+                            <div className="bg-gray-200 rounded-full h-5 overflow-hidden">
+                                <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-500" style={{width: `${totalCards ? (matchedCount/totalCards)*100 : 0}%`}}></div>
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-purple-100/80 rounded-xl p-3 text-center text-purple-800 font-medium text-base shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 待配对卡片区域 (可拖拽) */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🎴 拖拽这些月份卡片</h4>
+                            <div className="flex flex-wrap gap-3 justify-start items-center min-h-[130px] bg-white/40 rounded-2xl p-3 custom-scroll overflow-x-auto">
+                                {activeCards.length === 0 ? (
+                                    <div className="w-full text-center py-6 text-green-700 font-bold text-2xl">🎉 太厉害了！所有月份都配对成功！ 🎉</div>
+                                ) : (
+                                    activeCards.map(card => (
+                                        <div 
+                                            key={card.uniqueId}
+                                            draggable="true"
+                                            onDragStart={(e) => onCardDragStart(e, card)}
+                                            onDragEnd={onCardDragEnd}
+                                            className="bg-gradient-to-br from-amber-200 to-orange-300 w-32 h-28 rounded-2xl flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                                        >
+                                            <span className="text-4xl mb-1">📆</span>
+                                            <span className="text-2xl font-black text-purple-900">{card.name}</span>
+                                            <span className="text-xs text-gray-700 mt-1">拖拽配对</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 按住或长按卡片，拖到下方的天数盒子里，松手完成配对！</p>
+                        </div>
+                        
+                        {/* 放置区域: 四个天数盒子 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-3 flex items-center gap-2">📦 天数盒子 (拖拽到这里)</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {DROP_ZONES.map(zone => (
+                                    <div
+                                        key={zone.days}
+                                        id={`dropzone-${zone.days}`}
+                                        onDragOver={onDragOver}
+                                        onDrop={(e) => handleDrop(e, zone.days)}
+                                        onDragEnter={() => onDragEnterZone(zone.days)}
+                                        onDragLeave={onDragLeaveZone}
+                                        className={`relative p-3 rounded-2xl border-4 border-dashed transition-all duration-150 flex flex-col items-center justify-center cursor-pointer ${zone.color} ${
+                                            highlightZone === zone.days ? 'drop-zone-active border-yellow-500' : zone.borderColor
+                                        }`}
+                                    >
+                                        <span className="text-3xl font-black text-purple-800">{zone.label}</span>
+                                        <span className="text-xs text-gray-600 mt-1 text-center">{zone.hint}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap justify-center gap-2 mt-3 text-xs text-purple-700">
+                                <span className="bg-rose-100 px-2 py-1 rounded-full">📌 大月→31天</span>
+                                <span className="bg-sky-100 px-2 py-1 rounded-full">📌 小月→30天</span>
+                                <span className="bg-emerald-100 px-2 py-1 rounded-full">📌 平年二月→28天</span>
+                                <span className="bg-amber-100 px-2 py-1 rounded-full">📌 闰年二月→29天</span>
+                            </div>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：从卡片拖到天数盒子，配对正确会有动画提示。</span>
+                            <button onClick={() => setMessage("📢 记口诀：一三五七八十腊，31天；四六九冬30天；二月平年28闰年29。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {allMatched && (
+                            <div className="mt-2 text-center text-2xl font-bold text-green-700 bg-green-100 rounded-2xl p-3 animate-bounce">
+                                🏆 完美通关！ 你已经是年月日小专家啦！ 🏆
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        // ---------- 根组件 ----------
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-5xl md:text-7xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🗓️ 年月日探险岛 · 月份天数大挑战 🧸
+                        </h1>
+                        <p className="text-white/90 text-xl md:text-2xl mt-2 font-medium">拖一拖，配配对，轻松记住每月天数！</p>
+                    </div>
+                    <MonthDayGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 把月份卡片拖拽到正确的天数盒子里，配对成功就能获得知识勋章～ 点击【换一题】继续挑战新的月份组合 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

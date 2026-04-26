@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>✧ 约分 · 淡紫工坊 ✧</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(230, 210, 250, 0.6);
+      border: 2px dashed #b58ddf;
+    }
+    .drop-slot.drag-over {
+      background-color: #e5d2ff;
+      border-color: #8b5cf6;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #e1caf7;
+      border: 2px solid #a855f7;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .lavender-light-bg {
+      background-image: radial-gradient(circle at 15% 45%, rgba(168, 85, 247, 0.06) 2.5%, transparent 2.8%);
+      background-size: 36px 36px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#F0E6FF] to-[#DDCCFF] min-h-screen flex items-center justify-center p-4 font-sans lavender-light-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数：最大公因数 & 约分 ----------
+  const computeGCD = (a, b) => {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b !== 0) {
+      let temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
+  };
+
+  // 约分到最简分数 (输入 "分子/分母" 字符串，返回最简形式)
+  const reduceFraction = (fractionStr) => {
+    let [num, den] = fractionStr.split('/').map(Number);
+    if (isNaN(num) || isNaN(den) || den === 0) return fractionStr;
+    const gcd = computeGCD(num, den);
+    const reducedNum = num / gcd;
+    const reducedDen = den / gcd;
+    return `${reducedNum}/${reducedDen}`;
+  };
+
+  // 判断一个分数是否是最简分数
+  const isSimplest = (fractionStr) => {
+    let [num, den] = fractionStr.split('/').map(Number);
+    if (isNaN(num) || isNaN(den)) return false;
+    return computeGCD(num, den) === 1;
+  };
+
+  // 生成一个非最简分数（可约分）分子分母范围2~30，gcd>=2
+  const generateNonSimplestFraction = (existingSet) => {
+    const maxAttempts = 40;
+    for (let i = 0; i < maxAttempts; i++) {
+      let denominator = Math.floor(Math.random() * 20) + 3; // 3~22
+      let numerator = Math.floor(Math.random() * (denominator * 2)) + 2;
+      if (numerator >= denominator) {
+        // 让假分数也可约分，没问题，但是为了美观可以稍作调整，不过约分都适用
+      }
+      const gcd = computeGCD(numerator, denominator);
+      if (gcd >= 2 && gcd <= 8) {  // 确保可以约分且不是最简
+        const fraction = `${numerator}/${denominator}`;
+        if (!existingSet.has(fraction)) {
+          existingSet.add(fraction);
+          return fraction;
+        }
+      }
+    }
+    // 保底分数
+    return "8/12";
+  };
+
+  // 生成一组挑战（原始分数 -> 需要匹配的最简分数）
+  // 每个挑战对象: { id, originalFraction, simplestFraction, matched: false, matchedValue: null }
+  const generateChallengeSet = (count = 4) => {
+    let usedOriginals = new Set();
+    let challenges = [];
+    for (let i = 0; i < count; i++) {
+      let original = generateNonSimplestFraction(usedOriginals);
+      usedOriginals.add(original);
+      let simplest = reduceFraction(original);
+      challenges.push({
+        id: `ch-${Date.now()}-${i}-${Math.random()}`,
+        originalFraction: original,
+        simplestFraction: simplest,
+        matched: false,
+        matchedValue: null
+      });
+    }
+    return challenges;
+  };
+
+  // 生成卡片池：包含所有正确的最简分数 + 若干干扰项（其他最简分数或者未约分的分数）
+  const generateAnswerCards = (challenges) => {
+    let correctSimplest = new Set();
+    challenges.forEach(ch => {
+      correctSimplest.add(ch.simplestFraction);
+    });
+    let correctArray = Array.from(correctSimplest);
+    
+    // 干扰池：生成一些其他最简分数（不与正确结果重复），以及个别非最简但相似的干扰
+    let distractorPool = [];
+    let usedDistractors = new Set();
+    // 生成最简分数干扰
+    for (let i = 0; i < correctArray.length + 2; i++) {
+      let candidate;
+      let attempts = 0;
+      do {
+        let den = Math.floor(Math.random() * 10) + 2; // 2~11
+        let num = Math.floor(Math.random() * den) + 1;
+        if (num === den) num = den - 1;
+        const gcd = computeGCD(num, den);
+        if (gcd === 1) candidate = `${num}/${den}`;
+        else candidate = `${num/gcd}/${den/gcd}`;
+        attempts++;
+        if (attempts > 30) break;
+      } while (correctSimplest.has(candidate) || usedDistractors.has(candidate));
+      if (!correctSimplest.has(candidate) && !usedDistractors.has(candidate) && candidate) {
+        usedDistractors.add(candidate);
+        distractorPool.push(candidate);
+      }
+      if (distractorPool.length >= correctArray.length + 1) break;
+    }
+    // 再加几个常见干扰
+    const extra = ["1/2", "2/3", "3/4", "4/5", "5/6"];
+    for (let ex of extra) {
+      if (!correctSimplest.has(ex) && !usedDistractors.has(ex) && distractorPool.length < correctArray.length + 2) {
+        distractorPool.push(ex);
+        usedDistractors.add(ex);
+      }
+    }
+    
+    let allCardValues = [...correctArray, ...distractorPool];
+    // 洗牌
+    for (let i = allCardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCardValues[i], allCardValues[j]] = [allCardValues[j], allCardValues[i]];
+    }
+    return allCardValues.map((val, idx) => ({
+      id: `card-${Date.now()}-${idx}-${Math.random()}`,
+      value: val,
+      used: false
+    }));
+  };
+
+  // ---------- 左侧知识点卡片：约分 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#FAF5FF]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#D9C5FF] h-full text-[#5B21B6]">
+        <div className="flex items-center gap-2 border-b-2 border-[#C4B0F5] pb-3 mb-4">
+          <span className="text-4xl">✧</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">约分 · 化简分数<br/><span className="text-sm font-normal text-[#7C3AED]">淡紫课堂 · 化为最简</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#F3EBFF] rounded-2xl p-4 border border-[#D9C5FF]">
+            <p className="font-bold text-[#6D28D9] flex items-center gap-2">✨ 约分定义</p>
+            <p className="text-sm mt-1">把一个分数化成和它相等，但分子分母都比较小的分数，叫做<strong>约分</strong>。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg inline-block shadow-sm">📖 例：8/12 → 分子分母同除以4 → 2/3</div>
+          </div>
+          <div className="bg-[#F3EBFF] rounded-2xl p-4 border border-[#D9C5FF]">
+            <p className="font-bold text-[#6D28D9]">⚡ 最简分数</p>
+            <p className="text-sm mt-1">分子分母只有公因数1的分数，叫做最简分数。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">💡 约分通常要约到最简分数为止。</div>
+          </div>
+          <div className="bg-[#EDE0FF] rounded-2xl p-3 text-center text-sm border border-[#C4B0F5]">
+            🎯 挑战规则：将右侧「最简分数卡片」拖拽到对应原始分数下方的约分结果槽中。每个原始分数匹配一个正确的最简分数！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：约分匹配挑战 ----------
+  const ReduceFractionGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => generateChallengeSet(4));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 根据挑战刷新卡片池
+    const initCards = (currentChallenges) => {
+      return generateAnswerCards(currentChallenges);
+    };
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    // 检查胜利：所有挑战的槽位都被填满
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.matched === true);
+      if (allFilled && !isVictory) {
+        setIsVictory(true);
+      } else if (!allFilled && isVictory) {
+        setIsVictory(false);
+      }
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    // 重置游戏
+    const resetGame = () => {
+      const newChallenges = generateChallengeSet(4);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    // 槽位拖拽悬停
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到具体挑战的槽位
+    const onDropToSlot = (e, challengeId) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      let draggedCardId, draggedValue;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('✧ 这张约分卡片已经使用过了！不能重复投放。');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      if (targetChallenge.matched) {
+        setErrorMsg('🌸 这个约分结果槽位已经匹配完成啦！');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      // 验证拖拽的分数是否等于该原始分数的最简形式
+      const expectedSimplest = targetChallenge.simplestFraction;
+      const isMatch = (draggedValue === expectedSimplest);
+      if (!isMatch) {
+        setErrorMsg(`❌ 约分结果不正确！ ${targetChallenge.originalFraction} 约分后应该是 ${expectedSimplest}，而不是 ${draggedValue}。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1800);
+        return;
+      }
+      
+      // 正确匹配
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].matched = true;
+      newChallenges[challengeIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度（清空所有槽位，重置卡片使用状态，但不重新生成题目）
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        matched: false,
+        matchedValue: null
+      }));
+      const resetCards = answerCards.map(card => ({ ...card, used: false }));
+      // 洗牌卡片顺序
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 全新游戏（换一批题目）
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    // 统计数据
+    const totalCount = challenges.length;
+    const filledCount = challenges.filter(ch => ch.matched).length;
+    const progressPercent = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-purple-300 to-violet-400 rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#F0E6FF]">
+        <div className="text-2xl font-bold text-white">🎉 约分大师！全部正确 🎉</div>
+        <div className="text-sm text-purple-100 font-semibold">所有分数都已化简为最简形式！点击「全新挑战」继续练习～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#F4EEFE]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#D1BDFF]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">✧</span>
+            <span className="font-bold text-[#5B21B6]">约分进度</span>
+            <span className="text-lg font-black text-purple-800">{filledCount} / {totalCount}</span>
+          </div>
+          <div className="w-36 bg-[#E0D0FF] rounded-full h-2.5">
+            <div className="bg-[#A855F7] h-2.5 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#E7D9FF] px-2 py-1 rounded-full text-purple-800 border border-[#CBB5FF]">🧮 拖拽最简分数 放入槽位</div>
+        </div>
+        
+        {/* 挑战区域：每个原始分数 + 约分结果槽位 */}
+        <div className="bg-[#F9F4FF]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#D6C4FF]">
+          <div className="text-center text-sm font-semibold text-[#5B21B6] mb-3">📌 将右侧最简分数卡片拖拽到对应原始分数的约分结果槽中</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-[#F5EEFF] rounded-xl p-4 border border-[#D2BBFF] shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-black text-purple-900 bg-white/60 inline-block px-5 py-1 rounded-full shadow-sm">
+                      {challenge.originalFraction}
+                    </div>
+                    <div className="text-xs text-purple-600 mt-1">原始分数</div>
+                  </div>
+                  <div className="text-3xl text-purple-400 mx-2">→</div>
+                  <div className="flex-1 text-center">
+                    <div
+                      className={`drop-slot rounded-xl p-3 text-center transition-all ${challenge.matched ? 'filled-slot' : ''}`}
+                      onDragOver={onDragOverSlot}
+                      onDragLeave={onDragLeaveSlot}
+                      onDrop={(e) => onDropToSlot(e, challenge.id)}
+                    >
+                      <div className="text-xs font-semibold text-purple-700">✧ 约分结果槽 ✧</div>
+                      {challenge.matched ? (
+                        <div className="text-xl font-bold text-purple-800 mt-1">{challenge.matchedValue}</div>
+                      ) : (
+                        <div className="text-sm text-purple-500 mt-1 border-t border-dashed border-purple-300 pt-1">⬅️ 拖拽最简分数至此</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-[#F7F0FF]/80 rounded-2xl p-4 border border-[#D9C5FF]">
+          <div className="text-center text-sm font-semibold text-[#5B21B6] mb-2">🎴 最简分数卡片库（拖拽到左侧槽位）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-xl font-bold transition-all ${
+                  card.used 
+                    ? 'bg-gray-300/60 cursor-default border-2 border-gray-400 text-gray-500' 
+                    : 'bg-gradient-to-br from-purple-100 to-violet-200 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-purple-500 text-purple-900'
+                }`}
+              >
+                {card.used ? '✓ 已用' : card.value}
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-purple-500">加载卡片中...</div>}
+          </div>
+          <div className="text-[11px] text-center text-purple-700 mt-2">💡 每个最简分数卡片只能用一次，找到每个原始分数对应的最简形式并拖拽匹配</div>
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FDE68A]/90 text-purple-800 font-bold p-2.5 rounded-xl border-l-8 border-[#F59E0B] backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-1">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#C4B0F5] hover:bg-[#B193F0] text-purple-900 font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#A855F7] hover:bg-[#9333EA] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批分数）
+          </button>
+        </div>
+        <div className="text-xs text-center text-purple-900 bg-[#F3E9FF]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 约分技巧：分子分母同时除以它们的最大公因数，得到最简分数。把正确的最简分数拖拽到对应原始分数的槽位！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#FBF7FF]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#D9C9FF]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#5B21B6] flex items-center gap-2">
+                <span className="text-3xl">✧</span>
+                约分挑战 · 淡紫工坊
+              </h3>
+              <span className="text-sm bg-[#E8D9FF] px-3 py-1 rounded-full text-purple-800 border border-purple-300">🎯 拖拽匹配最简分数</span>
+            </div>
+            <ReduceFractionGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

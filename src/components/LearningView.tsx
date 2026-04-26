@@ -99,12 +99,21 @@ export const LearningView = ({
         {/* Content Area */}
         <main className="flex-1 relative overflow-hidden bg-white">
           {selectedPoint ? (
-            <iframe
-              key={selectedPoint.id}
-              src={`./knowledge/${selectedPoint.name}.html`}
-              className="w-full h-full border-none"
-              title={selectedPoint.name}
-            />
+            <div className="w-full h-full relative">
+              <iframe
+                key={selectedPoint.id}
+                src={`/knowledge/${encodeURIComponent(selectedPoint.name)}.html`}
+                className="w-full h-full border-none relative z-10"
+                title={selectedPoint.name}
+                onError={() => console.error('Iframe failed to load')}
+              />
+              <div className="absolute inset-0 flex items-center justify-center -z-0 bg-gray-50/50">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                  <p className="text-xs text-gray-400 font-bold animate-pulse">正在加载互动模块...</p>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
               <div className="w-24 h-24 bg-[#E8F5E9] rounded-full flex items-center justify-center mb-6 text-primary">

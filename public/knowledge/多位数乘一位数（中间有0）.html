@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学游乐场｜多位数乘一位数（中间有0）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升拖拽体验 */
+        }
+
+        body {
+            background: #E9ECEF;
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主容器 - 卡片风格 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background: #FFFFFF;
+            border-radius: 48px;
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右布局 (桌面) */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区域 */
+        .knowledge-area {
+            flex: 1.2;
+            background: #F8F9FA;
+            padding: 32px 28px;
+            border-right: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        /* 右侧游戏区域 */
+        .game-area {
+            flex: 1.8;
+            background: #FFFFFF;
+            padding: 32px 28px;
+        }
+
+        /* 响应式：移动端上下结构 */
+        @media (max-width: 780px) {
+            .split-layout {
+                flex-direction: column;
+            }
+            .knowledge-area {
+                border-right: none;
+                border-bottom: 1px solid #E9ECEF;
+                padding: 24px 20px;
+            }
+            .game-area {
+                padding: 28px 20px;
+            }
+            body {
+                padding: 12px;
+            }
+        }
+
+        /* ========= 知识点样式 ========= */
+        .knowledge-title {
+            font-size: 1.9rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #2B5F8A, #1E3E5C);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 18px;
+            display: inline-block;
+            letter-spacing: -0.3px;
+        }
+
+        .rule-card {
+            background: #FFFFFF;
+            border-radius: 32px;
+            padding: 20px 24px;
+            margin: 20px 0;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.03);
+            border: 1px solid #E9ECEF;
+        }
+
+        .rule-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #1E4663;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .rule-title span {
+            background: #E9ECEF;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+        }
+
+        .rule-text {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #2C3E4E;
+            margin: 12px 0;
+        }
+
+        .example-box {
+            background: #F0F4F9;
+            border-radius: 28px;
+            padding: 16px 20px;
+            margin-top: 16px;
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        .step {
+            margin-top: 12px;
+            font-size: 0.95rem;
+            color: #2C5F7A;
+        }
+
+        .highlight {
+            background: #FFECB3;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: #B45F06;
+        }
+
+        /* ========= 游戏区样式 ========= */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 2px dashed #E9ECEF;
+        }
+
+        .score-box {
+            background: #E9ECEF;
+            border-radius: 60px;
+            padding: 8px 20px;
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: #1F5E8C;
+        }
+
+        .score-box span {
+            font-size: 1.9rem;
+            font-weight: 800;
+            color: #F59F00;
+            margin-right: 4px;
+        }
+
+        .target-badge {
+            background: #F0F0F0;
+            padding: 6px 16px;
+            border-radius: 30px;
+            color: #3E6B8C;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* 题目卡片 */
+        .question-card {
+            background: #FEF9E6;
+            border-radius: 48px;
+            padding: 35px 20px;
+            text-align: center;
+            margin: 20px 0 28px;
+            box-shadow: 0 12px 20px -12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #FFE2B5;
+        }
+
+        .big-equation {
+            font-size: 2.8rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            color: #2B3B44;
+            word-break: break-word;
+        }
+
+        .big-equation span {
+            background: #FFF3E0;
+            padding: 0 8px;
+            border-radius: 24px;
+        }
+
+        /* 拖拽选项容器 (三个可拖拽块) */
+        .drag-options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            margin: 30px 0 35px;
+        }
+
+        .drag-item {
+            background: #FFFFFF;
+            width: 110px;
+            padding: 22px 0;
+            text-align: center;
+            border-radius: 42px;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1F5E8C;
+            box-shadow: 0 10px 18px rgba(0, 0, 0, 0.05);
+            border: 2px solid #D4E0E9;
+            cursor: grab;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(2px);
+            background: #FFFFFF;
+        }
+
+        .drag-item:active {
+            cursor: grabbing;
+        }
+
+        .drag-item[draggable="true"]:active {
+            cursor: grabbing;
+        }
+
+        /* 放置区域 (答题区) */
+        .drop-zone {
+            background: #F0F4F9;
+            border-radius: 48px;
+            padding: 24px;
+            text-align: center;
+            border: 3px dashed #ADC4D9;
+            transition: all 0.2s;
+            margin-top: 20px;
+        }
+
+        .drop-zone-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #5882A7;
+            margin-bottom: 12px;
+        }
+
+        .drop-target {
+            background: #FFFFFFE6;
+            min-height: 100px;
+            border-radius: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #AAAAAA;
+            transition: 0.1s linear;
+            border: 2px solid #CFE2F0;
+            padding: 20px;
+        }
+
+        .drop-target.drag-over {
+            background: #E1F0FA;
+            border-color: #F59F00;
+            transform: scale(0.98);
+        }
+
+        .message-area {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 1rem;
+            font-weight: 500;
+            min-height: 60px;
+        }
+
+        .feedback-positive {
+            color: #2C8736;
+            background: #E2F3E4;
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 50px;
+        }
+
+        .feedback-negative {
+            color: #B13E3E;
+            background: #FFEDED;
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 50px;
+        }
+
+        .reset-btn {
+            background: #E9ECEF;
+            border: none;
+            font-size: 1rem;
+            padding: 10px 28px;
+            border-radius: 40px;
+            font-weight: 600;
+            color: #2C5F7A;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .reset-btn:active {
+            transform: scale(0.96);
+            background: #D4DDE5;
+        }
+
+        .congrats {
+            background: #FFE7BA;
+            border-radius: 40px;
+            padding: 14px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            color: #9AAEBF;
+            margin-top: 28px;
+        }
+
+        /* 移动端适配调整 */
+        @media (max-width: 550px) {
+            .drag-item {
+                width: 85px;
+                padding: 16px 0;
+                font-size: 1.6rem;
+            }
+            .big-equation {
+                font-size: 2rem;
+            }
+            .knowledge-title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧知识点区域 -->
+        <div class="knowledge-area">
+            <div class="knowledge-title">📐 数学小课堂 · 中间有0的乘法</div>
+            <div class="rule-card">
+                <div class="rule-title">
+                    🧠 核心规则
+                    <span>三年级必学</span>
+                </div>
+                <div class="rule-text">
+                    多位数（中间有0）乘一位数，计算时<strong>每一位都要乘</strong>！<br>
+                    0 乘任何数都得 <strong class="highlight">0</strong>，但要注意进位哦～
+                </div>
+                <div class="example-box">
+                    🌰 <strong>例题</strong> &nbsp; 2 0 3  ×  4  =  ?
+                    <div class="step">❶ 个位 3×4=12 → 写2，进1</div>
+                    <div class="step">❷ 十位 0×4 + 进位1 = 1 → 写1</div>
+                    <div class="step">❸ 百位 2×4 = 8 → 写8</div>
+                    <div class="step">✨ 答案：<strong>812</strong> ✅</div>
+                </div>
+                <div class="example-box" style="margin-top: 12px;">
+                    🌟 <strong>小提醒</strong><br>
+                    📍 中间有0，千万不能跳过！<br>
+                    📍 如 205×4 = 820，十位 0×4+进位的2=2，得820。
+                </div>
+            </div>
+            <div class="rule-card" style="background:#FEF9E6;">
+                <div class="rule-title">🎯 游戏玩法</div>
+                <div class="rule-text">
+                    👆 <strong>拖拽</strong> 右侧任意一个答案数字 → 放入下方<strong>“🐟 拖拽到此答题”</strong>区域。<br>
+                    ✔️ 答对一题得1分，累计5分获得小胜利！<br>
+                    ❌ 答错也没关系，可以继续尝试，题目不变，再拖拽一次就好啦～
+                </div>
+                <div class="step">💡 提示：拖动时手指/鼠标按住数字块，拖到答题框松手即可！</div>
+            </div>
+        </div>
+
+        <!-- 右侧游戏互动区（拖拽答题） -->
+        <div class="game-area">
+            <div class="game-header">
+                <div class="score-box">🏆 得分 &nbsp; <span id="scoreValue">0</span> / <span id="targetValue">5</span></div>
+                <div class="target-badge">🎯 集满5星赢奖章</div>
+            </div>
+
+            <!-- 当前题目 -->
+            <div class="question-card">
+                <div class="big-equation" id="currentQuestion">201 × 3 = ?</div>
+            </div>
+
+            <!-- 可拖拽的答案选项 (三个数字) -->
+            <div class="drag-options" id="dragOptionsContainer">
+                <!-- 动态生成3个可拖拽块 -->
+            </div>
+
+            <!-- 放置区（答题拖拽目标） -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-title">📦 将答案拖到下方方框中</div>
+                <div class="drop-target" id="dropTarget" data-dropped="false">
+                    🌟 把数字拖到这里 🌟
+                </div>
+            </div>
+
+            <div class="message-area" id="gameMessage">
+                <span>✨ 拖拽正确选项到上面框里 ✨</span>
+            </div>
+            <div style="display: flex; justify-content: center;">
+                <button class="reset-btn" id="resetGameBtn">🔄 重新开始 / 新的一轮</button>
+            </div>
+            <footer>🎈 长按数字块并拖动 (移动端支持拖拽)</footer>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 题库：多位数乘一位数（中间有0） ----------
+    const QUESTION_SET = [
+        { text: "201 × 3 = ?", answer: 603 },
+        { text: "402 × 2 = ?", answer: 804 },
+        { text: "305 × 4 = ?", answer: 1220 },
+        { text: "109 × 5 = ?", answer: 545 },
+        { text: "208 × 3 = ?", answer: 624 },
+        { text: "307 × 2 = ?", answer: 614 },
+        { text: "204 × 4 = ?", answer: 816 },
+        { text: "503 × 3 = ?", answer: 1509 },
+        { text: "406 × 2 = ?", answer: 812 },
+        { text: "105 × 6 = ?", answer: 630 },
+        { text: "708 × 1 = ?", answer: 708 },
+        { text: "209 × 4 = ?", answer: 836 }
+    ];
+
+    // 游戏状态
+    let currentQuestionObj = null;      // 当前题目 { text, answer }
+    let currentScore = 0;
+    const TARGET_SCORE = 5;
+    let gameActive = true;               // 是否已完成目标（防止继续拖拽）
+    let currentOptions = [];              // 存储当前三个选项数字 [opt1, opt2, opt3]
+
+    // DOM 元素
+    const questionEl = document.getElementById('currentQuestion');
+    const dragContainer = document.getElementById('dragOptionsContainer');
+    const dropTargetDiv = document.getElementById('dropTarget');
+    const scoreSpan = document.getElementById('scoreValue');
+    const targetSpan = document.getElementById('targetValue');
+    const gameMessageDiv = document.getElementById('gameMessage');
+    const resetBtn = document.getElementById('resetGameBtn');
+
+    // 辅助函数：显示提示消息 (自动消失)
+    let msgTimeout = null;
+    function showMessage(text, isError = false) {
+        if (msgTimeout) clearTimeout(msgTimeout);
+        gameMessageDiv.innerHTML = isError ? 
+            `<div class="feedback-negative">❌ ${text}</div>` : 
+            `<div class="feedback-positive">✅ ${text}</div>`;
+        msgTimeout = setTimeout(() => {
+            if (gameMessageDiv) {
+                gameMessageDiv.innerHTML = `<span>✨ 继续拖拽答题，成为计算小英雄 ✨</span>`;
+            }
+        }, 1800);
+    }
+
+    // 根据正确答案生成三个选项（包含正确 + 两个不同干扰项）
+    function generateOptions(correctAnswer) {
+        // 干扰项策略: 正确值 ± 变化值，且不等于正确值，且为正数（或合理的数字）
+        let candidates = new Set();
+        candidates.add(correctAnswer);
+        // 产生不同且合理的干扰项：加减某个值，或者调整十位个位等
+        let offset1 = (correctAnswer % 10) + 1;
+        let offset2 = (correctAnswer % 100) + 3;
+        let candidate1 = correctAnswer + (offset1 || 2);
+        let candidate2 = correctAnswer - (offset2 || 1);
+        if (candidate1 === correctAnswer) candidate1 += 2;
+        if (candidate2 === correctAnswer) candidate2 -= 1;
+        if (candidate2 < 0) candidate2 = correctAnswer + 5;
+        
+        // 确保不同且为正整数
+        candidates.add(Math.abs(candidate1));
+        candidates.add(Math.abs(candidate2));
+        // 避免重复和相同正确答案，至少三个不同数字
+        let optionsArray = Array.from(candidates);
+        while (optionsArray.length < 3) {
+            optionsArray.push(correctAnswer + optionsArray.length + 1);
+        }
+        // 只取前3个并确保正确必定在其中且唯一
+        let finalOpts = optionsArray.slice(0, 3);
+        if (!finalOpts.includes(correctAnswer)) {
+            finalOpts[0] = correctAnswer;
+        }
+        // 去重保证三个选项彼此不同
+        finalOpts = [...new Set(finalOpts)];
+        while (finalOpts.length < 3) {
+            finalOpts.push(correctAnswer + finalOpts.length * 2);
+        }
+        // 随机打乱顺序
+        for (let i = finalOpts.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [finalOpts[i], finalOpts[j]] = [finalOpts[j], finalOpts[i]];
+        }
+        return finalOpts;
+    }
+
+    // 刷新右侧拖拽选项 (基于 currentOptions)
+    function renderDragOptions() {
+        dragContainer.innerHTML = '';
+        if (!currentOptions.length) return;
+        currentOptions.forEach(optValue => {
+            const dragCard = document.createElement('div');
+            dragCard.className = 'drag-item';
+            dragCard.setAttribute('draggable', 'true');
+            dragCard.setAttribute('data-value', optValue);
+            dragCard.innerText = optValue;
+            // 添加 dragstart 事件，存储数据
+            dragCard.addEventListener('dragstart', handleDragStart);
+            dragCard.addEventListener('dragend', handleDragEnd);
+            // 为了移动端更好的触摸反馈，但核心拖拽使用原生html5，移动端长按拖拽也可触发
+            dragCard.ondragstart = (e) => {
+                e.dataTransfer.setData('text/plain', optValue);
+                e.dataTransfer.effectAllowed = 'copy';
+                // 让拖拽时显示光标复制样式
+                dragCard.style.opacity = '0.6';
+            };
+            dragCard.ondragend = (e) => {
+                dragCard.style.opacity = '1';
+            };
+            // 重新绑定以防覆盖 (二次)
+            dragContainer.appendChild(dragCard);
+        });
+    }
+
+    // drag 全局变量存储当前拖拽值
+    let draggingValue = null;
+    function handleDragStart(e) {
+        if (!gameActive) {
+            e.preventDefault();
+            return false;
+        }
+        const target = e.target.closest('.drag-item');
+        if (!target) return;
+        const val = target.getAttribute('data-value');
+        if (val !== null) {
+            draggingValue = parseInt(val, 10);
+            e.dataTransfer.setData('text/plain', val);
+            e.dataTransfer.effectAllowed = 'copy';
+            target.style.opacity = '0.5';
+        }
+    }
+    function handleDragEnd(e) {
+        const target = e.target.closest('.drag-item');
+        if (target) target.style.opacity = '1';
+        draggingValue = null;
+    }
+
+    // 刷新整个题目和选项 (根据当前分数随机抽题，但确保不会无题可用)
+    function refreshQuestionAndOptions() {
+        if (!gameActive) return;
+        // 随机抽取新题目（避免连续相同，但无需复杂）
+        let newIndex = Math.floor(Math.random() * QUESTION_SET.length);
+        let newQ = { ...QUESTION_SET[newIndex] };
+        // 确保新题目不与当前题目一样（非强制但更舒服）
+        if (currentQuestionObj && newQ.text === currentQuestionObj.text && QUESTION_SET.length > 1) {
+            newIndex = (newIndex + 1) % QUESTION_SET.length;
+            newQ = { ...QUESTION_SET[newIndex] };
+        }
+        currentQuestionObj = newQ;
+        questionEl.innerText = currentQuestionObj.text;
+        // 根据正确答案生成选项
+        const correctAns = currentQuestionObj.answer;
+        const opts = generateOptions(correctAns);
+        currentOptions = opts;
+        renderDragOptions();
+        // 重置放置区提示
+        dropTargetDiv.innerHTML = "🌟 把数字拖到这里 🌟";
+        dropTargetDiv.style.color = "#AAAAAA";
+        dropTargetDiv.style.fontSize = "1.6rem";
+        dropTargetDiv.removeAttribute('data-correct-value');
+    }
+
+    // 更新得分界面，检查胜利
+    function updateScoreUI() {
+        scoreSpan.innerText = currentScore;
+        targetSpan.innerText = TARGET_SCORE;
+        if (currentScore >= TARGET_SCORE && gameActive === true) {
+            gameActive = false;
+            // 胜利！禁用后续拖拽交互（重置前不可再拖拽答题）
+            showMessage("🎉🎉 太厉害了！获得“计算小英雄”奖章 🎉🎉", false);
+            gameMessageDiv.innerHTML = `<div class="congrats">🏅 恭喜你全对！点击「重新开始」继续挑战 🏅</div>`;
+            // 清空拖拽选项防止继续拖拽
+            dragContainer.innerHTML = '';
+            const tempMsg = document.createElement('div');
+            tempMsg.className = 'drag-item';
+            tempMsg.innerText = '🎖️ 胜利啦 🎖️';
+            tempMsg.style.cursor = 'default';
+            tempMsg.style.background = '#FFE2B5';
+            tempMsg.setAttribute('draggable', 'false');
+            dragContainer.appendChild(tempMsg);
+            dropTargetDiv.innerHTML = "🎉 闯关成功 🎉";
+            dropTargetDiv.style.background = "#FEF3D6";
+        }
+    }
+
+    // 处理正确答题逻辑
+    function handleCorrectAnswer() {
+        if (!gameActive) return;
+        currentScore++;
+        updateScoreUI();
+        showMessage(`回答正确！ +1分  (${currentScore}/${TARGET_SCORE})`, false);
+        // 如果还没有胜利，刷新题目和选项继续
+        if (currentScore < TARGET_SCORE) {
+            refreshQuestionAndOptions();
+        } else {
+            // 如果达到满分，更新界面停止游戏
+            // 已经调用updateScoreUI处理胜利冻结
+            if (currentScore >= TARGET_SCORE) {
+                // 再次确保停止拖拽后续
+                gameActive = false;
+            }
+        }
+    }
+
+    // 错误处理（不刷新题目）
+    function handleWrongAnswer(droppedVal) {
+        if (!gameActive) return;
+        showMessage(`答案 ${droppedVal} 不对哦～ 再试试看！ 注意中间0要乘对！`, true);
+        // 错误时只是提示，不清空题目, 但放置区闪烁一下反馈
+        dropTargetDiv.style.transform = 'scale(0.98)';
+        setTimeout(() => { dropTargetDiv.style.transform = ''; }, 200);
+    }
+
+    // 放置区 drop 事件 (核心)
+    function setupDropZone() {
+        const dropZoneElement = dropTargetDiv;
+        // 必须阻止 dragover 才能 drop
+        dropZoneElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            dropZoneElement.classList.add('drag-over');
+        });
+        dropZoneElement.addEventListener('dragleave', () => {
+            dropZoneElement.classList.remove('drag-over');
+        });
+        dropZoneElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZoneElement.classList.remove('drag-over');
+            if (!gameActive) {
+                showMessage("游戏已完成啦，点「重新开始」继续挑战吧！", true);
+                return;
+            }
+            // 获取拖拽的值
+            let dragValueRaw = e.dataTransfer.getData('text/plain');
+            if (!dragValueRaw && draggingValue !== null) {
+                dragValueRaw = draggingValue;
+            }
+            if (!dragValueRaw) return;
+            const droppedAnswer = parseInt(dragValueRaw, 10);
+            if (isNaN(droppedAnswer)) return;
+            // 检查当前题目的正确答案
+            const correctAns = currentQuestionObj.answer;
+            if (droppedAnswer === correctAns) {
+                handleCorrectAnswer();
+            } else {
+                handleWrongAnswer(droppedAnswer);
+            }
+            // 重置拖拽值
+            draggingValue = null;
+        });
+    }
+
+    // 重置整个游戏 (分数归零，重新开始)
+    function resetGame() {
+        gameActive = true;
+        currentScore = 0;
+        scoreSpan.innerText = "0";
+        targetSpan.innerText = TARGET_SCORE;
+        // 随机抽新题目
+        let randomIndex = Math.floor(Math.random() * QUESTION_SET.length);
+        currentQuestionObj = { ...QUESTION_SET[randomIndex] };
+        questionEl.innerText = currentQuestionObj.text;
+        const correctAns = currentQuestionObj.answer;
+        const newOpts = generateOptions(correctAns);
+        currentOptions = newOpts;
+        renderDragOptions();
+        // 重置放置区样式
+        dropTargetDiv.innerHTML = "🌟 把数字拖到这里 🌟";
+        dropTargetDiv.style.color = "#AAAAAA";
+        dropTargetDiv.style.fontSize = "1.6rem";
+        gameMessageDiv.innerHTML = `<span>✨ 新的一轮！把正确答案拖到方框里 ✨</span>`;
+        if (msgTimeout) clearTimeout(msgTimeout);
+        // 确保无残留胜利状态
+        draggingValue = null;
+        // 确保所有drag-item重新绑定正确的dragstart (因为renderDragOptions已做)
+    }
+
+    // 初始化所有事件 & 渲染
+    function initGame() {
+        gameActive = true;
+        currentScore = 0;
+        scoreSpan.innerText = "0";
+        targetSpan.innerText = TARGET_SCORE;
+        // 随机挑选初始题目
+        let initIndex = Math.floor(Math.random() * QUESTION_SET.length);
+        currentQuestionObj = { ...QUESTION_SET[initIndex] };
+        questionEl.innerText = currentQuestionObj.text;
+        const correctAns = currentQuestionObj.answer;
+        currentOptions = generateOptions(correctAns);
+        renderDragOptions();
+        setupDropZone();
+        // 重置按钮监听
+        resetBtn.addEventListener('click', () => {
+            resetGame();
+        });
+    }
+
+    // 移动端需要 touch 辅助说明：为了让drag在移动端更友好，但原生drag移动端需要长按并拖动，完全满足“拖拽”定义。
+    // 添加额外的touch提示，但无需额外代码。
+    initGame();
+</script>
+</body>
+</html>

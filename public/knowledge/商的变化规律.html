@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🧸 商的变化规律 · 魔法数学岛</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 竖式专用样式 (完美对齐，无多余空行，居中) */
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card:active {
+      opacity: 0.6;
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.1s ease;
+    }
+    .drop-zone.drag-over {
+      background-color: #e9d4ff;
+      border-color: #a855f7;
+      transform: scale(1.02);
+    }
+    .ld-division {
+      font-family: 'Courier New', 'Consolas', 'Monaco', 'SF Mono', monospace;
+      font-weight: 700;
+      display: inline-block;
+      text-align: left;
+    }
+    .digit-cell {
+      width: 2.8rem;
+      text-align: center;
+      font-size: 2rem;
+      line-height: 1.2;
+      font-weight: 700;
+      color: #3f2e1f;
+      display: inline-block;
+    }
+    .ld-divisor-cell {
+      width: 52px;
+      flex-shrink: 0;
+      font-size: 2rem;
+      text-align: right;
+      padding-right: 12px;
+      font-weight: 800;
+      color: #bc6c25;
+    }
+    .ld-bracket-col {
+      display: flex;
+      flex-direction: column;
+      border-left: 3px solid #a77b58;
+    }
+    .ld-top-line {
+      width: 100%;
+      height: 3px;
+      background: #a77b58;
+      margin-bottom: 4px;
+    }
+    .ld-step-line {
+      height: 2px;
+      background: #9f7e63;
+      margin: 4px 0;
+      border-radius: 2px;
+      width: 100%;
+    }
+    .ld-row {
+      display: flex;
+      align-items: flex-end;
+      margin: 0;
+      padding: 0;
+      line-height: 1;
+    }
+    .ld-digits-row {
+      display: flex;
+      gap: 0px;
+    }
+    @media (max-width: 640px) {
+      .digit-cell { width: 2rem; font-size: 1.6rem; }
+      .ld-divisor-cell { width: 42px; font-size: 1.6rem; padding-right: 8px; }
+    }
+    @media (max-width: 480px) {
+      .digit-cell { width: 1.7rem; font-size: 1.4rem; }
+      .ld-divisor-cell { width: 36px; font-size: 1.4rem; }
+    }
+    .remainder-digit {
+      color: #a5481e !important;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#D9C2E6] to-[#CBAACB] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 竖式展示组件 (展示基础算式的竖式) ----------
+  const DivisionVisual = ({ divisor, dividend, quotient, remainder = 0 }) => {
+    const dividendDigits = String(dividend).split('');
+    const quotientDigits = String(quotient).split('');
+    const product = divisor * quotient;
+    const productDigits = String(product).split('');
+    const padLeft = dividendDigits.length - productDigits.length;
+    // 商行: 对齐被除数个位 (商可能是一位或两位)
+    const quotientRow = Array(dividendDigits.length).fill('');
+    if (quotientDigits.length === 1) {
+      quotientRow[quotientRow.length - 1] = quotientDigits[0];
+    } else {
+      quotientRow[quotientRow.length - 2] = quotientDigits[0];
+      quotientRow[quotientRow.length - 1] = quotientDigits[1];
+    }
+    const remainderRow = Array(dividendDigits.length).fill('');
+    remainderRow[remainderRow.length - 1] = remainder !== 0 ? remainder : '0';
+    
+    return (
+      <div className="flex justify-center w-full">
+        <div className="ld-division bg-[#fffbf3] p-4 rounded-2xl shadow-inner border border-[#e6cfbc]">
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="ld-digits-row">
+              {quotientRow.map((digit, idx) => (
+                <div key={`quot-${idx}`} className="digit-cell text-[#2c5f2d] font-extrabold">{digit}</div>
+              ))}
+            </div>
+          </div>
+          <div className="ld-row">
+            <div className="ld-divisor-cell">{divisor}</div>
+            <div className="ld-bracket-col flex-1">
+              <div className="ld-top-line"></div>
+              <div className="ld-digits-row dividend-row">
+                {dividendDigits.map((digit, idx) => (
+                  <div key={`divd-${idx}`} className="digit-cell">{digit}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="ld-digits-row">
+              {Array(padLeft).fill(null).map((_, idx) => <div key={`pad-${idx}`} className="digit-cell"></div>)}
+              {productDigits.map((digit, idx) => <div key={`prod-${idx}`} className="digit-cell text-[#8B5A2B]">{digit}</div>)}
+            </div>
+          </div>
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="flex-1"><div className="ld-step-line"></div></div>
+          </div>
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="ld-digits-row">
+              {remainderRow.map((digit, idx) => (
+                <div key={`rem-${idx}`} className="digit-cell">{digit !== '0' ? <span className="remainder-digit">{digit}</span> : '0'}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // 横式组件
+  const HorizontalExpr = ({ divisor, dividend, quotient, remainder = 0 }) => (
+    <div className="bg-white/90 rounded-2xl p-4 text-center shadow-md border border-[#DDC7B0]">
+      <span className="text-2xl font-bold text-stone-700">{dividend} ÷ {divisor} = {quotient}</span>
+      {remainder !== 0 && <span className="text-xl ml-2 text-orange-600">…… {remainder}</span>}
+    </div>
+  );
+  
+  // ---------- 随机生成商的变化规律题目 ----------
+  // 规律类型: 1-被除数不变除数变; 2-除数不变被除数变; 3-商不变(同乘同除)
+  const generateQuestion = () => {
+    // 基础算式: 被除数,除数,商均为整数，除数范围10~99，商2~9，被除数三位数以内
+    const baseDivisor = Math.floor(Math.random() * 40) + 12; // 12~51
+    const baseQuotient = Math.floor(Math.random() * 8) + 2; // 2~9
+    let baseDividend = baseDivisor * baseQuotient;
+    // 确保被除数不超过300，且大于除数
+    if (baseDividend > 300) {
+      baseDividend = baseDivisor * (Math.floor(Math.random() * 5) + 2);
+    }
+    const type = Math.floor(Math.random() * 3) + 1; // 1,2,3
+    let changeFactor = Math.floor(Math.random() * 3) + 2; // 2,3,4 变化倍数
+    let newDividend, newDivisor, correctQuotient, changeDesc;
+    let changedExpression = '';
+    
+    if (type === 1) {
+      // 被除数不变，除数乘/除以一个数（乘或除随机）
+      const multiply = Math.random() > 0.5;
+      if (multiply) {
+        newDivisor = baseDivisor * changeFactor;
+        correctQuotient = Math.floor(baseDividend / newDivisor);
+        changeDesc = `除数乘 ${changeFactor}`;
+      } else {
+        newDivisor = Math.floor(baseDivisor / changeFactor);
+        if (newDivisor < 1) newDivisor = baseDivisor;
+        correctQuotient = Math.floor(baseDividend / newDivisor);
+        changeDesc = `除数除以 ${changeFactor}`;
+      }
+      newDividend = baseDividend;
+      changedExpression = `${newDividend} ÷ ${newDivisor}`;
+    } else if (type === 2) {
+      // 除数不变，被除数乘/除以一个数
+      const multiply = Math.random() > 0.5;
+      if (multiply) {
+        newDividend = baseDividend * changeFactor;
+        correctQuotient = newDividend / baseDivisor;
+        changeDesc = `被除数乘 ${changeFactor}`;
+      } else {
+        newDividend = Math.floor(baseDividend / changeFactor);
+        if (newDividend < baseDivisor) newDividend = baseDividend;
+        correctQuotient = newDividend / baseDivisor;
+        changeDesc = `被除数除以 ${changeFactor}`;
+      }
+      newDivisor = baseDivisor;
+      changedExpression = `${newDividend} ÷ ${newDivisor}`;
+    } else {
+      // 商不变规律：被除数和除数同时乘或除以同一个数
+      const multiply = Math.random() > 0.5;
+      if (multiply) {
+        newDividend = baseDividend * changeFactor;
+        newDivisor = baseDivisor * changeFactor;
+        changeDesc = `被除数和除数同时乘 ${changeFactor}`;
+      } else {
+        newDividend = Math.floor(baseDividend / changeFactor);
+        newDivisor = Math.floor(baseDivisor / changeFactor);
+        if (newDivisor < 1 || newDividend < 1) {
+          newDividend = baseDividend;
+          newDivisor = baseDivisor;
+          changeDesc = `不变（无法整除）`;
+        } else {
+          changeDesc = `被除数和除数同时除以 ${changeFactor}`;
+        }
+      }
+      correctQuotient = newDividend / newDivisor;
+      changedExpression = `${newDividend} ÷ ${newDivisor}`;
+    }
+    // 确保商是整数且为正
+    correctQuotient = Math.floor(correctQuotient);
+    if (correctQuotient < 1) correctQuotient = 1;
+    if (correctQuotient > 30) correctQuotient = 30;
+    
+    // 构建干扰项（在正确商周围 ±1, ±2，且为正数）
+    let optionsSet = new Set();
+    optionsSet.add(correctQuotient);
+    while(optionsSet.size < 4) {
+      let offset = Math.floor(Math.random() * 4) + 1;
+      let cand = correctQuotient + (Math.random() > 0.5 ? offset : -offset);
+      if (cand > 0 && cand < 50) optionsSet.add(cand);
+      else optionsSet.add(correctQuotient + 1);
+    }
+    let options = Array.from(optionsSet);
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    
+    return {
+      base: { dividend: baseDividend, divisor: baseDivisor, quotient: baseQuotient },
+      changed: { dividend: newDividend, divisor: newDivisor, expression: changedExpression },
+      correctQuotient,
+      changeDesc,
+      options
+    };
+  };
+  
+  // ---------- 拖拽配对游戏组件 ----------
+  const DragGame = ({ onNewQuestion, resetKey }) => {
+    const [question, setQuestion] = React.useState(() => generateQuestion());
+    const [selectedValue, setSelectedValue] = React.useState(null);
+    const [feedback, setFeedback] = React.useState('');
+    const [isCompleted, setIsCompleted] = React.useState(false);
+    
+    React.useEffect(() => {
+      setQuestion(generateQuestion());
+      setSelectedValue(null);
+      setFeedback('');
+      setIsCompleted(false);
+    }, [resetKey]);
+    
+    const handleDrop = (value) => {
+      if (isCompleted) return;
+      setSelectedValue(value);
+      if (value === question.correctQuotient) {
+        setFeedback('🎉 完全正确！商的变化规律掌握得真棒！ 🎉');
+        setIsCompleted(true);
+      } else {
+        setFeedback('❌ 再试试看！想一想，根据规律，商会怎样变化？');
+        setIsCompleted(false);
+      }
+    };
+    
+    const onDragStart = (e, val) => {
+      if (isCompleted) { e.preventDefault(); return false; }
+      e.dataTransfer.setData('text/plain', val);
+      e.dataTransfer.effectAllowed = 'copy';
+    };
+    const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+    const onDropZone = (e) => {
+      e.preventDefault();
+      if (isCompleted) return;
+      const val = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      if (!isNaN(val)) handleDrop(val);
+    };
+    
+    const resetGame = () => {
+      if (isCompleted) return;
+      setSelectedValue(null);
+      setFeedback('');
+      setIsCompleted(false);
+    };
+    
+    return (
+      <div className="flex flex-col gap-4">
+        {/* 题目展示区 */}
+        <div className="bg-[#F7EDE1] rounded-2xl p-4 shadow-md border border-[#ddb594]">
+          <div className="text-center mb-2">
+            <span className="bg-[#D9C2E6] px-3 py-1 rounded-full text-sm font-bold text-purple-800">📐 规律应用挑战</span>
+          </div>
+          <div className="text-center">
+            <p className="text-stone-700 text-base mb-2">基础算式：</p>
+            <div className="text-2xl font-mono font-bold text-amber-800">{question.base.dividend} ÷ {question.base.divisor} = {question.base.quotient}</div>
+            <div className="mt-3 p-2 bg-white/60 rounded-xl">
+              <p className="text-stone-600 text-sm">🔁 变化：<span className="font-bold text-purple-700">{question.changeDesc}</span></p>
+              <p className="text-lg font-mono font-bold mt-1">新算式：{question.changed.expression} = <span className="text-orange-600">?</span></p>
+            </div>
+            <div className="mt-3 text-sm text-stone-500">💡 根据商的变化规律，正确的商是多少？把数字拖进下面的答案框。</div>
+          </div>
+        </div>
+        
+        {/* 拖拽放置区 */}
+        <div className="bg-amber-100/80 rounded-xl p-4 text-center">
+          <div className="text-sm font-bold text-amber-700 mb-1">✨ 答案盒子 ✨</div>
+          <div 
+            className={`drop-zone w-32 h-24 mx-auto bg-white rounded-2xl border-4 border-dashed flex items-center justify-center text-5xl font-black transition-all ${selectedValue !== null ? 'border-emerald-500 bg-emerald-50' : 'border-amber-400 bg-yellow-50'}`}
+            onDragOver={onDragOver}
+            onDrop={onDropZone}
+          >
+            {selectedValue !== null ? selectedValue : '?'}
+          </div>
+          <p className="text-xs text-stone-500 mt-1">把正确的数字拖拽到这里</p>
+        </div>
+        
+        {/* 可拖拽数字卡片 */}
+        <div className="bg-[#EADDF0] p-3 rounded-2xl">
+          <div className="text-center text-sm font-medium text-purple-800 mb-2">🐣 拖拽下面正确的数字 🐣</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {question.options.map(num => (
+              <div
+                key={num}
+                draggable={!isCompleted}
+                onDragStart={(e) => onDragStart(e, num)}
+                className={`drag-card w-16 h-16 bg-white rounded-2xl shadow-md flex items-center justify-center text-2xl font-bold text-purple-700 cursor-grab active:cursor-grabbing hover:scale-105 transition-transform border border-purple-200 ${isCompleted ? 'opacity-50' : ''}`}
+              >
+                {num}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="flex gap-3">
+          <button onClick={resetGame} className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2 rounded-full transition shadow-sm text-sm" disabled={isCompleted}>🔄 重置</button>
+          <button onClick={() => { onNewQuestion(); setSelectedValue(null); setFeedback(''); setIsCompleted(false); }} className="flex-1 bg-purple-200 hover:bg-purple-300 text-purple-800 font-bold py-2 rounded-full transition shadow-sm text-sm">🎲 换一题</button>
+        </div>
+        
+        {feedback && (
+          <div className={`text-center font-bold p-3 rounded-full ${feedback.includes('正确') ? 'bg-green-200 text-green-800' : 'bg-amber-100 text-amber-700'}`}>
+            {feedback}
+          </div>
+        )}
+        {isCompleted && (
+          <div className="text-center text-emerald-700 bg-emerald-100 p-2 rounded-full text-sm font-bold">
+            🌟 太厉害了！点击“换一题”继续挑战 🌟
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [displayMode, setDisplayMode] = React.useState('vertical');
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const [currentBase, setCurrentBase] = React.useState({ dividend: 120, divisor: 30, quotient: 4 });
+    
+    // 刷新时更新一个示例基础算式用于竖式展示
+    const refreshBaseExample = () => {
+      const divisor = Math.floor(Math.random() * 40) + 12;
+      const quotient = Math.floor(Math.random() * 8) + 2;
+      const dividend = divisor * quotient;
+      setCurrentBase({ dividend, divisor, quotient });
+    };
+    
+    React.useEffect(() => {
+      refreshBaseExample();
+    }, []);
+    
+    const handleNewQuestionGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    const toggleDisplay = () => setDisplayMode(prev => prev === 'vertical' ? 'horizontal' : 'vertical');
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12 bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-white/40">
+          <div className="flex items-center gap-2 border-b-2 border-[#CBAACB] pb-3 mb-4">
+            <span className="text-3xl">📘</span>
+            <h2 className="text-2xl font-extrabold text-[#6B4C3B]">商的变化规律<br/><span className="text-sm font-normal">魔法应用篇</span></h2>
+          </div>
+          <div className="space-y-4 text-[#3f2e1f]">
+            <div className="bg-[#FDF5EA] rounded-2xl p-4">
+              <p className="font-bold text-[#B5672E] flex items-center gap-2">🧙 三大魔法规律：</p>
+              <ul className="list-disc list-inside space-y-2 mt-2 text-sm sm:text-base">
+                <li>✨ <span className="font-bold">规律一：被除数不变</span><br/>除数乘几（除以几），商反而除以几（乘几）。</li>
+                <li>✨ <span className="font-bold">规律二：除数不变</span><br/>被除数乘几（除以几），商也乘几（除以几）。</li>
+                <li>✨ <span className="font-bold">规律三：商不变</span><br/>被除数和除数同时乘或除以同一个不为0的数，商不变。</li>
+              </ul>
+            </div>
+            <div className="bg-[#FDF5EA] rounded-2xl p-4">
+              <p className="font-bold text-[#B5672E]">📐 竖式小示范</p>
+              <div className="flex justify-center mt-2">
+                <DivisionVisual divisor={currentBase.divisor} dividend={currentBase.dividend} quotient={currentBase.quotient} />
+              </div>
+              <div className="flex justify-center mt-2">
+                <button onClick={refreshBaseExample} className="text-xs bg-[#D9C2E6] px-3 py-1 rounded-full">🔄 换一个范例</button>
+              </div>
+            </div>
+            <div className="bg-[#FDF5EA] rounded-2xl p-4">
+              <p className="font-bold text-[#B5672E]">🎯 应用技巧：</p>
+              <p className="text-sm">看到算式变化时，先判断是哪种规律，再快速推算商的变化！</p>
+              <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                <span className="bg-[#D9C2E6] px-2 py-1 rounded-full text-xs">48÷6=8 → 48÷12=4</span>
+                <span className="bg-[#D9C2E6] px-2 py-1 rounded-full text-xs">120÷30=4 → 240÷30=8</span>
+                <span className="bg-[#D9C2E6] px-2 py-1 rounded-full text-xs">24÷4=6 → 48÷8=6</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-center italic text-[#8F6A4C] bg-[#F7EDE1] p-2 rounded-xl">
+            🌈 右侧游戏：根据变化规律，拖拽正确的商到答案盒子！
+          </div>
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-white/40">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <button onClick={toggleDisplay} className="bg-[#CBAACB]/70 hover:bg-[#D9C2E6] text-purple-800 font-bold px-5 py-2 rounded-full transition shadow flex items-center gap-1">
+                {displayMode === 'vertical' ? '📐 竖式范例' : '✖️ 横式范例'} ⇄ 切换
+              </button>
+              <span className="text-sm text-stone-600 bg-white/60 px-3 py-1 rounded-full">✨ 商的变化规律 ✨</span>
+            </div>
+            <div className="mb-6 flex justify-center">
+              {displayMode === 'vertical' ? 
+                <DivisionVisual divisor={currentBase.divisor} dividend={currentBase.dividend} quotient={currentBase.quotient} /> :
+                <HorizontalExpr divisor={currentBase.divisor} dividend={currentBase.dividend} quotient={currentBase.quotient} />
+              }
+            </div>
+            <div className="border-t-2 border-dashed border-purple-200 pt-4 mt-2">
+              <div className="flex items-center gap-2 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                <h3 className="text-xl font-bold text-purple-800">🎯 规律应用 · 拖拽数字</h3>
+                <span className="text-xs bg-yellow-200 px-2 py-1 rounded-full">拖拽数字 → 放入答案盒</span>
+              </div>
+              <DragGame onNewQuestion={handleNewQuestionGame} resetKey={gameResetKey} />
+            </div>
+          </div>
+          <div className="text-xs text-center text-stone-600 bg-white/50 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>✨ 观察算式变化，运用商的变化规律，拖拽正确的商</span>
+            <span>🐣 全部正确就能获得星星奖励！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

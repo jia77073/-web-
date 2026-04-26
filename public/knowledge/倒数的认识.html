@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🔄 倒数的认识 · 淡蓝工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(210, 230, 255, 0.6);
+      border: 2px dashed #7aa2f7;
+    }
+    .drop-slot.drag-over {
+      background-color: #d9eaff;
+      border-color: #3b82f6;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #c5e0ff;
+      border: 2px solid #2563eb;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .lightblue-bg {
+      background-image: radial-gradient(circle at 20% 40%, rgba(59, 130, 246, 0.06) 2.5%, transparent 2.8%);
+      background-size: 38px 38px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#E6F0FF] to-[#C9DFFF] min-h-screen flex items-center justify-center p-4 font-sans lightblue-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数：最大公因数 & 约分 ----------
+  const computeGCD = (a, b) => {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b !== 0) {
+      let temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
+  };
+
+  const reduceFraction = (numerator, denominator) => {
+    if (denominator === 0) return "0/1";
+    if (numerator === 0) return "0";
+    const gcd = computeGCD(numerator, denominator);
+    const num = numerator / gcd;
+    const den = denominator / gcd;
+    if (den === 1) return `${num}`;
+    return `${num}/${den}`;
+  };
+
+  // 将一个数（整数、分数、带分数）转换为假分数形式的字符串
+  const toImproperFraction = (numStr) => {
+    if (numStr.includes(' ')) {
+      // 带分数 "a b/c"
+      const [whole, frac] = numStr.split(' ');
+      const [num, den] = frac.split('/').map(Number);
+      const newNum = parseInt(whole) * den + num;
+      return `${newNum}/${den}`;
+    }
+    if (numStr.includes('/')) {
+      // 已经是分数
+      return numStr;
+    }
+    // 整数
+    return `${parseInt(numStr)}/1`;
+  };
+
+  // 求一个数的倒数（输入可为整数、分数、带分数），返回最简分数或整数
+  const getReciprocal = (numStr) => {
+    if (numStr === "0") return null; // 0没有倒数
+    const improper = toImproperFraction(numStr);
+    const [num, den] = improper.split('/').map(Number);
+    if (num === 0) return null;
+    // 倒数：分母分子交换，再约分
+    const reciprocalNum = den;
+    const reciprocalDen = num;
+    return reduceFraction(reciprocalNum, reciprocalDen);
+  };
+
+  // 生成随机数（整数、分数或带分数）用于挑战
+  const generateRandomNumber = () => {
+    const type = Math.floor(Math.random() * 3); // 0整数 1分数 2带分数
+    if (type === 0) {
+      // 整数 2~10，排除0和1（1的倒数是1，太简单但也可以保留，但为了多样性，允许2~10）
+      const int = Math.floor(Math.random() * 9) + 2;
+      return int.toString();
+    } else if (type === 1) {
+      // 分数 分子分母范围2~12，且分子不为0，分数可大于1或小于1
+      let den = Math.floor(Math.random() * 11) + 2;
+      let num = Math.floor(Math.random() * (den * 2)) + 1;
+      // 避免分子为0
+      if (num === 0) num = 1;
+      const fraction = `${num}/${den}`;
+      // 确保倒数不过于复杂（分母分子不超过30）
+      const [n, d] = fraction.split('/').map(Number);
+      const recipNum = d;
+      const recipDen = n;
+      if (recipDen > 40 || recipNum > 40) return generateRandomNumber(); // 重新生成
+      return fraction;
+    } else {
+      // 带分数：整数部分1~3，真分数部分分母3~8，分子小于分母
+      const whole = Math.floor(Math.random() * 3) + 1; // 1~3
+      const den = Math.floor(Math.random() * 6) + 3;   // 3~8
+      const num = Math.floor(Math.random() * (den - 1)) + 1;
+      const mixed = `${whole} ${num}/${den}`;
+      // 检查倒数分母分子是否过大
+      const improper = toImproperFraction(mixed);
+      const [impNum, impDen] = improper.split('/').map(Number);
+      const recipNum = impDen;
+      const recipDen = impNum;
+      if (recipDen > 40 || recipNum > 40) return generateRandomNumber();
+      return mixed;
+    }
+  };
+
+  // 生成挑战集（每个挑战包含原数和它的倒数）
+  const generateChallengeSet = (count = 4) => {
+    let challenges = [];
+    let usedNumbers = new Set();
+    for (let i = 0; i < count; i++) {
+      let maxAttempts = 30;
+      let original, reciprocal;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        original = generateRandomNumber();
+        reciprocal = getReciprocal(original);
+        if (reciprocal && !usedNumbers.has(original) && !reciprocal.includes('NaN')) {
+          usedNumbers.add(original);
+          break;
+        }
+      }
+      if (!reciprocal) {
+        // 保底
+        original = "2/3";
+        reciprocal = "3/2";
+      }
+      challenges.push({
+        id: `ch-${Date.now()}-${i}-${Math.random()}`,
+        original: original,
+        reciprocal: reciprocal,
+        matched: false,
+        matchedValue: null
+      });
+    }
+    return challenges;
+  };
+
+  // 生成卡片池：所有正确倒数 + 干扰项
+  const generateAnswerCards = (challenges) => {
+    let correctSet = new Set();
+    challenges.forEach(ch => {
+      correctSet.add(ch.reciprocal);
+    });
+    let correctArray = Array.from(correctSet);
+    
+    // 干扰池：随机生成一些其他数的倒数（确保不是正确结果）
+    let distractorPool = [];
+    let usedDistractors = new Set();
+    for (let i = 0; i < correctArray.length + 2; i++) {
+      let candidate;
+      let attempts = 0;
+      do {
+        // 生成随机数并取倒数
+        const randNum = generateRandomNumber();
+        candidate = getReciprocal(randNum);
+        if (!candidate) continue;
+        attempts++;
+        if (attempts > 30) break;
+      } while (correctSet.has(candidate) || usedDistractors.has(candidate));
+      if (candidate && !correctSet.has(candidate) && !usedDistractors.has(candidate)) {
+        usedDistractors.add(candidate);
+        distractorPool.push(candidate);
+      }
+      if (distractorPool.length >= correctArray.length + 1) break;
+    }
+    // 额外常见干扰
+    const extra = ["1/2", "2", "1/3", "3", "2/3", "3/2", "1/4", "4", "3/4", "4/3", "1", "5", "2/5", "5/2"];
+    for (let ex of extra) {
+      if (!correctSet.has(ex) && !usedDistractors.has(ex) && distractorPool.length < correctArray.length + 2) {
+        distractorPool.push(ex);
+        usedDistractors.add(ex);
+      }
+    }
+    
+    let allCardValues = [...correctArray, ...distractorPool];
+    // 洗牌
+    for (let i = allCardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCardValues[i], allCardValues[j]] = [allCardValues[j], allCardValues[i]];
+    }
+    return allCardValues.map((val, idx) => ({
+      id: `card-${Date.now()}-${idx}-${Math.random()}`,
+      value: val,
+      used: false
+    }));
+  };
+
+  // ---------- 左侧知识点卡片：倒数的认识 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#F0F7FF]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#AAC9FF] h-full text-[#1E40AF]">
+        <div className="flex items-center gap-2 border-b-2 border-[#8BB3F0] pb-3 mb-4">
+          <span className="text-4xl">🔄</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">倒数的认识<br/><span className="text-sm font-normal text-[#2563EB]">淡蓝课堂 · 乘积为1的两个数</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#E9F2FF] rounded-2xl p-4 border border-[#B8D2FF]">
+            <p className="font-bold text-[#1E3A8A] flex items-center gap-2">✨ 倒数的定义</p>
+            <p className="text-sm mt-1">乘积为1的两个数互为倒数。<br/>例如：2/3 和 3/2 互为倒数。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg inline-block shadow-sm">📖 注意：1的倒数是1，0没有倒数。</div>
+          </div>
+          <div className="bg-[#E9F2FF] rounded-2xl p-4 border border-[#B8D2FF]">
+            <p className="font-bold text-[#1E3A8A]">⚡ 求倒数的方法</p>
+            <ul className="text-sm mt-1 list-disc list-inside space-y-1">
+              <li>求真分数、假分数的倒数：交换分子分母的位置。</li>
+              <li>求整数的倒数：把整数看作分母为1的分数，再交换。</li>
+              <li>求带分数的倒数：先化成假分数，再交换分子分母。</li>
+              <li>求小数的倒数：先把小数化成分数，再求倒数。</li>
+            </ul>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">💡 例：5的倒数是1/5；2又1/3 = 7/3，倒数是3/7。</div>
+          </div>
+          <div className="bg-[#DFECFF] rounded-2xl p-3 text-center text-sm border border-[#9BBDFF]">
+            🎯 挑战规则：将右侧正确的倒数卡片拖拽到对应数字下方的槽位中。
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：倒数匹配 ----------
+  const ReciprocalGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => generateChallengeSet(4));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    const initCards = (currentChallenges) => generateAnswerCards(currentChallenges);
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.matched === true);
+      if (allFilled && !isVictory) setIsVictory(true);
+      else if (!allFilled && isVictory) setIsVictory(false);
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    const resetGame = () => {
+      const newChallenges = generateChallengeSet(4);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 比较两个分数/整数是否相等
+    const areEqual = (val1, val2) => {
+      if (val1 === val2) return true;
+      const toFraction = (v) => {
+        if (v.includes('/')) {
+          const [n, d] = v.split('/').map(Number);
+          return { n, d };
+        } else {
+          const num = parseInt(v);
+          return { n: num, d: 1 };
+        }
+      };
+      const f1 = toFraction(val1);
+      const f2 = toFraction(val2);
+      return f1.n * f2.d === f2.n * f1.d;
+    };
+    
+    // 放置到槽位
+    const onDropToSlot = (e, challengeId) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      let draggedCardId, draggedValue;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('🔄 这张卡片已经使用过了！不能重复投放。');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      if (targetChallenge.matched) {
+        setErrorMsg('💧 这个倒数槽位已经匹配完成啦！');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const isMatch = areEqual(draggedValue, targetChallenge.reciprocal);
+      if (!isMatch) {
+        const expected = targetChallenge.reciprocal;
+        setErrorMsg(`❌ 匹配错误！ ${targetChallenge.original} 的倒数应该是 ${expected}，而不是 ${draggedValue}。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1900);
+        return;
+      }
+      
+      // 正确匹配
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].matched = true;
+      newChallenges[challengeIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        matched: false,
+        matchedValue: null
+      }));
+      const resetCards = answerCards.map(card => ({ ...card, used: false }));
+      // 洗牌
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    const totalCount = challenges.length;
+    const filledCount = challenges.filter(ch => ch.matched).length;
+    const progressPercent = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-blue-300 to-indigo-400 rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#D9E8FF]">
+        <div className="text-2xl font-bold text-white">🎉 倒数大师！全部正确 🎉</div>
+        <div className="text-sm text-blue-100 font-semibold">所有数的倒数都已正确匹配！点击「全新挑战」继续练习～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#F0F8FF]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#B8D2FF]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🔄</span>
+            <span className="font-bold text-[#1E40AF]">倒数匹配进度</span>
+            <span className="text-lg font-black text-blue-800">{filledCount} / {totalCount}</span>
+          </div>
+          <div className="w-36 bg-[#CCE0FF] rounded-full h-2.5">
+            <div className="bg-[#3B82F6] h-2.5 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#D9E8FF] px-2 py-1 rounded-full text-blue-800 border border-[#99BBFF]">🔷 拖拽倒数卡片 放入槽位</div>
+        </div>
+        
+        {/* 挑战区域：每个原数 + 倒数槽位 */}
+        <div className="bg-[#F6FBFF]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#BFD6FF]">
+          <div className="text-center text-sm font-semibold text-[#1E40AF] mb-3">📌 将每个数的倒数卡片拖拽到对应的槽位中</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-[#F0F7FF] rounded-xl p-4 border border-[#BFD6FF] shadow-sm">
+                <div className="text-center mb-3">
+                  <div className="text-2xl font-black text-blue-800 bg-white/60 inline-block px-6 py-1 rounded-full shadow-sm">
+                    {challenge.original}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">的倒数</div>
+                </div>
+                <div className="mt-2">
+                  <div
+                    className={`drop-slot rounded-xl p-3 text-center transition-all ${challenge.matched ? 'filled-slot' : ''}`}
+                    onDragOver={onDragOverSlot}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, challenge.id)}
+                  >
+                    <div className="text-xs font-semibold text-blue-700">✨ 倒数槽位 ✨</div>
+                    {challenge.matched ? (
+                      <div className="text-xl font-bold text-blue-800 mt-1">{challenge.matchedValue}</div>
+                    ) : (
+                      <div className="text-sm text-blue-500 mt-1 border-t border-dashed border-blue-300 pt-1">⬅️ 拖拽倒数卡片至此</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-[#F2F9FF]/80 rounded-2xl p-4 border border-[#BFD6FF]">
+          <div className="text-center text-sm font-semibold text-[#1E40AF] mb-2">🎴 倒数卡片库（拖拽到上方槽位）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all ${
+                  card.used 
+                    ? 'bg-gray-300/60 cursor-default border-2 border-gray-400 text-gray-500' 
+                    : 'bg-gradient-to-br from-blue-100 to-cyan-100 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-blue-500 text-blue-900'
+                }`}
+              >
+                {card.used ? '✓ 已用' : card.value}
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-blue-500">加载卡片中...</div>}
+          </div>
+          <div className="text-[11px] text-center text-blue-700 mt-2">💡 每个卡片只能用一次，将正确的倒数拖拽到对应数字的槽位中</div>
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FDE68A]/90 text-blue-800 font-bold p-2.5 rounded-xl border-l-8 border-[#F59E0B] backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-1">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#AAC9FF] hover:bg-[#8FB4F5] text-blue-900 font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批数字）
+          </button>
+        </div>
+        <div className="text-xs text-center text-blue-900 bg-[#E9F2FF]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 小提示：乘积为1的两个数互为倒数。求真分数、假分数只需交换分子分母；整数看成分母为1的分数；带分数先化成假分数再交换。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#F5FAFF]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#BFD6FF]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#1E40AF] flex items-center gap-2">
+                <span className="text-3xl">🔄</span>
+                倒数的认识 · 淡蓝工坊
+              </h3>
+              <span className="text-sm bg-[#D9E8FF] px-3 py-1 rounded-full text-blue-800 border border-blue-300">🎯 拖拽匹配倒数</span>
+            </div>
+            <ReciprocalGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

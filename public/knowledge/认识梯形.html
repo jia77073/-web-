@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>认识梯形 | 小学数学·几何小课堂</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义样式：淡紫色主题 + 大字体 + 拖拽优化 -->
+    <style>
+        /* 主题色淡紫渐变 */
+        body {
+            background: linear-gradient(145deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, sans-serif;
+        }
+        /* 滚动条可爱风格 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f0e2f7;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a67cac;
+            border-radius: 20px;
+        }
+        /* 拖拽卡片时的半透明效果 */
+        .drag-card-active {
+            opacity: 0.5;
+            cursor: grabbing !important;
+        }
+        /* 放置区高亮 */
+        .drop-highlight {
+            background-color: #f9ebff !important;
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px #b38fcc;
+            transition: all 0.1s ease;
+        }
+        /* 配对成功动画 */
+        .matched-pulse {
+            animation: matchGlow 0.4s ease;
+        }
+        @keyframes matchGlow {
+            0% { background-color: #c8e6c9; border-color: #81c784; }
+            100% { background-color: #e8f5e9; border-color: #a5d6a7; }
+        }
+        /* 胜利彩蛋跳动 */
+        @keyframes bounceWin {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-6px); }
+        }
+        .win-bounce {
+            animation: bounceWin 0.5s ease;
+        }
+        /* 全局字体加大（约6号字效果） */
+        body {
+            font-size: 1.2rem;
+        }
+        .text-lg-custom {
+            font-size: 1.4rem;
+            line-height: 1.8rem;
+        }
+        @media (min-width: 768px) {
+            body {
+                font-size: 1.25rem;
+            }
+            .text-lg-custom {
+                font-size: 1.6rem;
+                line-height: 2rem;
+            }
+        }
+        /* 移动端拖拽优化 */
+        .drag-card, .drop-zone {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        /* 梯形示意图简单样式 */
+        .trapezoid-demo {
+            display: inline-block;
+            width: 180px;
+            height: 100px;
+            background: #d9c2e6;
+            clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+            margin: 10px auto;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="p-3 md:p-6 min-h-screen flex items-center justify-center">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+    // 认识梯形课程组件：知识点 + 拖拽配对游戏（连连看/扭蛋风格）
+    const { useState, useEffect, useCallback } = React;
+
+    // ---------- 游戏数据：梯形各部分及分类配对 ----------
+    const questionsData = [
+        { 
+            id: 0, 
+            title: "📐 梯形定义",
+            desc: "只有一组对边平行的四边形叫做？",
+            correctAnswer: "梯形", 
+            hint: "一组对边平行，另一组不平行",
+            emoji: "🔷"
+        },
+        { 
+            id: 1, 
+            title: "📏 上底和下底",
+            desc: "梯形中平行的一组对边分别叫做？",
+            correctAnswer: "上底和下底", 
+            hint: "通常较短的是上底，较长的是下底",
+            emoji: "📏"
+        },
+        { 
+            id: 2, 
+            title: "📐 腰",
+            desc: "梯形中不平行的两条边叫做？",
+            correctAnswer: "腰", 
+            hint: "梯形的两个侧边",
+            emoji: "🦵"
+        },
+        { 
+            id: 3, 
+            title: "📏 梯形的高",
+            desc: "从上底一点向下底作垂线，这条垂线段的长度叫做？",
+            correctAnswer: "高", 
+            hint: "两平行边之间的距离",
+            emoji: "📏"
+        },
+        { 
+            id: 4, 
+            title: "🔺 等腰梯形",
+            desc: "两腰相等的梯形叫做？",
+            correctAnswer: "等腰梯形", 
+            hint: "腰长相等",
+            emoji: "⚖️"
+        },
+        { 
+            id: 5, 
+            title: "📐 直角梯形",
+            desc: "有一个角是直角的梯形叫做？",
+            correctAnswer: "直角梯形", 
+            hint: "一腰垂直于底边",
+            emoji: "📐"
+        }
+    ];
+
+    // 答案卡片数据 (包含正确配对，打乱顺序)
+    const cardsDataRaw = [
+        { id: 0, label: "梯形", matchId: 0, emoji: "🔷" },
+        { id: 1, label: "上底和下底", matchId: 1, emoji: "📏" },
+        { id: 2, label: "腰", matchId: 2, emoji: "🦵" },
+        { id: 3, label: "高", matchId: 3, emoji: "📏" },
+        { id: 4, label: "等腰梯形", matchId: 4, emoji: "⚖️" },
+        { id: 5, label: "直角梯形", matchId: 5, emoji: "📐" }
+    ];
+
+    // 主组件
+    const TrapezoidGame = () => {
+        // 每个问题是否已配对
+        const [matchedQuestions, setMatchedQuestions] = useState({});
+        // 剩余可拖拽卡片列表 (打乱顺序)
+        const [remainingCards, setRemainingCards] = useState([]);
+        // 游戏胜利标志
+        const [gameWin, setGameWin] = useState(false);
+        // 反馈消息
+        const [feedbackMsg, setFeedbackMsg] = useState("🐣 将右边正确的梯形知识卡片拖到左边对应的题目框！一起认识梯形～");
+        // 高亮放置区id
+        const [highlightZoneId, setHighlightZoneId] = useState(null);
+        
+        // 初始化 / 重置游戏
+        const initGame = useCallback(() => {
+            const initialMatched = {};
+            questionsData.forEach(q => { initialMatched[q.id] = false; });
+            setMatchedQuestions(initialMatched);
+            // 打乱卡片顺序
+            const shuffled = [...cardsDataRaw];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setRemainingCards(shuffled);
+            setGameWin(false);
+            setFeedbackMsg("✨ 新的一局！把梯形知识卡片拖拽到正确的问题框，巩固所学 ✨");
+            setHighlightZoneId(null);
+        }, []);
+        
+        // 检查是否全部配对成功
+        useEffect(() => {
+            const allMatched = Object.values(matchedQuestions).every(v => v === true);
+            if (allMatched && remainingCards.length === 0 && !gameWin) {
+                setGameWin(true);
+                setFeedbackMsg("🎉 完美通关！你已经完全认识梯形啦！🎉");
+            } else if (allMatched && remainingCards.length === 0 && gameWin) {
+                // 保持胜利状态
+            }
+        }, [matchedQuestions, remainingCards, gameWin]);
+        
+        // ----- 拖拽事件处理 -----
+        const handleDragStart = (e, card) => {
+            // 检查卡片是否还在剩余卡片中（未被配对）
+            if (!remainingCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                e.dataTransfer.effectAllowed = "none";
+                setFeedbackMsg("⛔ 这张卡片已经配对过了！不能重复拖拽 ⛔");
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, matchId: card.matchId, label: card.label }));
+            e.dataTransfer.effectAllowed = "copy";
+            // 自定义拖拽图像
+            const dragIcon = document.createElement('div');
+            dragIcon.textContent = `${card.emoji} ${card.label}`;
+            dragIcon.style.position = "absolute";
+            dragIcon.style.top = "-1000px";
+            dragIcon.style.background = "#a17bb5";
+            dragIcon.style.padding = "8px 16px";
+            dragIcon.style.borderRadius = "30px";
+            dragIcon.style.color = "white";
+            dragIcon.style.fontWeight = "bold";
+            dragIcon.style.fontSize = "1.2rem";
+            document.body.appendChild(dragIcon);
+            e.dataTransfer.setDragImage(dragIcon, 0, 0);
+            setTimeout(() => document.body.removeChild(dragIcon), 0);
+            if (e.target && e.target.classList) {
+                e.target.classList.add('drag-card-active');
+            }
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target && e.target.classList) {
+                e.target.classList.remove('drag-card-active');
+            }
+            setHighlightZoneId(null);
+        };
+        
+        // 放置区高亮
+        const handleDragOver = (e, zoneId) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (highlightZoneId !== zoneId) {
+                setHighlightZoneId(zoneId);
+            }
+        };
+        
+        const handleDragLeave = () => {
+            setHighlightZoneId(null);
+        };
+        
+        // 放置配对逻辑
+        const handleDrop = (e, targetQuestion) => {
+            e.preventDefault();
+            setHighlightZoneId(null);
+            // 如果该问题已经配对，不能再放
+            if (matchedQuestions[targetQuestion.id]) {
+                setFeedbackMsg(`🔁 问题“${targetQuestion.title}”已经配对成功！不用重复哦 🔁`);
+                return;
+            }
+            
+            let dragData;
+            try {
+                const raw = e.dataTransfer.getData("text/plain");
+                dragData = JSON.parse(raw);
+            } catch(err) {
+                setFeedbackMsg("拖拽出了一点小问题，再试一次~");
+                return;
+            }
+            if (!dragData) return;
+            
+            const { cardId, matchId, label } = dragData;
+            // 验证卡片是否还在剩余中
+            const cardExists = remainingCards.some(c => c.id === cardId);
+            if (!cardExists) {
+                setFeedbackMsg("这张卡片已经被配对过了！请使用其他卡片。");
+                return;
+            }
+            
+            // 判断配对是否正确 (卡片matchId === 问题id)
+            const isCorrect = (matchId === targetQuestion.id);
+            if (isCorrect) {
+                // 配对成功！
+                setMatchedQuestions(prev => ({ ...prev, [targetQuestion.id]: true }));
+                // 从剩余卡片中移除该卡片
+                const newRemaining = remainingCards.filter(c => c.id !== cardId);
+                setRemainingCards(newRemaining);
+                setFeedbackMsg(`🎈 正确！ ${targetQuestion.desc} → 答案：${label} ，${targetQuestion.hint} 🎈`);
+                // 动画效果
+                const zoneEl = document.getElementById(`qzone-${targetQuestion.id}`);
+                if (zoneEl) {
+                    zoneEl.classList.add('matched-pulse');
+                    setTimeout(() => zoneEl.classList.remove('matched-pulse'), 400);
+                }
+            } else {
+                // 配对错误：给出正确答案提示
+                const correctAns = questionsData.find(q => q.id === targetQuestion.id)?.correctAnswer || "???";
+                setFeedbackMsg(`❌ 配对错误！ “${targetQuestion.desc}” 正确答案是 ${correctAns} ，再回忆一下梯形的知识吧！❌`);
+            }
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            initGame();
+        };
+        
+        // 初始化
+        useEffect(() => {
+            initGame();
+        }, [initGame]);
+        
+        const totalQuestions = questionsData.length;
+        const matchedCount = Object.values(matchedQuestions).filter(v => v === true).length;
+        
+        return (
+            <div className="w-full rounded-3xl shadow-2xl p-4 md:p-5 bg-white/30 backdrop-blur-sm border border-white/40">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区域：认识梯形 ========= */}
+                    <div className="lg:w-2/5 bg-white/85 rounded-2xl p-5 md:p-6 shadow-xl backdrop-blur-sm border border-purple-100 overflow-y-auto max-h-[85vh] lg:max-h-none">
+                        <div className="border-l-8 border-[#a67cac] pl-4 mb-4">
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-[#5e3a63]">📐 认识梯形</h1>
+                            <p className="text-xl text-gray-700 mt-1 font-semibold">只有一组对边平行的四边形</p>
+                        </div>
+                        
+                        {/* 梯形示意图 */}
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-white p-3 rounded-2xl shadow-md inline-block">
+                                <svg width="200" height="120" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                                    <polygon points="40,20 160,20 190,100 10,100" fill="#D9C2E6" stroke="#a67cac" strokeWidth="3" />
+                                    <line x1="40" y1="20" x2="160" y2="20" stroke="#5e3a63" strokeWidth="2" strokeDasharray="5,5" />
+                                    <line x1="10" y1="100" x2="190" y2="100" stroke="#5e3a63" strokeWidth="2" strokeDasharray="5,5" />
+                                    <text x="80" y="15" fill="#5e3a63" fontSize="12">上底</text>
+                                    <text x="75" y="115" fill="#5e3a63" fontSize="12">下底</text>
+                                    <line x1="90" y1="20" x2="90" y2="100" stroke="#e91e63" strokeWidth="2" strokeDasharray="4,2" />
+                                    <text x="95" y="60" fill="#e91e63" fontSize="12">高</text>
+                                    <text x="10" y="50" fill="#5e3a63" fontSize="12">腰</text>
+                                    <text x="170" y="50" fill="#5e3a63" fontSize="12">腰</text>
+                                </svg>
+                                <p class="text-center text-sm text-purple-600 mt-1">梯形各部分的名称</p>
+                            </div>
+                        </div>
+                        
+                        {/* 1. 梯形的定义 */}
+                        <div className="bg-gradient-to-r from-[#f7effb] to-white p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800 flex items-center gap-2">🔍 什么是梯形？</h2>
+                            <p className="text-lg mt-2 leading-relaxed"><strong>只有一组对边平行</strong>的四边形叫做梯形。平行的一组对边叫做梯形的<strong className="text-purple-700">上底</strong>和<strong className="text-purple-700">下底</strong>，不平行的一组对边叫做<strong className="text-purple-700">腰</strong>。</p>
+                        </div>
+                        
+                        {/* 2. 梯形各部分的名称 */}
+                        <div className="bg-white/80 p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📌 梯形各部分名称</h2>
+                            <div className="grid grid-cols-2 gap-3 mt-3">
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p className="font-black">上底</p>
+                                    <p>较短的平行边</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p className="font-black">下底</p>
+                                    <p>较长的平行边</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p className="font-black">腰</p>
+                                    <p>不平行的两条边</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p className="font-black">高</p>
+                                    <p>上底到下底的垂直距离</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 3. 特殊梯形 */}
+                        <div className="bg-[#faf0ff] p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">✨ 特殊的梯形</h2>
+                            <div className="space-y-3 mt-2">
+                                <div className="flex items-center gap-3 bg-white p-2 rounded-lg">
+                                    <span className="text-2xl">⚖️</span>
+                                    <div><strong>等腰梯形</strong>：两腰相等的梯形，两个底角相等。</div>
+                                </div>
+                                <div className="flex items-center gap-3 bg-white p-2 rounded-lg">
+                                    <span className="text-2xl">📐</span>
+                                    <div><strong>直角梯形</strong>：有一个角是直角的梯形，一腰垂直于底边。</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 4. 梯形与平行四边形的区别 */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">🤔 梯形 vs 平行四边形</h2>
+                            <p className="text-lg mt-1">平行四边形有<strong>两组对边平行</strong>，而梯形<strong>只有一组对边平行</strong>。梯形不是平行四边形。</p>
+                            <div className="mt-2 text-center text-green-700 bg-green-50 rounded-full py-2">
+                                🌟 右侧小游戏：将梯形知识卡片拖到对应的问题框！
+                            </div>
+                        </div>
+                        <div className="mt-4 text-sm text-center text-purple-600 bg-white/60 rounded-full py-2">✨ 记住：只有一组对边平行，上底下底腰和高 ✨</div>
+                    </div>
+                    
+                    {/* ========= 右侧互动游戏区域：拖拽配对（扭蛋机风格） ========= */}
+                    <div className="lg:w-3/5 bg-[#faf3ff]/95 rounded-2xl p-5 md:p-6 shadow-lg border-2 border-[#CBAACB] flex flex-col">
+                        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+                            <h2 className="text-2xl md:text-3xl font-black text-[#6b3f74] flex items-center gap-2">
+                                🎮 梯形知识扭蛋机·拖拽配对 <span className="text-lg bg-white/70 px-3 py-1 rounded-full">连连看</span>
+                            </h2>
+                            <button 
+                                onClick={resetGame}
+                                className="bg-gradient-to-r from-[#a17bb5] to-[#cba3db] hover:from-[#8f68a3] hover:to-[#b887cf] text-white font-bold py-2 px-5 rounded-full shadow-md transition transform active:scale-95 text-lg"
+                            >
+                                🔄 新的一局
+                            </button>
+                        </div>
+                        
+                        {/* 反馈消息条 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-bold text-lg transition-all ${feedbackMsg.includes('正确') || feedbackMsg.includes('🎈') ? 'bg-green-100 text-green-800 border border-green-300' : (feedbackMsg.includes('错误') || feedbackMsg.includes('⛔') ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')}`}>
+                            {feedbackMsg}
+                        </div>
+                        
+                        {/* 进度条 */}
+                        <div className="w-full bg-purple-200 rounded-full h-3 mb-3">
+                            <div className="bg-purple-600 h-3 rounded-full transition-all duration-300" style={{ width: `${(matchedCount / totalQuestions) * 100}%` }}></div>
+                        </div>
+                        <p className="text-right text-purple-700 text-sm font-medium">配对进度: {matchedCount}/{totalQuestions}</p>
+                        
+                        {/* 挑战问题区域 (放置区) */}
+                        <div className="space-y-4 mb-6 mt-2 max-h-[460px] overflow-y-auto pr-1">
+                            {questionsData.map(q => {
+                                const isMatched = matchedQuestions[q.id];
+                                const isHighlight = highlightZoneId === q.id;
+                                return (
+                                    <div
+                                        key={q.id}
+                                        id={`qzone-${q.id}`}
+                                        className={`drop-zone relative bg-white rounded-2xl p-4 border-2 transition-all ${isMatched ? 'border-green-400 bg-green-50/90' : (isHighlight ? 'border-purple-500 bg-purple-50 drop-highlight' : 'border-purple-200')}`}
+                                        onDragOver={(e) => handleDragOver(e, q.id)}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, q)}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="text-xl font-black text-purple-800 flex items-center gap-2 flex-wrap">
+                                                    <span className="text-2xl">{q.emoji}</span>
+                                                    <span>{q.title}</span>
+                                                    {!isMatched && <span className="text-sm bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">待配对</span>}
+                                                    {isMatched && <span className="text-sm bg-green-200 text-green-800 px-2 py-0.5 rounded-full">✓ 已配对</span>}
+                                                </div>
+                                                <p className="text-base md:text-lg text-gray-700 mt-1">{q.desc}</p>
+                                                <div className="mt-2 text-sm text-purple-600 bg-purple-50 inline-block px-2 py-1 rounded-full">
+                                                    💡 提示：{q.hint}
+                                                </div>
+                                                {isMatched && (
+                                                    <div className="mt-2 inline-flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
+                                                        ✅ 答案：{q.correctAnswer}
+                                                    </div>
+                                                )}
+                                                {!isMatched && (
+                                                    <div className="mt-2 text-xs text-purple-400">
+                                                        👆 将正确卡片拖拽至此
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-3xl ml-2">🎯</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽卡片区（答案扭蛋） */}
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <p className="text-xl font-bold text-purple-800 flex items-center gap-2">🎴 知识扭蛋 (拖拽配对)</p>
+                                <span className="bg-purple-200 rounded-full px-3 py-1 text-sm font-bold">剩余: {remainingCards.length}</span>
+                            </div>
+                            
+                            {remainingCards.length === 0 && !gameWin && (
+                                <div className="text-center py-6 bg-yellow-50 rounded-2xl border border-yellow-300 text-yellow-700 font-bold text-xl">
+                                    ✨ 太棒啦！所有梯形知识都配对正确！点击[新的一局]继续挑战 ✨
+                                </div>
+                            )}
+                            
+                            {remainingCards.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {remainingCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable="true"
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-[#e8d3fc] to-white rounded-2xl p-3 text-center shadow-md cursor-grab active:cursor-grabbing border-2 border-purple-300 hover:shadow-xl transform transition hover:-translate-y-1"
+                                        >
+                                            <div className="text-3xl mb-1">{card.emoji}</div>
+                                            <div className="font-black text-xl md:text-2xl text-purple-800">{card.label}</div>
+                                            <div className="text-xs text-purple-500 mt-1">✨ 拖拽配对 ✨</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 拖拉拽玩法详细说明 */}
+                            <div className="mt-5 bg-[#e9d4f0] rounded-xl p-3 text-center text-purple-800 text-base flex flex-wrap justify-center gap-2 items-center">
+                                <span className="font-bold">🐣 如何拖拉拽互动：</span>
+                                <span>👉 手指长按右边卡片 → 拖到左边对应的题目区域 → 松开配对！</span>
+                                <span className="text-sm bg-white rounded-full px-2 py-0.5">巩固梯形各部分名称与分类</span>
+                            </div>
+                        </div>
+                        
+                        {/* 胜利彩蛋 */}
+                        {gameWin && (
+                            <div className="mt-5 p-4 bg-gradient-to-r from-green-200 to-emerald-200 rounded-2xl text-center win-bounce">
+                                <div className="text-5xl mb-2">🏆📐🔷🎉</div>
+                                <p className="font-extrabold text-2xl text-emerald-800">梯形小专家！定义、各部分、特殊梯形全掌握！</p>
+                                <button onClick={resetGame} className="mt-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow">🏅 再玩一局 🏅</button>
+                            </div>
+                        )}
+                        
+                        {/* 底部知识关联 */}
+                        <div className="mt-3 text-right text-sm text-purple-600 flex justify-end items-center gap-1">
+                            <span>📌 梯形：只有一组对边平行 &nbsp;|&nbsp; 等腰梯形 &nbsp;|&nbsp; 直角梯形</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-center mt-5 text-sm text-purple-900/80 bg-white/30 rounded-full py-2 px-4 mx-auto w-fit">
+                    🌟 梯形只有一组对边平行，上底、下底、腰和高要分清！等腰梯形两腰相等，直角梯形有直角 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染根组件
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<TrapezoidGame />);
+</script>
+</body>
+</html>

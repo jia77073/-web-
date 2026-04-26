@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小侦探：找次品 | 天平拖拖乐</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 标题3号 + 内容5号 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',
+                        '3xl': '1.875rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; background-color: #bbf7d0; }
+        }
+        .balance-animation {
+            animation: pulse 0.5s ease-in-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        .no-tap-highlight {
+            -webkit-touch-callout: none;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 找次品 —— 拖拽分组天平模拟
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 辅助函数：随机生成物品和次品 ----------
+        // 物品数量范围 3~9 个（保证可分组且有趣）
+        const generateItems = () => {
+            const count = Math.floor(Math.random() * 7) + 3; // 3~9
+            const items = [];
+            for (let i = 1; i <= count; i++) {
+                items.push({ id: i, name: `物品${i}`, label: `${i}` });
+            }
+            // 随机选择一个次品索引 (0-based)
+            const defectiveIndex = Math.floor(Math.random() * count);
+            // 随机决定次品是轻还是重
+            const isHeavier = Math.random() > 0.5;
+            return {
+                items: items,
+                defectiveIndex: defectiveIndex,
+                isHeavier: isHeavier,   // true: 次品偏重, false: 次品偏轻
+                totalCount: count,
+                // 用于存储游戏状态
+                remainingItems: [...items],    // 当前怀疑范围内的物品
+                weighHistory: [],              // 称量历史
+                gameFinished: false,
+                win: false,
+                weighCount: 0,
+            };
+        };
+
+        // ---------- 主游戏组件: 拖拽分组称量 ----------
+        const FindDefectiveGame = () => {
+            // 游戏核心数据
+            const [gameState, setGameState] = useState(null);
+            // 当前天平左右托盘的物品ID列表
+            const [leftPan, setLeftPan] = useState([]);
+            const [rightPan, setRightPan] = useState([]);
+            // 拖拽高亮
+            const [highlightLeft, setHighlightLeft] = useState(false);
+            const [highlightRight, setHighlightRight] = useState(false);
+            const [highlightItems, setHighlightItems] = useState(false);
+            // 消息和反馈
+            const [message, setMessage] = useState("🐣 拖拽物品到左右托盘，点击「称量」找出次品！");
+            const [balanceResult, setBalanceResult] = useState(null); // 'left', 'right', 'equal'
+            const [weighDisabled, setWeighDisabled] = useState(false);
+            const [score, setScore] = useState(0);
+            const [gameCompleted, setGameCompleted] = useState(false);
+            
+            // 换一题: 重置整个游戏
+            const resetGame = () => {
+                const newGame = generateItems();
+                setGameState({
+                    ...newGame,
+                    remainingItems: [...newGame.items],
+                    weighHistory: [],
+                    gameFinished: false,
+                    win: false,
+                    weighCount: 0,
+                });
+                setLeftPan([]);
+                setRightPan([]);
+                setBalanceResult(null);
+                setWeighDisabled(false);
+                setGameCompleted(false);
+                setMessage("✨ 新的一批物品！用天平找出那个不一样的次品 ✨");
+                setHighlightLeft(false);
+                setHighlightRight(false);
+            };
+            
+            // 初始化
+            useEffect(() => {
+                resetGame();
+            }, []);
+            
+            // 称量逻辑
+            const handleWeigh = () => {
+                if (!gameState || gameState.gameFinished) {
+                    setMessage("游戏已结束，请点击「换一题」继续挑战！");
+                    return;
+                }
+                if (leftPan.length === 0 && rightPan.length === 0) {
+                    setMessage("天平两边至少放一个物品才能称量哦！");
+                    return;
+                }
+                if (leftPan.length !== rightPan.length) {
+                    setMessage("天平两边物品数量必须相等才能比较！请调整托盘中的物品数量。");
+                    return;
+                }
+                
+                // 计算左右两边的实际重量（基于正品重量1单位，次品重量1±0.2）
+                // 正品重量假设为10，次品重量为10±δ，这里只需要比较轻重
+                const defectiveItemId = gameState.items[gameState.defectiveIndex].id;
+                const isHeavier = gameState.isHeavier;
+                
+                const getItemWeight = (itemId) => {
+                    if (itemId === defectiveItemId) {
+                        return isHeavier ? 11 : 9;  // 重或轻
+                    }
+                    return 10;
+                };
+                
+                const leftWeight = leftPan.reduce((sum, id) => sum + getItemWeight(id), 0);
+                const rightWeight = rightPan.reduce((sum, id) => sum + getItemWeight(id), 0);
+                
+                let result = null; // 'left', 'right', 'equal'
+                if (leftWeight > rightWeight) result = 'left';
+                else if (leftWeight < rightWeight) result = 'right';
+                else result = 'equal';
+                
+                setBalanceResult(result);
+                // 动画效果
+                const balanceDiv = document.getElementById('balance-visual');
+                if (balanceDiv) balanceDiv.classList.add('balance-animation');
+                setTimeout(() => balanceDiv?.classList.remove('balance-animation'), 500);
+                
+                // 根据结果缩小可疑范围
+                let newRemaining = [];
+                const allItems = gameState.items;
+                const leftItems = leftPan.map(id => allItems.find(item => item.id === id));
+                const rightItems = rightPan.map(id => allItems.find(item => item.id === id));
+                const notWeighed = allItems.filter(item => !leftPan.includes(item.id) && !rightPan.includes(item.id));
+                
+                if (result === 'equal') {
+                    // 次品在未称量的物品中
+                    newRemaining = notWeighed;
+                    setMessage(`⚖️ 天平平衡！说明次品不在托盘里，在剩下的 ${newRemaining.length} 个物品中。`);
+                } else if (result === 'left') {
+                    // 左边重，右边轻。如果次品偏重，则在左边；如果次品偏轻，则在右边
+                    if (isHeavier) {
+                        newRemaining = leftItems;
+                        setMessage(`⚖️ 左边下沉（重），因为次品偏重，所以次品在左边托盘中。`);
+                    } else {
+                        newRemaining = rightItems;
+                        setMessage(`⚖️ 左边下沉（重），因为次品偏轻，所以次品在右边托盘中。`);
+                    }
+                } else { // right
+                    if (isHeavier) {
+                        newRemaining = rightItems;
+                        setMessage(`⚖️ 右边下沉（重），因为次品偏重，所以次品在右边托盘中。`);
+                    } else {
+                        newRemaining = leftItems;
+                        setMessage(`⚖️ 右边下沉（重），因为次品偏轻，所以次品在左边托盘中。`);
+                    }
+                }
+                
+                // 更新怀疑范围
+                const newWeighCount = gameState.weighCount + 1;
+                const newHistory = [...gameState.weighHistory, { left: [...leftPan], right: [...rightPan], result }];
+                
+                // 检查是否已经锁定次品
+                let finished = false;
+                let win = false;
+                if (newRemaining.length === 1) {
+                    finished = true;
+                    win = true;
+                    setMessage(`🎉 太棒了！用了 ${newWeighCount} 次称量就找到了次品！它就是 ${newRemaining[0].name} 🎉`);
+                    setScore(prev => prev + 1);
+                    setGameCompleted(true);
+                } else if (newRemaining.length === 0) {
+                    // 逻辑错误保护
+                    finished = true;
+                    win = false;
+                    setMessage("出错啦，请重试或换一题。");
+                }
+                
+                setGameState(prev => ({
+                    ...prev,
+                    remainingItems: newRemaining,
+                    weighHistory: newHistory,
+                    weighCount: newWeighCount,
+                    gameFinished: finished,
+                    win: win,
+                }));
+                
+                // 清空托盘（为下次称量准备）
+                setLeftPan([]);
+                setRightPan([]);
+                setBalanceResult(null);
+                if (!finished) {
+                    setMessage(`✅ 称量完成！现在怀疑范围缩小到 ${newRemaining.length} 个物品。继续分组称量吧。`);
+                } else {
+                    setWeighDisabled(true);
+                }
+            };
+            
+            // 拖拽逻辑：物品可拖拽到左托盘或右托盘
+            const onItemDragStart = (e, itemId) => {
+                if (gameState?.gameFinished) {
+                    e.preventDefault();
+                    setMessage("游戏已完成，请换一题开始新挑战。");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ type: 'item', id: itemId }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onItemDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            // 托盘放置区接收
+            const handleDropOnPan = (e, panType) => {
+                e.preventDefault();
+                setHighlightLeft(false);
+                setHighlightRight(false);
+                if (gameState?.gameFinished) {
+                    setMessage("游戏已完成，请换一题。");
+                    return;
+                }
+                let dragData;
+                try {
+                    const raw = e.dataTransfer.getData("text/plain");
+                    if (!raw) return;
+                    dragData = JSON.parse(raw);
+                } catch(err) {
+                    return;
+                }
+                if (dragData.type === 'item') {
+                    const itemId = dragData.id;
+                    // 检查该物品是否还在剩余怀疑物品中（并且未放入托盘）
+                    const isInRemaining = gameState.remainingItems.some(item => item.id === itemId);
+                    if (!isInRemaining) {
+                        setMessage("这个物品已经排除或不在当前怀疑范围内，不能称量了。");
+                        return;
+                    }
+                    // 检查是否已经放在另一盘中
+                    if (panType === 'left') {
+                        if (!leftPan.includes(itemId)) {
+                            setLeftPan(prev => [...prev, itemId]);
+                            setMessage(`将物品${itemId}放到左边托盘。`);
+                        } else {
+                            setMessage(`物品${itemId}已经在左边托盘了。`);
+                        }
+                    } else {
+                        if (!rightPan.includes(itemId)) {
+                            setRightPan(prev => [...prev, itemId]);
+                            setMessage(`将物品${itemId}放到右边托盘。`);
+                        } else {
+                            setMessage(`物品${itemId}已经在右边托盘了。`);
+                        }
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterLeft = () => setHighlightLeft(true);
+            const onDragLeaveLeft = () => setHighlightLeft(false);
+            const onDragEnterRight = () => setHighlightRight(true);
+            const onDragLeaveRight = () => setHighlightRight(false);
+            
+            // 从托盘中移除物品
+            const removeFromLeft = (itemId) => {
+                setLeftPan(prev => prev.filter(id => id !== itemId));
+                setMessage(`从左边托盘移除了物品${itemId}`);
+            };
+            const removeFromRight = (itemId) => {
+                setRightPan(prev => prev.filter(id => id !== itemId));
+                setMessage(`从右边托盘移除了物品${itemId}`);
+            };
+            
+            // 清空托盘
+            const clearPans = () => {
+                setLeftPan([]);
+                setRightPan([]);
+                setMessage("已清空天平托盘。");
+            };
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                resetGame();
+                setScore(0);
+            };
+            
+            if (!gameState) return <div className="text-white text-2xl">加载游戏中...</div>;
+            
+            // 渲染剩余可疑物品
+            const suspectItems = gameState.remainingItems;
+            // 最优分组提示（根据剩余数量）
+            const optimalHint = () => {
+                const n = suspectItems.length;
+                if (n === 1) return "只剩1个物品，它就是次品！";
+                if (n === 2) return "称量任意1个 vs 1个，平衡则另一个是次品，否则直接找出。";
+                if (n === 3) return "称量2个（1 vs 1），平衡则第三个是次品，不平衡则根据轻重判断。";
+                if (n <= 9) return `分成三组，每组 ${Math.ceil(n/3)} 个左右，称量其中两组，可以最快缩小范围。`;
+                return "尽量平均分成三组，称量其中两组。";
+            };
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                ⚖️ 找次品小课堂
+                                <span className="text-lg bg-amber-200 px-3 py-0.5 rounded-full">天平推理</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-5 text-base md:text-lg text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">🧩</span>
+                                <span><strong className="text-purple-700">找次品</strong> 利用天平平衡原理，通过分组称量快速锁定唯一异常物品。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 最优策略</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>✨ 把物品分成<strong>3组</strong>（尽量平均）。</li>
+                                    <li>✨ 称量其中两组，根据平衡情况缩小范围。</li>
+                                    <li>✨ 每次称量都能排除至少2/3的物品。</li>
+                                </ul>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p>💡 规律：<br/>
+                                    2~3个物品 → 1次<br/>
+                                    4~9个物品 → 2次<br/>
+                                    10~27个物品 → 3次</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧸 核心思想：</p>
+                                <p>天平一次称量可以出现三种结果（左倾、右倾、平衡），每次都能将范围缩小到原来的1/3左右。</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 把可疑物品拖拽到天平左右托盘，两边放相同数量，点击【称量】。根据天平结果，系统会自动缩小怀疑范围，直到找出次品。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧游戏互动区 */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5" id="game-area">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                ⚖️ 天平侦探 · 拖拖乐
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽分组</span>
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-amber-100 rounded-full px-4 py-1 text-xl font-bold text-amber-800">
+                                    🏆 得分: {score}
+                                </div>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-base"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 当前怀疑范围 */}
+                        <div className="bg-purple-100/70 rounded-xl p-3">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-lg">🔍 当前可疑物品 ({suspectItems.length}个)</span>
+                                <span className="text-xs text-purple-600">已称量 {gameState.weighCount} 次</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {suspectItems.map(item => (
+                                    <div
+                                        key={item.id}
+                                        draggable={!gameState.gameFinished}
+                                        onDragStart={(e) => onItemDragStart(e, item.id)}
+                                        onDragEnd={onItemDragEnd}
+                                        className="bg-amber-200 rounded-full px-4 py-2 shadow-md flex items-center gap-1 cursor-grab active:cursor-grabbing"
+                                    >
+                                        <span className="text-xl">📦</span>
+                                        <span className="font-bold">{item.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="text-xs text-purple-700 mt-2">💡 最优策略提示：{optimalHint()}</div>
+                        </div>
+                        
+                        {/* 天平区域 */}
+                        <div className="bg-white/50 rounded-2xl p-4">
+                            <h4 className="font-bold text-xl text-purple-700 text-center mb-2">⚖️ 天平托盘（拖拽物品到左右盘）</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* 左边托盘 */}
+                                <div
+                                    onDragOver={onDragOver}
+                                    onDrop={(e) => handleDropOnPan(e, 'left')}
+                                    onDragEnter={onDragEnterLeft}
+                                    onDragLeave={onDragLeaveLeft}
+                                    className={`border-4 border-dashed rounded-2xl p-3 transition-all min-h-[130px] ${highlightLeft ? 'drop-zone-active' : 'border-blue-300'} bg-blue-50/60 flex flex-col items-center`}
+                                >
+                                    <span className="text-xl font-bold text-blue-700">⬅️ 左边托盘</span>
+                                    <div className="flex flex-wrap gap-2 justify-center mt-2">
+                                        {leftPan.map(id => {
+                                            const item = gameState.items.find(i => i.id === id);
+                                            return item ? (
+                                                <div key={id} className="bg-blue-200 rounded-full px-3 py-1 flex items-center gap-1 shadow">
+                                                    <span>{item.name}</span>
+                                                    <button onClick={() => removeFromLeft(id)} className="text-red-500 font-bold ml-1">✖</button>
+                                                </div>
+                                            ) : null;
+                                        })}
+                                    </div>
+                                    {leftPan.length === 0 && <div className="text-gray-400 text-sm mt-2">拖拽物品到这里</div>}
+                                </div>
+                                {/* 右边托盘 */}
+                                <div
+                                    onDragOver={onDragOver}
+                                    onDrop={(e) => handleDropOnPan(e, 'right')}
+                                    onDragEnter={onDragEnterRight}
+                                    onDragLeave={onDragLeaveRight}
+                                    className={`border-4 border-dashed rounded-2xl p-3 transition-all min-h-[130px] ${highlightRight ? 'drop-zone-active' : 'border-green-300'} bg-green-50/60 flex flex-col items-center`}
+                                >
+                                    <span className="text-xl font-bold text-green-700">➡️ 右边托盘</span>
+                                    <div className="flex flex-wrap gap-2 justify-center mt-2">
+                                        {rightPan.map(id => {
+                                            const item = gameState.items.find(i => i.id === id);
+                                            return item ? (
+                                                <div key={id} className="bg-green-200 rounded-full px-3 py-1 flex items-center gap-1 shadow">
+                                                    <span>{item.name}</span>
+                                                    <button onClick={() => removeFromRight(id)} className="text-red-500 font-bold ml-1">✖</button>
+                                                </div>
+                                            ) : null;
+                                        })}
+                                    </div>
+                                    {rightPan.length === 0 && <div className="text-gray-400 text-sm mt-2">拖拽物品到这里</div>}
+                                </div>
+                            </div>
+                            <div className="flex justify-center gap-3 mt-4">
+                                <button onClick={clearPans} className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-full text-sm">🗑️ 清空托盘</button>
+                                <button onClick={handleWeigh} disabled={gameState.gameFinished} className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-6 py-2 rounded-full shadow transition">⚖️ 称量</button>
+                            </div>
+                            {balanceResult && (
+                                <div className="text-center mt-3 text-lg font-bold">
+                                    {balanceResult === 'left' && <span className="text-red-600">⬅️ 左边下沉（左边重）</span>}
+                                    {balanceResult === 'right' && <span className="text-green-600">➡️ 右边下沉（右边重）</span>}
+                                    {balanceResult === 'equal' && <span className="text-gray-700">⚖️ 天平平衡</span>}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* 消息区域 */}
+                        <div className="bg-amber-50 rounded-xl p-2 text-center text-amber-800 font-medium text-sm shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 游戏结束显示胜利信息 */}
+                        {gameState.gameFinished && gameState.win && (
+                            <div className="bg-green-100 rounded-2xl p-3 text-center text-green-800 font-bold">
+                                🎉 恭喜！你用了 {gameState.weighCount} 次称量找到次品！ 🎉<br/>
+                                点击「换一题」继续挑战。
+                            </div>
+                        )}
+                        
+                        {/* 操作提示 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：把可疑物品拖到左右托盘，两边数量要相等，再点称量。</span>
+                            <button onClick={() => setMessage("💡 提示：每次尽量将物品分成3组，称量其中两组，可以最快缩小范围。")} className="underline text-purple-700">❓ 称量提示</button>
+                        </div>
+                        
+                        <div className="text-center text-sm text-purple-800 bg-purple-50/50 rounded-full px-2 py-1">
+                            📊 已称量次数: {gameState.weighCount}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // 根组件
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            ⚖️ 找次品大挑战 · 天平小侦探 🧸
+                        </h1>
+                        <p className="text-white/90 text-lg md:text-xl mt-2 font-medium">拖拽物品到天平托盘，分组称量，最快找出次品！</p>
+                    </div>
+                    <FindDefectiveGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 拖拽可疑物品到左右托盘（数量相等），点击称量，根据结果缩小范围直到找出次品。点击【换一题】挑战新物品 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

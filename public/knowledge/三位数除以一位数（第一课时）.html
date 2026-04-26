@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🐟 三位数除以一位数 · 除法小英雄（完美竖式）</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM & Babel -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 竖式核心样式 —— 极致紧凑，严格数位对齐，无多余空格 */
+    .ld-container {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(4px);
+      padding: 16px 12px 16px 12px;
+      border-radius: 32px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(203, 170, 203, 0.5);
+      display: inline-block;
+      font-family: 'Courier New', 'Consolas', 'SF Mono', monospace;
+      font-weight: 700;
+      color: #1f3a4b;
+    }
+    .ld-row {
+      display: flex;
+      align-items: flex-end;
+      line-height: 1.2;
+    }
+    /* 动态调整行高，避免多余空白 */
+    .ld-step-row {
+      min-height: 2.2rem;
+    }
+    .ld-divisor-placeholder {
+      width: 52px;
+      flex-shrink: 0;
+    }
+    .ld-divisor-cell {
+      width: 52px;
+      flex-shrink: 0;
+      font-size: 2.2rem;
+      text-align: right;
+      padding-right: 10px;
+      color: #8b5a8b;
+      line-height: 1.3;
+      font-weight: 800;
+    }
+    .ld-digits-row {
+      display: flex;
+      gap: 0;
+    }
+    .digit {
+      width: 2rem;
+      min-width: 2rem;
+      text-align: center;
+      font-size: 2rem;
+      line-height: 1.3;
+      font-weight: 700;
+      color: #1f3a4b;
+      padding: 0 2px;
+    }
+    /* 空单元格不显示任何内容，也不占额外空间 */
+    .digit:empty {
+      visibility: hidden;
+    }
+    /* 商数字颜色 */
+    .ld-quotient-row .digit {
+      color: #2c7a47;
+    }
+    /* 括号竖线 */
+    .ld-bracket-col {
+      display: flex;
+      flex-direction: column;
+      border-left: 3px solid #b38f9e;
+    }
+    .ld-top-line {
+      width: 100%;
+      height: 3px;
+      background: #b38f9e;
+      margin-bottom: 4px;
+    }
+    .dividend-row .digit {
+      font-weight: 800;
+      color: #2d3e50;
+    }
+    .ld-step-line {
+      height: 2px;
+      background: #c4a5c0;
+      margin: 4px 0 4px 0;
+      border-radius: 2px;
+    }
+    /* 横线行容器紧凑 */
+    .ld-line-row {
+      min-height: auto;
+      margin: 0;
+    }
+    /* 余数颜色 */
+    .remainder-digit {
+      color: #e67e22 !important;
+      font-weight: 800;
+    }
+    /* 移动端适配 — 更紧凑 */
+    @media (max-width: 700px) {
+      .digit { width: 1.6rem; min-width: 1.6rem; font-size: 1.6rem; }
+      .ld-divisor-cell { width: 40px; font-size: 1.8rem; padding-right: 6px; }
+      .ld-divisor-placeholder { width: 40px; }
+      .ld-container { padding: 12px 8px; }
+    }
+    @media (max-width: 480px) {
+      .digit { width: 1.4rem; min-width: 1.4rem; font-size: 1.4rem; }
+      .ld-divisor-cell { width: 34px; font-size: 1.5rem; padding-right: 4px; }
+      .ld-divisor-placeholder { width: 34px; }
+    }
+    /* 拖拽游戏样式 */
+    .drag-card {
+      cursor: grab;
+      transition: all 0.18s ease;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-zone-highlight {
+      background-color: rgba(216, 180, 254, 0.6) !important;
+      border: 3px solid #a855f7 !important;
+      transform: scale(1.02);
+    }
+    .glass-card {
+      background: rgba(255, 248, 250, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#D9C2E6] to-[#CBAACB] min-h-screen flex items-center justify-center p-4 md:p-6">
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 除法笔算步骤生成器 (人教版规范，精确记录每一步的列索引) ----------
+  function computeDivisionSteps(dividend, divisor) {
+    if (divisor === 0) return null;
+    const dividendStr = dividend.toString();
+    const digits = dividendStr.split('').map(d => parseInt(d));
+    let currentPartial = 0;
+    let quotientDigits = [];
+    const steps = []; // 存储 { partialDividend, product, quotient, remainderAfter, positionIndex }
+    let hasStarted = false;
+    
+    for (let i = 0; i < digits.length; i++) {
+      currentPartial = currentPartial * 10 + digits[i];
+      // 判断是否产生商：当前部分够除 或 已经开始过 或 最后一位且从未产生商（如被除数小于除数）
+      if (currentPartial >= divisor || hasStarted || (i === digits.length - 1 && quotientDigits.length === 0)) {
+        const q = Math.floor(currentPartial / divisor);
+        const product = q * divisor;
+        const newRemainder = currentPartial - product;
+        quotientDigits.push(q);
+        steps.push({
+          partialDividend: currentPartial,
+          product: product,
+          quotient: q,
+          remainderAfter: newRemainder,
+          positionIndex: i,     // 乘积的末位对齐被除数的第i位
+        });
+        currentPartial = newRemainder;
+        hasStarted = true;
+      }
+    }
+    const quotientValue = parseInt(quotientDigits.join('')) || 0;
+    const finalRemainder = steps.length ? steps[steps.length-1].remainderAfter : dividend;
+    return {
+      quotient: quotientValue,
+      remainder: finalRemainder,
+      steps: steps,
+      quotientDigits: quotientDigits,
+      dividend: dividend,
+      divisor: divisor,
+    };
+  }
+
+  // 随机生成三位数除以一位数 (100~999，除数2~9，保证有余数概率)
+  function generateRandomProblem() {
+    const divisor = Math.floor(Math.random() * 8) + 2; // 2~9
+    let dividend = Math.floor(Math.random() * 900) + 100; // 100~999
+    // 制造丰富的有余数情况 (约70%有余数)
+    if (dividend % divisor === 0 && Math.random() > 0.3) {
+      dividend = dividend + Math.floor(Math.random() * (divisor - 1)) + 1;
+      if (dividend > 999) dividend = dividend - divisor;
+    }
+    if (dividend < divisor) dividend = divisor + Math.floor(Math.random() * 50) + 100;
+    return { dividend, divisor };
+  }
+
+  // ---------- 竖式组件 (严格按人教版规范：减数对齐被减数最高位，落位数字对齐对应数位，无多余空格行) ----------
+  const DivisionVertical = ({ dividend, divisor, steps, quotient, remainder }) => {
+    const dividendStr = dividend.toString();
+    const numCols = dividendStr.length;
+    const dividendDigits = dividendStr.split('');
+    
+    // 商右对齐：商的个位对齐被除数的个位
+    const quotientStr = quotient.toString();
+    const quotientLen = quotientStr.length;
+    const quotientStartCol = numCols - quotientLen;
+    const quotientCells = Array(numCols).fill('');
+    for (let i = 0; i < quotientLen; i++) {
+      quotientCells[quotientStartCol + i] = quotientStr[i];
+    }
+    
+    // 构建步骤行 —— 只显示乘积、横线、余数/落位，无多余空行，并过滤掉全空行
+    const stepRows = [];
+    steps.forEach((step, idx) => {
+      // 1. 构建乘积行 (减数) — 末位对齐 positionIndex
+      const product = step.product;
+      const productStr = product.toString();
+      const productLen = productStr.length;
+      const productEndCol = step.positionIndex;
+      const productStartCol = productEndCol - productLen + 1;
+      let productCols = Array(numCols).fill('');
+      let hasValidProductDigit = false;
+      for (let i = 0; i < productLen; i++) {
+        const colIdx = productStartCol + i;
+        if (colIdx >= 0 && colIdx < numCols) {
+          productCols[colIdx] = productStr[i];
+          hasValidProductDigit = true;
+        }
+      }
+      
+      // 🔧 核心修复: 如果乘积行没有任何有效数字(极端情况如全越界)，则跳过当前步骤的所有渲染
+      if (!hasValidProductDigit) {
+        return;
+      }
+      
+      // 添加乘积行
+      stepRows.push({ type: 'product', cols: productCols });
+      
+      // 2. 横线行 (每个有效步骤都有横线)
+      stepRows.push({ type: 'line' });
+      
+      // 3. 余数/落位行 (严格对齐)
+      const remainderAfter = step.remainderAfter;
+      const isLastStep = (idx === steps.length - 1);
+      let partialCols = Array(numCols).fill('');
+      
+      if (isLastStep) {
+        // 最终余数：整体右对齐，个位对齐被除数个位
+        const finalRemainderStr = remainderAfter.toString();
+        const finalLen = finalRemainderStr.length;
+        const finalStartCol = numCols - finalLen;
+        for (let i = 0; i < finalLen; i++) {
+          const colIdx = finalStartCol + i;
+          if (colIdx >= 0 && colIdx < numCols) partialCols[colIdx] = finalRemainderStr[i];
+        }
+      } else {
+        // 中间步骤：落下下一位，形成新的部分被除数
+        const nextDigitIdx = step.positionIndex + 1;
+        if (nextDigitIdx < dividendStr.length) {
+          const nextDigit = dividendStr[nextDigitIdx];
+          const newPartial = parseInt(remainderAfter.toString() + nextDigit);
+          const newPartialStr = newPartial.toString();
+          const newPartialLen = newPartialStr.length;
+          // 新部分被除数的个位必须对齐 nextDigitIdx (落下的那一位)
+          for (let i = 0; i < newPartialLen; i++) {
+            const digitChar = newPartialStr[newPartialLen - 1 - i];
+            const colIdx = nextDigitIdx - i;
+            if (colIdx >= 0 && colIdx < numCols) partialCols[colIdx] = digitChar;
+          }
+        } else {
+          // 防御：直接右对齐
+          const displayStr = remainderAfter.toString();
+          const displayLen = displayStr.length;
+          const startCol = numCols - displayLen;
+          for (let i = 0; i < displayLen; i++) {
+            const colIdx = startCol + i;
+            if (colIdx >= 0 && colIdx < numCols) partialCols[colIdx] = displayStr[i];
+          }
+        }
+      }
+      
+      // 只有当部分行至少有一个数字时才添加（避免完全空行）
+      const hasPartialDigit = partialCols.some(v => v !== '');
+      if (hasPartialDigit) {
+        stepRows.push({ type: 'partial', cols: partialCols, isLast: isLastStep });
+      } else if (isLastStep && remainderAfter === 0) {
+        // 最终余数为0，确保显示一个0
+        const zeroCols = Array(numCols).fill('');
+        zeroCols[numCols-1] = '0';
+        stepRows.push({ type: 'partial', cols: zeroCols, isLast: true });
+      }
+    });
+    
+    // 动态横线宽度 (紧凑)
+    const getStepLineWidth = () => {
+      let baseWidth = 2.0;
+      if (window.innerWidth <= 700) baseWidth = 1.6;
+      if (window.innerWidth <= 480) baseWidth = 1.4;
+      return `calc(${baseWidth}rem * ${numCols})`;
+    };
+    const lineWidthStyle = { width: getStepLineWidth() };
+    
+    return (
+      <div className="ld-container mx-auto">
+        {/* 商行 */}
+        <div className="ld-row ld-quotient-row">
+          <div className="ld-divisor-placeholder"></div>
+          <div className="ld-digits-row">
+            {quotientCells.map((d, idx) => (
+              <div key={`q-${idx}`} className="digit">{d}</div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 除数 + 被除数行 */}
+        <div className="ld-row ld-main-row">
+          <div className="ld-divisor-cell">{divisor}</div>
+          <div className="ld-bracket-col">
+            <div className="ld-top-line" style={lineWidthStyle}></div>
+            <div className="ld-digits-row dividend-row">
+              {dividendDigits.map((d, idx) => (
+                <div key={`d-${idx}`} className="digit">{d}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* 动态步骤：乘积、横线、余数落位 — 无多余空行，数字严格对齐 */}
+        {stepRows.map((row, ridx) => {
+          if (row.type === 'product') {
+            // 二次防御：如果乘积行全是空字符串，不渲染（避免任何可能的空白行）
+            if (row.cols.every(v => v === '')) return null;
+            return (
+              <div key={`prod-${ridx}`} className="ld-row ld-step-row">
+                <div className="ld-divisor-placeholder"></div>
+                <div className="ld-digits-row">
+                  {row.cols.map((val, cidx) => (
+                    <div key={`pc-${ridx}-${cidx}`} className="digit">{val === '' ? '' : val}</div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+          if (row.type === 'line') {
+            return (
+              <div key={`line-${ridx}`} className="ld-row ld-line-row">
+                <div className="ld-divisor-placeholder"></div>
+                <div className="ld-digits-row">
+                  <div className="ld-step-line" style={lineWidthStyle}></div>
+                </div>
+              </div>
+            );
+          }
+          if (row.type === 'partial') {
+            // 避免全空行（二次防御）
+            if (row.cols.every(v => v === '')) return null;
+            return (
+              <div key={`part-${ridx}`} className="ld-row ld-step-row">
+                <div className="ld-divisor-placeholder"></div>
+                <div className="ld-digits-row">
+                  {row.cols.map((val, cidx) => (
+                    <div key={`pr-${ridx}-${cidx}`} className={`digit ${row.isLast ? 'remainder-digit' : ''}`}>{val === '' ? '' : val}</div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
+  };
+
+  // ---------- 趣味拖拽配对游戏 (钓鱼风格，商和余数配对) ----------
+  const DragMatchingGame = ({ quotient, remainder, divisor, dividend, onResetTrigger }) => {
+    const [matchedQuotient, setMatchedQuotient] = React.useState(null);
+    const [matchedRemainder, setMatchedRemainder] = React.useState(null);
+    const [feedback, setFeedback] = React.useState('');
+    const [dropZoneActive, setDropZoneActive] = React.useState(null);
+    
+    React.useEffect(() => {
+      setMatchedQuotient(null);
+      setMatchedRemainder(null);
+      setFeedback('🐟 把正确的商和余数拖拽到对应的小鱼篓吧！');
+      setDropZoneActive(null);
+    }, [dividend, divisor, onResetTrigger]);
+    
+    const checkPerfect = (qVal, rVal) => {
+      if (qVal === quotient && rVal === remainder) {
+        setFeedback('🎉 哇！商和余数全部正确！除法小英雄就是你 🎉');
+        return true;
+      } else if (qVal === quotient && rVal !== remainder) {
+        setFeedback('✅ 商正确！再把余数拖到右边的糖果篮吧～');
+      } else if (qVal !== quotient && rVal === remainder) {
+        setFeedback('✅ 余数正确！再把商拖到左边的宝箱里～');
+      } else if (qVal !== null || rVal !== null) {
+        setFeedback('⭐ 再仔细看竖式，把正确的数字拖进对应位置～');
+      } else {
+        setFeedback('✨ 按住卡片，拖到上面的小鱼篓里 ✨');
+      }
+    };
+    
+    const handleDragStart = (e, type, value) => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ type, value }));
+      e.dataTransfer.effectAllowed = 'copy';
+    };
+    
+    const handleDragOver = (e, zone) => {
+      e.preventDefault();
+      setDropZoneActive(zone);
+      e.dataTransfer.dropEffect = 'copy';
+    };
+    
+    const handleDragLeave = () => {
+      setDropZoneActive(null);
+    };
+    
+    const handleDrop = (e, targetZone) => {
+      e.preventDefault();
+      setDropZoneActive(null);
+      try {
+        const raw = e.dataTransfer.getData('text/plain');
+        if (!raw) return;
+        const { type, value } = JSON.parse(raw);
+        
+        if (targetZone === 'quotient' && type === 'quotient') {
+          if (matchedQuotient !== null) {
+            setFeedback('商的位置已经有数字啦！点击“换一题”重新挑战～');
+            return;
+          }
+          if (value === quotient) {
+            setMatchedQuotient(value);
+            setFeedback('✅ 商配对正确！好厉害！现在配对余数吧～');
+          } else {
+            setFeedback(`❌ 不对哦，商应该是 ${quotient}，再看看竖式中的商。`);
+          }
+        } 
+        else if (targetZone === 'remainder' && type === 'remainder') {
+          if (matchedRemainder !== null) {
+            setFeedback('余数的位置已经有数字啦！试试换一题继续挑战～');
+            return;
+          }
+          if (value === remainder) {
+            setMatchedRemainder(value);
+            setFeedback('✅ 余数配对正确！太棒啦！');
+          } else {
+            setFeedback(`❌ 余数应该是 ${remainder}，检查一下竖式最下面的余数。`);
+          }
+        } else {
+          setFeedback('🧸 拖拽位置不对～商要拖到左边宝箱，余数拖到右边糖果篮～');
+        }
+        
+        setTimeout(() => {
+          const newQ = (targetZone === 'quotient' && type === 'quotient' && value === quotient) ? quotient : matchedQuotient;
+          const newR = (targetZone === 'remainder' && type === 'remainder' && value === remainder) ? remainder : matchedRemainder;
+          if (newQ === quotient && newR === remainder) {
+            setFeedback('🏆 恭喜！除法小英雄！全部配对成功！ 🏆');
+          } else {
+            checkPerfect(newQ, newR);
+          }
+        }, 20);
+      } catch(err) { console.log(err); }
+    };
+    
+    React.useEffect(() => {
+      if (matchedQuotient === quotient && matchedRemainder === remainder) {
+        setFeedback('🏆 完美！商和余数都配对正确！你已经是笔算高手啦 🏆');
+      } else if (matchedQuotient === quotient && matchedRemainder !== remainder) {
+        setFeedback('✅ 商正确 ✔️ 再把余数卡片拖到右边篮子吧');
+      } else if (matchedQuotient !== quotient && matchedRemainder === remainder) {
+        setFeedback('✅ 余数正确 ✔️ 再把商卡片拖到左边宝箱');
+      }
+    }, [matchedQuotient, matchedRemainder, quotient, remainder]);
+    
+    const dragItems = [
+      { type: 'quotient', label: `商 ${quotient}`, value: quotient, bg: 'bg-emerald-100', emoji: '🔢' },
+      { type: 'remainder', label: `余数 ${remainder}`, value: remainder, bg: 'bg-amber-100', emoji: '🍬' }
+    ];
+    
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap justify-around gap-4 items-stretch">
+          <div 
+            onDragOver={(e) => handleDragOver(e, 'quotient')}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, 'quotient')}
+            className={`flex-1 min-w-[130px] bg-white/70 backdrop-blur-sm rounded-2xl p-4 text-center border-4 transition-all ${dropZoneActive === 'quotient' ? 'drop-zone-highlight' : 'border-purple-200'} shadow-md`}
+          >
+            <div className="text-sm font-bold text-purple-700 mb-2 flex justify-center gap-1">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-4.18A3 3 0 0 0 16 5.18V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2h-3" stroke-linecap="round"/><circle cx="16" cy="13" r="1"/><path d="M11 10h4"/><path d="m7 8 3 3-3 3"/></svg>
+              <span>🐟 商的宝箱</span>
+            </div>
+            <div className="text-4xl font-black text-emerald-700 bg-white/80 rounded-xl py-3 shadow-inner">
+              {matchedQuotient !== null ? matchedQuotient : '?'}
+            </div>
+            <div className="text-xs text-stone-500 mt-2">拖拽「商」卡片到这里</div>
+          </div>
+          <div 
+            onDragOver={(e) => handleDragOver(e, 'remainder')}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, 'remainder')}
+            className={`flex-1 min-w-[130px] bg-white/70 backdrop-blur-sm rounded-2xl p-4 text-center border-4 transition-all ${dropZoneActive === 'remainder' ? 'drop-zone-highlight' : 'border-orange-200'} shadow-md`}
+          >
+            <div className="text-sm font-bold text-orange-700 mb-2 flex justify-center gap-1">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>🍬 余数糖果篮</span>
+            </div>
+            <div className="text-4xl font-black text-amber-700 bg-white/80 rounded-xl py-3 shadow-inner">
+              {matchedRemainder !== null ? matchedRemainder : '?'}
+            </div>
+            <div className="text-xs text-stone-500 mt-2">拖拽「余数」卡片到这里</div>
+          </div>
+        </div>
+        
+        <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-4 mt-1 border border-white/60">
+          <div className="text-center text-purple-800 font-semibold text-sm mb-2">✨ 按住卡片，拖到上方对应的小鱼篓 ✨</div>
+          <div className="flex justify-center gap-6 flex-wrap">
+            {dragItems.map((item, idx) => (
+              <div
+                key={idx}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, item.type, item.value)}
+                className={`${item.bg} w-28 h-28 rounded-2xl shadow-xl flex flex-col items-center justify-center drag-card hover:scale-105 border-2 border-white/90 transition`}
+              >
+                <div className="text-3xl font-black">{item.value}</div>
+                <div className="text-sm font-bold mt-1">{item.label}</div>
+                <div className="text-xs text-stone-500 mt-1">{item.emoji} 拖拽我</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {feedback && (
+          <div className="bg-white/90 backdrop-blur p-3 rounded-xl text-center font-bold text-indigo-800 border border-purple-200 shadow-md">
+            {feedback}
+          </div>
+        )}
+        <div className="text-xs text-center text-purple-800 bg-white/60 p-2 rounded-full">
+          💡 小提示：先看左边竖式，再把正确的商和余数拖进对应的鱼篓/糖果篮！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主组件 ----------
+  const MathDivisionCourse = () => {
+    const [problem, setProblem] = React.useState({ dividend: 534, divisor: 4 });
+    const [stepsData, setStepsData] = React.useState(null);
+    const [displayMode, setDisplayMode] = React.useState('vertical');
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    React.useEffect(() => {
+      const { dividend, divisor } = problem;
+      const result = computeDivisionSteps(dividend, divisor);
+      if (result) setStepsData(result);
+    }, [problem]);
+    
+    const handleNewProblem = () => {
+      const newProb = generateRandomProblem();
+      setProblem(newProb);
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    const toggleDisplayMode = () => {
+      setDisplayMode(prev => prev === 'vertical' ? 'horizontal' : 'vertical');
+    };
+    
+    const { dividend, divisor } = problem;
+    const quotient = stepsData?.quotient ?? 0;
+    const remainder = stepsData?.remainder ?? 0;
+    const steps = stepsData?.steps ?? [];
+    const horizontalFormula = `${dividend} ÷ ${divisor} = ${quotient} ······ ${remainder}`;
+    const verifyFormula = `${quotient} × ${divisor} + ${remainder} = ${quotient * divisor + remainder}`;
+    
+    return (
+      <div className="glass-card rounded-[2.5rem] shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-r from-[#CBAACB] to-[#D9C2E6] px-5 py-4 flex flex-wrap justify-between items-center gap-3">
+          <div className="flex items-center gap-2">
+            <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm2-4h12v2H6V2zm16 8H2v12h20V10zm-2 10H4v-8h16v8z"/><path d="M8 14h8v2H8z"/></svg>
+            <h1 className="text-xl md:text-2xl font-bold text-white drop-shadow">📖 三位数除以一位数 · 除法小英雄</h1>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={handleNewProblem} className="bg-white/90 text-purple-700 px-4 py-2 rounded-full font-bold shadow-md flex items-center gap-2 text-sm hover:scale-105 transition active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 11-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
+              换一题
+            </button>
+            <button onClick={toggleDisplayMode} className="bg-white/90 text-amber-700 px-4 py-2 rounded-full font-bold shadow-md flex items-center gap-2 text-sm hover:scale-105 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              {displayMode === 'vertical' ? '📐 横式' : '📏 竖式'}
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex flex-col lg:flex-row gap-6 p-5 md:p-7 bg-white/20 backdrop-blur-sm">
+          <div className="flex-1 bg-white/70 backdrop-blur-sm rounded-3xl p-5 shadow-md border border-white/60">
+            <div className="flex items-center gap-2 mb-3 border-b border-purple-200 pb-2">
+              <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              <h2 className="text-xl font-bold text-purple-800">📖 除法小讲堂 · 三位数÷一位数</h2>
+            </div>
+            <div className="space-y-3 text-stone-700 text-sm md:text-base">
+              <div className="bg-white/80 p-3 rounded-xl shadow-sm">
+                <span className="font-bold text-purple-700">✨ 笔算规则（三步口诀）：</span><br/>
+                ① 从被除数高位除起，一位一位看；<br/>
+                ② 除到哪一位，商就写在那一位上面；<br/>
+                ③ 余数必须比除数小，再落下下一位继续除，最后剩下的叫“余数”。
+              </div>
+              <div className="bg-white/80 p-3 rounded-xl shadow-sm">
+                <span className="font-bold text-purple-700">✏️ 口诀：</span> 商乘减比落，余数要比除数小。
+              </div>
+              <div className="flex justify-center my-3">
+                {displayMode === 'vertical' && stepsData && (
+                  <DivisionVertical 
+                    dividend={dividend} 
+                    divisor={divisor} 
+                    steps={steps} 
+                    quotient={quotient} 
+                    remainder={remainder} 
+                  />
+                )}
+                {displayMode === 'horizontal' && (
+                  <div className="bg-white/90 rounded-2xl p-5 text-center shadow-md w-full">
+                    <div className="text-2xl md:text-3xl font-mono font-bold text-stone-700 break-all">{horizontalFormula}</div>
+                    <div className="text-purple-600 mt-2 text-sm">验算：{verifyFormula} ✔️</div>
+                  </div>
+                )}
+              </div>
+              <div className="bg-purple-100/70 p-3 rounded-xl text-xs md:text-sm text-center">
+                💡 当前题目：<strong>{dividend} ÷ {divisor}</strong> &nbsp;&nbsp; 商：{quotient} &nbsp; 余数：{remainder}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 bg-white/70 backdrop-blur-sm rounded-3xl p-5 shadow-md border border-white/60">
+            <div className="flex items-center gap-2 mb-3 border-b border-pink-200 pb-2">
+              <svg class="w-6 h-6 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
+              <h2 className="text-xl font-bold text-purple-800">🎮 拖拽配对 · 聪明小英雄</h2>
+            </div>
+            <DragMatchingGame 
+              quotient={quotient}
+              remainder={remainder}
+              divisor={divisor}
+              dividend={dividend}
+              onResetTrigger={gameResetKey}
+            />
+            <div className="mt-4 text-center text-xs text-purple-700 flex justify-center gap-3 flex-wrap bg-white/50 p-2 rounded-full">
+              <span>💙 左边宝箱 → 放“商”</span>
+              <span>🧡 右边篮子 → 放“余数”</span>
+              <span>🐟 拖拽卡片，成为除法英雄！</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-center text-purple-800 text-xs py-3 border-t border-white/50 bg-white/40">
+          🌟 笔算竖式个位对齐个位，十位对齐十位，余数写在最下面！继续加油 🌟
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById('root')).render(<MathDivisionCourse />);
+</script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>枚举小侦探 | 有序列举·分类讨论·不重不漏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .dragging-card {
+            opacity: 0.6;
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        .drop-zone-active {
+            transition: 0.08s linear;
+            box-shadow: 0 0 0 4px #c084fc, 0 0 0 8px rgba(192,132,252,0.3);
+            background-color: #f3e8ff !important;
+        }
+        .win-glow {
+            animation: winPulse 0.5s ease-in-out 2;
+        }
+        @keyframes winPulse {
+            0% { box-shadow: 0 0 0 0 #c084fc; background-color: #faf5ff; }
+            50% { box-shadow: 0 0 0 12px rgba(192,132,252,0.5); background-color: #fae8ff; }
+            100% { box-shadow: 0 0 0 0 #c084fc; background-color: #faf5ff; }
+        }
+        [draggable="true"] {
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #9333ea;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-fuchsia-50 to-purple-100 min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root"></div>
+
+<script type="text/babel">
+    // 枚举法专项训练 —— 有序枚举、分类讨论、不重不漏
+    const { useState, useCallback, useEffect, useRef } = React;
+
+    // ---------- 随机题型生成器 (种类丰富：数字组合、搭配、付款方式、整数拆分、路线等) ----------
+    const generateEnumerationProblem = () => {
+        const type = Math.floor(Math.random() * 5); // 0:数字组合,1:搭配/穿衣,2:付款方式,3:整数拆分,4:路线计数
+        if (type === 0) {
+            // 数字组合：用给定数字卡片组成两位数/三位数，求符合条件的种数
+            const digits = [1,2,3,4];
+            const pick = Math.floor(Math.random() * 2) + 2; // 2或3位数字
+            if (pick === 2) {
+                // 两位数，十位不能为0，这里数字都非0，求有多少种不同的两位数
+                const total = digits.length * (digits.length - 1); // 无重复数字排列
+                const correct = total;
+                const questionText = `🔢 数字组合：用数字 1、2、3、4 组成不同的两位数（十位和个位数字不重复），一共有多少种不同的两位数？请有序枚举。`;
+                return { text: questionText, correctAnswer: correct, hint: "💡 十位有4种选择，个位有剩下的3种，4×3=12种。可按照十位从小到大有序枚举。" };
+            } else {
+                // 三位数
+                const total = digits.length * (digits.length-1) * (digits.length-2);
+                const questionText = `🔢 数字组合：用数字 1、2、3、4 组成不同的三位数（数字不重复），一共有多少种不同的三位数？`;
+                return { text: questionText, correctAnswer: total, hint: "💡 百位4种，十位剩下3种，个位剩下2种，4×3×2=24种。" };
+            }
+        } 
+        else if (type === 1) {
+            // 搭配问题：上衣和下装/帽子和鞋子，求不同搭配种数
+            const tops = Math.floor(Math.random() * 4) + 2; // 2~5
+            const bottoms = Math.floor(Math.random() * 4) + 2; // 2~5
+            const total = tops * bottoms;
+            const questionText = `👕 搭配问题：小明有 ${tops} 件不同的上衣和 ${bottoms} 条不同的裤子。如果每天穿一件上衣搭配一条裤子，一共有多少种不同的搭配方式？(有序枚举)`;
+            return { text: questionText, correctAnswer: total, hint: "💡 每件上衣都可以配所有裤子，所以种数 = 上衣数 × 裤子数。" };
+        } 
+        else if (type === 2) {
+            // 付款方式：用给定面额（1元、2元、5元）凑成一定金额，求不同付款方式（不考虑顺序）数
+            const target = [6, 7, 8, 9, 10][Math.floor(Math.random() * 5)];
+            // 用1,2,5元硬币凑target元的方案数（每种硬币无限，但枚举有序）
+            let ways = 0;
+            for (let b5 = 0; b5 <= target/5; b5++) {
+                for (let b2 = 0; b2 <= (target - b5*5)/2; b2++) {
+                    let remain = target - b5*5 - b2*2;
+                    if (remain >= 0) ways++;
+                }
+            }
+            const questionText = `💰 付款方式：乐乐有足够多的1元、2元、5元硬币。他要支付 ${target} 元，有多少种不同的硬币组合方式？（不考虑顺序，只考虑每种面额使用的个数）`;
+            return { text: questionText, correctAnswer: ways, hint: "💡 可以按5元硬币的个数从0开始枚举，再枚举2元个数，最后用1元补齐，做到不重不漏。" };
+        } 
+        else if (type === 3) {
+            // 整数拆分：将正整数拆成几个正整数之和（顺序不同算同一种，即无序拆分），求拆分数
+            let n = Math.floor(Math.random() * 6) + 4; // 4~9
+            // 计算拆分数（无序）
+            const partition = (num, maxPart) => {
+                if (num === 0) return 1;
+                let res = 0;
+                for (let i = 1; i <= Math.min(maxPart, num); i++) {
+                    res += partition(num - i, i);
+                }
+                return res;
+            };
+            const ways = partition(n, n);
+            const questionText = `🧩 整数拆分：把整数 ${n} 拆分成若干个正整数相加（顺序不同算同一种，例如2+1+1与1+2+1视为一样）。有多少种不同的拆分方法？`;
+            return { text: questionText, correctAnswer: ways, hint: "💡 按最大加数从大到小枚举，不重复。如拆分4：4，3+1，2+2，2+1+1，1+1+1+1共5种。" };
+        } 
+        else {
+            // 路线计数：网格点最短路径（矩形网格向右/向上走）
+            const m = Math.floor(Math.random() * 3) + 2; // 2~4 列步数
+            const n = Math.floor(Math.random() * 3) + 2; // 2~4 行步数
+            // 从(0,0)到(m,n)只能向右或向上，总步数=m+n, 选m步向右 => C(m+n, m)
+            const total = (function factorial(n){
+                if(n<=1) return 1;
+                let res=1;
+                for(let i=2;i<=n;i++) res*=i;
+                return res;
+            });
+            const steps = m+n;
+            const ways = total(steps) / (total(m) * total(n));
+            const questionText = `🗺️ 路线问题：如图，从A点到B点只能向右或向上走，每个小方格边长相等，A到B需要向右走 ${m} 格，向上走 ${n} 格。一共有多少条不同的最短路径？（有序枚举）`;
+            return { text: questionText, correctAnswer: ways, hint: `💡 一共需要走 ${steps} 步，其中向右 ${m} 步，所以路径数 = C(${steps}, ${m}) = ${ways}` };
+        }
+    };
+
+    // 生成干扰选项 (基于正确答案)
+    const generateOptions = (correct) => {
+        let opts = new Set();
+        opts.add(correct);
+        let candidates = [correct+1, correct-1, correct+2, correct-2, correct+3, correct-3, Math.floor(correct*1.2), Math.floor(correct*0.8)];
+        candidates = candidates.filter(v => v > 0 && v !== correct);
+        for (let c of candidates) {
+            if (opts.size < 4) opts.add(c);
+            if (opts.size >= 4) break;
+        }
+        while (opts.size < 4) opts.add(correct + opts.size);
+        let arr = Array.from(opts);
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    // 主组件
+    const EnumerationGame = () => {
+        const [problem, setProblem] = useState(() => {
+            const init = generateEnumerationProblem();
+            return init;
+        });
+        const [options, setOptions] = useState([]);
+        const [correctAnswer, setCorrectAnswer] = useState(0);
+        const [isWin, setIsWin] = useState(false);
+        const [message, setMessage] = useState("✨ 通过有序枚举找出答案，拖拽正确数字到宝箱 ✨");
+        const [winAnim, setWinAnim] = useState(false);
+        const dragValueRef = useRef(null);
+
+        const refreshProblem = useCallback(() => {
+            const newProb = generateEnumerationProblem();
+            setProblem(newProb);
+            setCorrectAnswer(newProb.correctAnswer);
+            const newOpts = generateOptions(newProb.correctAnswer);
+            setOptions(newOpts);
+            setIsWin(false);
+            setWinAnim(false);
+            setMessage("🔍 新问题！用枚举法一步一步找，拖拽正确结果到宝箱！");
+        }, []);
+
+        useEffect(() => {
+            setCorrectAnswer(problem.correctAnswer);
+            setOptions(generateOptions(problem.correctAnswer));
+        }, [problem]);
+
+        const onCardDragStart = (e, num) => {
+            if (isWin) {
+                e.preventDefault();
+                setMessage("🏆 已经胜利啦！点击「换一题」继续挑战！");
+                return false;
+            }
+            dragValueRef.current = num;
+            e.dataTransfer.setData("text/plain", num);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target.classList) e.target.classList.add("dragging-card");
+        };
+        const onDragEnd = (e) => {
+            if (e.target.classList) e.target.classList.remove("dragging-card");
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+            dragValueRef.current = null;
+        };
+        const onDragOverTarget = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            const zone = document.getElementById("answerDropZone");
+            if (zone && !isWin) zone.classList.add("drop-zone-active");
+        };
+        const onDragLeaveTarget = () => {
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+        };
+        const onDropToTarget = (e) => {
+            e.preventDefault();
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+            if (isWin) {
+                setMessage("你已经获胜，换一题再挑战吧！");
+                return;
+            }
+            const raw = e.dataTransfer.getData("text/plain");
+            if (!raw) return;
+            const dropped = Number(raw);
+            if (isNaN(dropped)) return;
+            if (dropped === correctAnswer) {
+                setIsWin(true);
+                setWinAnim(true);
+                setMessage("🎉🎉 完全正确！有序枚举，不重不漏！枚举小高手就是你！ 🎉🎉");
+                setTimeout(() => setWinAnim(false), 600);
+            } else {
+                setMessage(`❌ ${dropped} 不是正确的答案。再试试有序枚举法，分类讨论！提示：${problem.hint}`);
+                const msgDiv = document.querySelector(".feedback-msg");
+                if (msgDiv) msgDiv.classList.add("animate-pulse");
+                setTimeout(() => {
+                    if (msgDiv) msgDiv.classList.remove("animate-pulse");
+                }, 600);
+            }
+        };
+
+        return (
+            <div className="max-w-7xl mx-auto">
+                {/* 主标题 */}
+                <div className="text-center mb-6">
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-900 to-fuchsia-700 drop-shadow-md">
+                        🔍 枚举小侦探 · 有序分类大作战 🔍
+                    </h1>
+                    <p className="text-purple-800 text-lg font-semibold mt-1">有序列举 | 分类讨论 | 不重复不遗漏</p>
+                </div>
+                
+                <div className="flex flex-col lg:flex-row gap-7">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 border border-purple-200 custom-scroll overflow-y-auto">
+                        <div className="flex items-center gap-2 border-b-2 border-purple-400 pb-2 mb-4">
+                            <span className="text-3xl">📚</span>
+                            <span className="text-3xl font-bold text-purple-900">核心知识点</span>
+                        </div>
+                        <div className="space-y-5 text-gray-800 text-base md:text-lg">
+                            <div className="bg-purple-50 p-4 rounded-xl">
+                                <p className="font-extrabold text-purple-800 text-xl">🔎 枚举法 · 穷举思想</p>
+                                <p>按照一定的<strong>顺序</strong>和<strong>分类</strong>，把所有可能的情况一一列举出来，从而找到答案。关键要做到<strong className="text-fuchsia-700">不重复、不遗漏</strong>。</p>
+                            </div>
+                            <div className="bg-indigo-50 p-4 rounded-xl">
+                                <p className="font-bold text-purple-800">✨ 枚举四步法 ✨</p>
+                                <ol className="list-decimal list-inside space-y-1 mt-1">
+                                    <li><strong>明确范围</strong>：确定要枚举的对象和可能的取值。</li>
+                                    <li><strong>分类标准</strong>：按照某个特征（如首位数字、硬币面额）分成几类。</li>
+                                    <li><strong>有序列举</strong>：每一类里从小到大（或从大到小）依次列出。</li>
+                                    <li><strong>检验统计</strong>：检查是否有遗漏或者重复，再汇总总数。</li>
+                                </ol>
+                            </div>
+                            <div className="bg-fuchsia-50 p-4 rounded-xl">
+                                <p className="font-bold">🎯 常见枚举模型</p>
+                                <ul className="list-disc list-inside space-y-1">
+                                    <li><strong>数字组合</strong>：固定数位，按首位分类枚举</li>
+                                    <li><strong>搭配问题</strong>：乘法原理，也可有序列举</li>
+                                    <li><strong>付款/凑数</strong>：按大面额硬币张数分类枚举</li>
+                                    <li><strong>整数拆分</strong>：按最大加数从大到小分类</li>
+                                    <li><strong>路径计数</strong>：按步骤顺序，或组合公式</li>
+                                </ul>
+                            </div>
+                            <div className="bg-amber-50 p-3 rounded-lg text-sm">
+                                💡 右侧游戏：拖拽正确的“方案总数”到宝箱！请先自己有序列举，再验证答案。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧互动游戏区 */}
+                    <div className="lg:w-3/5 bg-white/95 rounded-3xl shadow-2xl p-5 border-2 border-purple-300 flex flex-col">
+                        {/* 题目卡片 */}
+                        <div className="bg-gradient-to-r from-purple-200 via-fuchsia-100 to-purple-200 rounded-2xl p-5 mb-5 shadow-md">
+                            <div className="flex flex-wrap justify-between items-start gap-2">
+                                <div className="flex-1">
+                                    <span className="inline-block bg-purple-700 text-white text-sm px-4 py-1 rounded-full">🧠 枚举挑战</span>
+                                    <p className="text-lg md:text-xl font-bold text-purple-900 mt-3 leading-relaxed">
+                                        {problem.text}
+                                    </p>
+                                    <div className="mt-2 text-sm bg-white/60 inline-block px-3 py-1 rounded-full text-purple-700">
+                                        📌 提示：{problem.hint}
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={refreshProblem}
+                                    className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-6 rounded-full transition shadow-md flex items-center gap-1 text-base md:text-lg"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 拖拽卡片 + 答案宝箱 */}
+                        <div className="flex flex-col md:flex-row gap-6 items-stretch mb-5">
+                            <div className="flex-1 bg-purple-50/80 rounded-2xl p-4 border border-purple-200">
+                                <p className="text-center font-bold text-purple-800 mb-3 text-lg">🎲 可拖拽数字 (正确枚举总数)</p>
+                                <div className="flex flex-wrap justify-center gap-3">
+                                    {options.map((opt, idx) => (
+                                        <div
+                                            key={idx}
+                                            draggable={!isWin}
+                                            onDragStart={(e) => onCardDragStart(e, opt)}
+                                            onDragEnd={onDragEnd}
+                                            className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl shadow-lg flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition hover:scale-105 border-2 border-purple-500"
+                                        >
+                                            <span className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{opt}</span>
+                                            <span className="text-[10px] font-bold text-purple-900">拖拽</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-center text-gray-600 mt-3">👉 拖拽正确的“方案数量”到右边宝箱区</p>
+                            </div>
+                            
+                            <div 
+                                id="answerDropZone"
+                                onDragOver={onDragOverTarget}
+                                onDragLeave={onDragLeaveTarget}
+                                onDrop={onDropToTarget}
+                                className={`flex-1 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl border-4 border-dashed p-5 flex flex-col items-center justify-center transition-all min-h-[200px] ${isWin ? 'border-green-500 bg-green-50' : 'border-purple-400'}`}
+                            >
+                                {isWin ? (
+                                    <div className="text-center">
+                                        <div className="text-7xl mb-2">🏆🎉</div>
+                                        <p className="text-2xl font-black text-green-700">枚举成功！</p>
+                                        <p className="text-purple-700 mt-2">有序思考，不重不漏</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span className="text-5xl mb-2">📦</span>
+                                        <span className="text-xl font-bold text-purple-800 text-center">答案宝箱</span>
+                                        <p className="text-center text-gray-600 mt-2 text-sm">将正确数字拖拽至此 → <br/>验证你的枚举结果！</p>
+                                        <div className="mt-3 w-32 h-16 bg-white rounded-xl flex items-center justify-center shadow-inner border border-purple-300">
+                                            <span className="text-2xl font-mono font-bold text-gray-400">???</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 反馈 */}
+                        <div className={`feedback-msg mt-3 text-center py-3 px-4 rounded-full font-medium text-base md:text-lg ${isWin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'} shadow-inner transition`}>
+                            {isWin ? "🎉 太棒了！枚举大师！点击换一题继续练习 🎉" : message}
+                        </div>
+                        
+                        {/* 辅助按钮 */}
+                        <div className="flex justify-center mt-4 gap-4">
+                            <button 
+                                onClick={() => {
+                                    if (!isWin) setMessage(`💡 枚举小技巧：${problem.hint} 试着分类或按顺序列表。`);
+                                    else setMessage("胜利啦！继续换题巩固枚举思维吧！");
+                                }}
+                                className="text-purple-600 bg-purple-100 px-3 py-1 rounded-full text-sm"
+                            >
+                                ✨ 枚举小贴士
+                            </button>
+                            <button 
+                                onClick={refreshProblem}
+                                className="text-fuchsia-600 bg-fuchsia-100 px-3 py-1 rounded-full text-sm"
+                            >
+                                🎲 换一题新挑战
+                            </button>
+                        </div>
+                        
+                        <div className="text-xs text-purple-500 text-center mt-4 border-t pt-3 border-purple-200">
+                            💡 枚举法核心：逐个列出 → 分类避免遗漏 → 检查重复 → 数出总数。多用枚举，思维更严谨！
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<EnumerationGame />);
+</script>
+</body>
+</html>

@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>两位数加两位数进位笔算 | 数学小乐园</title>
+    <title>数学小探险 | 两位数加两位数进位笔算</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            user-select: none; /* 避免拖动时选中文本，提升拖拽体验 */
+            user-select: none; /* 避免移动端拖动时选中文字，不影响交互 */
         }
 
         body {
-            background: linear-gradient(145deg, #d9f0da 0%, #c0e0c0 100%);
-            font-family: 'Comic Neue', 'Comic Neue', 'Segoe UI Emoji', 'Chalkboard SE', 'Comic Sans MS', ' cursive', 'Segoe UI', sans-serif;
+            background: linear-gradient(145deg, #F9F3F9 0%, #F0E6F0 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, sans-serif;
             padding: 20px;
             min-height: 100vh;
             display: flex;
@@ -22,18 +22,19 @@
             align-items: center;
         }
 
-        /* 主容器卡片 */
+        /* 主卡片容器 */
         .course-container {
             max-width: 1300px;
             width: 100%;
-            background-color: #fefce6;
+            margin: 0 auto;
+            background: #FFFEF7;
             border-radius: 64px 48px 64px 48px;
-            box-shadow: 0 20px 35px rgba(100, 80, 20, 0.2);
+            box-shadow: 0 20px 35px rgba(168, 118, 158, 0.2);
             overflow: hidden;
             transition: all 0.2s ease;
         }
 
-        /* 左右布局 (桌面端并排) */
+        /* 左右两栏布局 */
         .split-layout {
             display: flex;
             flex-wrap: wrap;
@@ -42,724 +43,710 @@
         /* 左侧知识点区域 */
         .knowledge-area {
             flex: 1.2;
-            min-width: 240px;
-            background: #fff9e8;
+            min-width: 260px;
+            background: #FFFFFFE6;
+            backdrop-filter: blur(2px);
             padding: 28px 22px;
-            border-right: 3px dashed #b5d3a5;
-            box-shadow: 4px 0 12px rgba(0,0,0,0.02);
+            border-right: 3px dashed #D9C2E6;
+            transition: all 0.2s;
         }
 
         /* 右侧游戏区域 */
         .game-area {
-            flex: 2;
+            flex: 1.8;
             min-width: 300px;
-            background: #fffff2;
-            padding: 24px 20px 32px;
-            display: flex;
-            flex-direction: column;
+            background: #FFFFFF;
+            padding: 28px 24px;
+            background: #FFFCF9;
         }
 
-        /* 知识点标题 */
-        .know-title {
+        /* 知识点内部样式 */
+        .knowledge-title {
             font-size: 1.9rem;
-            font-weight: bold;
-            color: #3b6e3e;
-            border-left: 12px solid #8bc34a;
-            padding-left: 18px;
-            margin-bottom: 24px;
-            letter-spacing: -0.3px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #A97C9E, #CBAACB);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            display: inline-block;
+            border-left: 8px solid #CBAACB;
+            padding-left: 16px;
         }
 
-        .step-card {
-            background: #eef7e6;
+        .know-card {
+            background: #FEF9FF;
             border-radius: 36px;
-            padding: 20px 18px;
-            margin-bottom: 28px;
-            box-shadow: 0 5px 0 #b7cf9e;
+            padding: 18px 20px;
+            margin-top: 15px;
+            box-shadow: 0 8px 12px rgba(203, 170, 203, 0.15);
+            border: 1px solid #E9D4E9;
         }
 
-        .step-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #2c5e2e;
+        .step {
+            font-size: 1.1rem;
+            margin: 15px 0;
             display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
+            align-items: flex-start;
+            gap: 12px;
         }
 
-        .step-title span {
-            background: #ffd966;
-            border-radius: 50%;
-            width: 34px;
-            height: 34px;
+        .step-num {
+            background: #CBAACB;
+            width: 28px;
+            height: 28px;
+            border-radius: 30px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.3rem;
+            color: white;
+            font-weight: bold;
+            flex-shrink: 0;
+            margin-top: 3px;
         }
 
         .step-text {
-            font-size: 1.2rem;
-            line-height: 1.5;
-            color: #2d4727;
+            color: #4A3B4A;
+            line-height: 1.45;
             font-weight: 500;
         }
 
         .example-box {
-            background: #fff1cf;
+            background: #F2E6F2;
+            padding: 18px;
             border-radius: 28px;
-            padding: 15px;
+            margin: 15px 0;
             text-align: center;
             font-family: monospace;
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: bold;
-            margin-top: 15px;
         }
 
-        /* 游戏区域顶部标题 */
-        .game-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-            border-bottom: 3px dotted #cfe3c2;
-            padding-bottom: 10px;
-        }
-        .game-header h2 {
-            color: #528a3b;
-            font-size: 1.8rem;
-        }
-        .new-btn {
-            background: #ffc857;
-            border: none;
-            font-size: 1.2rem;
-            font-weight: bold;
-            padding: 8px 22px;
-            border-radius: 60px;
-            color: #3b5c2a;
-            cursor: pointer;
-            transition: 0.1s linear;
-            box-shadow: 0 4px 0 #b97f10;
-            font-family: inherit;
-        }
-        .new-btn:active {
-            transform: translateY(2px);
-            box-shadow: 0 1px 0 #b97f10;
-        }
-
-        /* 竖式区域 */
-        .vertical-box {
-            background: #fcf9e1;
-            border-radius: 48px;
-            padding: 20px 15px 25px;
-            margin-bottom: 20px;
-            box-shadow: inset 0 1px 4px #ccc8a0, 0 8px 12px rgba(0,0,0,0.05);
-        }
-        .equation {
-            font-family: 'Courier New', 'SF Mono', monospace;
-            font-weight: bold;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-        }
-        .add-row {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            font-size: 2.4rem;
-            background: #fffae9;
-            padding: 8px 25px;
-            border-radius: 40px;
-        }
-        .plus-sign {
-            font-size: 2rem;
-            margin-right: 5px;
-        }
-        .line {
-            width: 180px;
-            height: 4px;
-            background: #9bbf7a;
-            margin: 5px 0;
-            border-radius: 4px;
-        }
-        .result-row {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            font-size: 2rem;
-            margin-top: 5px;
-        }
-        .digit-slot {
-            background: #f4efcf;
-            width: 60px;
-            text-align: center;
-            border-radius: 20px;
-            padding: 8px 0;
-            border: 3px dashed #aac78d;
-            min-width: 65px;
-            font-weight: bold;
-            color: #3c6b35;
-            transition: all 0.1s;
-        }
-        .slot-filled {
-            background: #d9f0c5;
-            border: 3px solid #6f9e4b;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-        .carry-area {
-            display: flex;
-            justify-content: center;
-            gap: 55px;
-            margin-bottom: 10px;
-            font-size: 1.3rem;
-            font-weight: bold;
-            color: #b67e2e;
-        }
-        .carry-slot {
-            background: #fbefbf;
-            width: 55px;
-            text-align: center;
-            border-radius: 30px;
-            border: 2px dashed #e0b354;
-            padding: 5px 0;
-            font-size: 1.2rem;
-        }
-        .number-label {
+        .tip {
+            background: #D9C2E6;
+            border-radius: 28px;
+            padding: 12px 18px;
+            color: #2D232D;
+            font-weight: 600;
             font-size: 0.9rem;
-            color: #8faa74;
-            margin-top: 5px;
+            margin-top: 20px;
         }
 
-        /* 拖拽卡片区域 */
-        .drag-cards {
-            background: #e3f0da;
-            border-radius: 50px;
-            padding: 18px 12px;
-            margin-top: 15px;
-        }
-        .drag-title {
-            font-size: 1.3rem;
+        /* ---------- 右侧游戏竖式对齐核心样式 ---------- */
+        .game-title {
+            font-size: 1.7rem;
             font-weight: bold;
-            color: #3d6b30;
-            margin-bottom: 12px;
+            color: #7A5C7A;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .game-title span {
+            background: #F2E2F2;
+            padding: 5px 12px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+        }
+
+        .vertical-box {
+            background: #FCF7FC;
+            border-radius: 48px;
+            padding: 20px 12px;
+            margin: 15px 0;
+            box-shadow: 0 12px 22px rgba(0, 0, 0, 0.05);
+            border: 2px solid #F0E0F0;
+        }
+
+        /* 网格对齐：个十百 + 加号列 */
+        .grid-align {
+            display: grid;
+            grid-template-columns: 50px 70px 70px 70px;  /* 加号列 + 百位 + 十位 + 个位 */
+            justify-content: center;
+            align-items: end;
+            gap: 5px;
+            font-family: 'Courier New', 'Fira Code', monospace;
+            font-weight: bold;
+            font-size: 1.9rem;
+        }
+
+        /* 通用的格子样式 */
+        .cell {
+            text-align: center;
+            padding: 8px 5px;
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: #3E2C3E;
+        }
+
+        .plus-cell {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #A97C9E;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .line-cell {
+            border-bottom: 4px solid #CBAACB;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        /* 填空框样式 (结果区域可互动) */
+        .blank-slot {
+            background: #FFF2E6;
+            border-radius: 20px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02), 0 2px 6px rgba(170, 120, 150, 0.1);
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid #E9CBE9;
+            color: #4B2F4B;
+            font-size: 2rem;
+        }
+
+        .blank-slot:active {
+            transform: scale(0.96);
+            background: #FFEEDD;
+        }
+
+        .blank-slot.empty {
+            color: #CBAACB;
+            font-size: 1.8rem;
+            font-weight: normal;
+        }
+
+        /* 数字池 (拖拽模拟区) */
+        .digit-pool {
+            margin: 30px 0 20px;
+            background: #F8F0F8;
+            border-radius: 60px;
+            padding: 16px 12px;
+        }
+
+        .pool-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 14px;
+            color: #865C86;
             text-align: center;
         }
-        .cards-wrapper {
+
+        .digits-container {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
             gap: 14px;
         }
-        .drag-card {
-            background: #ffe3a3;
-            width: 75px;
-            padding: 12px 0;
-            text-align: center;
-            font-size: 2rem;
-            font-weight: bold;
+
+        .digit-card {
+            width: 65px;
+            height: 65px;
+            background: #FFFFFF;
             border-radius: 35px;
-            box-shadow: 0 7px 0 #c29b2e;
-            cursor: grab;
-            transition: 0.05s linear;
-            color: #4a3b1a;
-            font-family: monospace;
-            display: inline-block;
-        }
-        .drag-card:active {
-            cursor: grabbing;
-        }
-        .drag-card.dragging {
-            opacity: 0.4;
-        }
-        /* 错误提示 */
-        .message-area {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            background: #fff2cf;
-            padding: 8px;
-            border-radius: 60px;
-            color: #d98c2b;
-        }
-        .success-message {
-            background: #b5d99c;
-            color: #2b5720;
-        }
-        footer {
-            font-size: 0.8rem;
-            text-align: center;
-            padding: 15px;
-            color: #7f9a6e;
-            border-top: 1px solid #dde8cf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            color: #4A2E4A;
+            box-shadow: 0 6px 0 #CBAACB;
+            cursor: pointer;
+            transition: 0.07s linear;
+            border: 2px solid #EED9EE;
         }
 
-        /* 响应式 */
+        .digit-card.selected {
+            background: #D9C2E6;
+            box-shadow: 0 2px 0 #A973A9;
+            transform: translateY(4px);
+            color: white;
+            border-color: #B691B6;
+        }
+
+        .digit-card:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #CBAACB;
+        }
+
+        /* 按钮组 */
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0 15px;
+        }
+
+        .btn {
+            border: none;
+            background: #CBAACB;
+            padding: 12px 24px;
+            border-radius: 60px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #2D1F2D;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: #B486B4;
+            color: white;
+            box-shadow: 0 5px 0 #7A587A;
+        }
+
+        .btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #7A587A;
+        }
+
+        .btn-outline {
+            background: #F3E9F3;
+            border: 2px solid #D9B8D9;
+            color: #6F4C6F;
+        }
+
+        .feedback {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-top: 20px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 40px;
+            background: #F9F0F9;
+        }
+
+        .feedback.correct {
+            background: #C7E9D0;
+            color: #2A6B3C;
+        }
+
+        .feedback.wrong {
+            background: #FFE0E0;
+            color: #B34141;
+        }
+
+        /* 移动端适配 */
         @media (max-width: 780px) {
             .split-layout {
                 flex-direction: column;
             }
             .knowledge-area {
                 border-right: none;
-                border-bottom: 3px dashed #b5d3a5;
+                border-bottom: 3px dashed #D9C2E6;
             }
-            .add-row, .result-row {
-                gap: 20px;
-                font-size: 1.8rem;
+            .grid-align {
+                grid-template-columns: 45px 55px 55px 55px;
+                gap: 4px;
             }
-            .digit-slot {
-                width: 50px;
-                min-width: 50px;
+            .cell, .blank-slot {
+                font-size: 1.5rem;
             }
-            .drag-card {
-                width: 65px;
-                font-size: 1.6rem;
-            }
-        }
-        @media (max-width: 480px) {
-            .digit-slot {
-                width: 45px;
-                font-size: 1.6rem;
-            }
-            .drag-card {
+            .digit-card {
                 width: 55px;
-                font-size: 1.4rem;
+                height: 55px;
+                font-size: 1.6rem;
+            }
+            .btn {
+                padding: 8px 18px;
             }
         }
-        button {
-            background: none;
-            border: none;
+
+        @media (max-width: 480px) {
+            .grid-align {
+                grid-template-columns: 40px 45px 45px 45px;
+            }
+            .blank-slot {
+                min-height: 55px;
+            }
         }
-        .placeholder-empty {
-            color: #acb892;
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 15px;
+            color: #B491B4;
+            background: #FBF5FB;
         }
     </style>
 </head>
 <body>
 <div class="course-container">
     <div class="split-layout">
-        <!-- 左侧知识点 -->
+        <!-- 左侧知识点区域 -->
         <div class="knowledge-area">
-            <div class="know-title">📖 笔算小讲堂</div>
-            <div class="step-card">
-                <div class="step-title"><span>①</span> 个位对齐，从个位加起</div>
-                <div class="step-text">✏️ 先算个位：两个数的个位数字相加。<br>
-                ➕ 如果满10，就向十位进“1”。</div>
-                <div class="example-box">例：个位 7+5=12 → 写2，进1</div>
+            <div class="knowledge-title">🧸 两位数加两位数 · 进位笔算</div>
+            <div class="know-card">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-text"><strong>相同数位对齐</strong><br>个位对个位，十位对十位，就像排队一样整齐。</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-text"><strong>从个位加起</strong><br>先算个位上的数字，再算十位。</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-text"><strong>“满十进一”</strong><br>个位相加 ≥10，向十位进1；十位相加记得加上进位的1。</div>
+                </div>
             </div>
-            <div class="step-card">
-                <div class="step-title"><span>②</span> 十位相加 + 进位</div>
-                <div class="step-text">✏️ 十位数字相加，再加上个位进来的“1”。<br>
-                ✅ 得到的结果写在十位上。</div>
-                <div class="example-box">例：十位 3+4+1=8 → 最终得82</div>
+            <div class="example-box">
+                🌟 例： 37 + 25 🌟<br>
+                个位 7+5=12 写2进1<br>
+                十位 3+2+1=6 → 得62
             </div>
-            <div class="step-card">
-                <div class="step-title"><span>🎯</span> 小秘诀</div>
-                <div class="step-text">进位1要记得加上！<br>
-                拖拽数字卡片到空缺位置，完成竖式吧！</div>
+            <div class="tip">
+                💡 小提醒：个位加完别忘进位，十位相加+进位1，结果写在十位和百位。
             </div>
         </div>
 
-        <!-- 右侧互动游戏区 -->
+        <!-- 右侧游戏区: 竖式填空 + 拖拽式数字池 -->
         <div class="game-area">
-            <div class="game-header">
-                <h2>🧸 拖拽大挑战</h2>
-                <button class="new-btn" id="newGameBtn">✨ 新题目 ✨</button>
+            <div class="game-title">
+                🎮 算术游乐场 · 数字拖拖乐
+                <span>点击数字 → 再点格子填入</span>
             </div>
-            <!-- 竖式游戏区域 -->
-            <div class="vertical-box" id="verticalGameBox">
-                <!-- 进位槽显示区域 (十位上方) -->
-                <div class="carry-area">
-                    <div style="width:70px; text-align:center;">进位</div>
-                    <div class="carry-slot" id="carrySlot" data-slot="carry">⬚</div>
-                    <div style="width:30px;"></div>
-                </div>
-                <div class="equation">
-                    <div class="add-row">
-                        <span id="num1_tens">3</span><span id="num1_ones">5</span>
-                        <span class="plus-sign">+</span>
-                        <span id="num2_tens">4</span><span id="num2_ones">7</span>
-                    </div>
-                    <div class="line"></div>
-                    <div class="result-row">
-                        <div class="digit-slot" id="resultTensSlot" data-slot="tens">⬚</div>
-                        <div class="digit-slot" id="resultOnesSlot" data-slot="ones">⬚</div>
-                    </div>
-                    <div class="number-label">
-                        <span>十位</span>  <span>个位</span>
-                    </div>
+            <div class="vertical-box">
+                <!-- 竖式动态显示，对齐网格 (加号列 | 百位 | 十位 | 个位) -->
+                <div class="grid-align" id="verticalGrid">
+                    <!-- 第一行: 第一个加数 -->
+                    <div class="cell"></div>  <!-- 加号列占位空白 -->
+                    <div class="cell" id="num1_hundred"></div>   <!-- 百位(两位数无,空白) -->
+                    <div class="cell" id="num1_ten">3</div>
+                    <div class="cell" id="num1_one">7</div>
+
+                    <!-- 第二行: 第二个加数，带加号 -->
+                    <div class="plus-cell" id="plusSign">+</div>
+                    <div class="cell" id="num2_hundred"></div>
+                    <div class="cell" id="num2_ten">2</div>
+                    <div class="cell" id="num2_one">5</div>
+
+                    <!-- 第三行: 横线 (跨越四列) -->
+                    <div class="line-cell" style="grid-column: 1 / span 4; height: 8px; margin: 6px 0;"></div>
+
+                    <!-- 第四行: 和的结果空白区域 (可交互填空) -->
+                    <div class="cell"></div>   <!-- 加号列占位 -->
+                    <div class="blank-slot empty" data-pos="hundred" id="result_hundred">?</div>
+                    <div class="blank-slot empty" data-pos="ten" id="result_ten">?</div>
+                    <div class="blank-slot empty" data-pos="one" id="result_one">?</div>
                 </div>
             </div>
 
-            <!-- 拖拽卡片池 -->
-            <div class="drag-cards">
-                <div class="drag-title">🐣 拖拽下面的数字 / 进位1 放到正确空位</div>
-                <div class="cards-wrapper" id="cardsContainer">
-                    <!-- 动态生成数字卡片 0-9 以及进位卡片 -->
+            <!-- 数字池（模拟拖拽数字卡片） -->
+            <div class="digit-pool">
+                <div class="pool-title">✨ 点击数字卡片，再点击上方 ? 格子填入 (再点格子可清除) ✨</div>
+                <div class="digits-container" id="digitsContainer">
+                    <!-- 0-9 动态生成js方便 -->
                 </div>
-                <div class="message-area" id="gameMessage">👉 把卡片拖到对应的空缺位置吧！</div>
             </div>
-            <footer>⭐ 拖动数字卡片到灰色虚线框内，正确就会固定下来哟~</footer>
+
+            <div class="action-buttons">
+                <button class="btn btn-outline" id="clearAllBtn">🧽 全部清除</button>
+                <button class="btn btn-primary" id="checkAnswerBtn">✅ 检查答案</button>
+                <button class="btn btn-outline" id="newQuestionBtn">🎲 新题目</button>
+            </div>
+            <div id="feedbackMsg" class="feedback">⭐ 点击数字 → 填空，完成竖式！</div>
+            <div style="font-size:0.75rem; text-align:center; margin-top: 10px; color:#B684B6;">💡 玩法：点下方数字(高亮)→点上方空格填入；直接点空格可清除数字~</div>
         </div>
     </div>
+    <footer>🧸 两位数加两位数 · 进位小英雄 | 动手拖拖乐，数学棒棒哒！</footer>
 </div>
 
 <script>
-    // ---------- 两位数加法(强制个位进位，十位和<9保证不超100) ----------
-    let currentQuiz = {
-        num1: 0,    // 两位数
-        num2: 0,
-        tens1: 0, ones1: 0,
-        tens2: 0, ones2: 0,
-        sumOnes: 0,      // 个位计算结果(个位数字)
-        sumTens: 0,      // 十位计算结果(十位数字)
-        carryValue: 1,   // 因为有进位所以固定1 (个位相加>=10)
-        needCarry: true
-    };
-
-    // 填充状态 (三个槽位: carry, tens, ones)
-    let filledState = {
-        carry: false,
-        tens: false,
-        ones: false
-    };
-
-    // 当前正确的值映射
-    let correctMap = {
-        carry: "1️⃣进位1",   // 显示用
-        carryRaw: "进1",
-        tens: null,
-        ones: null
-    };
-
+    // ---------- 全局变量 ----------
+    let currentNum1 = 37;      // 两位数
+    let currentNum2 = 25;
+    let correctResult = 0;     // 和
+    let correctDigits = { hundred: 0, ten: 0, one: 0 };
+    
+    // 当前选中的数字 (用于拖拽模拟)
+    let selectedDigit = null;
+    
     // DOM 元素
-    const carrySlotEl = document.getElementById('carrySlot');
-    const tensSlotEl = document.getElementById('resultTensSlot');
-    const onesSlotEl = document.getElementById('resultOnesSlot');
-    const cardsContainer = document.getElementById('cardsContainer');
-    const gameMessage = document.getElementById('gameMessage');
-    const newBtn = document.getElementById('newGameBtn');
-
-    // 显示数字用的span
-    const num1TensSpan = document.getElementById('num1_tens');
-    const num1OnesSpan = document.getElementById('num1_ones');
-    const num2TensSpan = document.getElementById('num2_tens');
-    const num2OnesSpan = document.getElementById('num2_ones');
-
-    // 存储当前所有可拖拽卡片DOM (以便重新生成)
-    let dragCards = [];
-
-    // 辅助: 生成随机两位数 (十位1-8, 个位0-9) 并保证 个位和 >=10 以及十位和+1 <10
-    function generateValidQuiz() {
-        let maxAttempts = 30;
-        for(let attempt = 0; attempt < maxAttempts; attempt++) {
-            // 十位范围1~7 保证十位相加不超过8 (因为+1后<10)
-            let tens1 = Math.floor(Math.random() * 7) + 1; // 1-7
-            let tens2 = Math.floor(Math.random() * (8 - tens1)) + 1; // 让 tens1+tens2 <=7 这样+1<=8 <10
-            // 确保十位相加+1 <=9
-            if(tens1 + tens2 + 1 > 9) {
-                // 重新微调tens2
-                tens2 = Math.floor(Math.random() * (9 - tens1 - 1)) + 1;
-                if(tens1 + tens2 + 1 > 9) continue;
-            }
-            let ones1 = Math.floor(Math.random() * 10);
-            let ones2 = Math.floor(Math.random() * 10);
-            let sumOnesRaw = ones1 + ones2;
-            if(sumOnesRaw >= 10) {
-                let carry = 1;
-                let resultOnes = sumOnesRaw % 10;
-                let resultTens = tens1 + tens2 + carry;
-                if(resultTens < 10) {
-                    return {
-                        num1: tens1*10+ones1,
-                        num2: tens2*10+ones2,
-                        tens1, ones1, tens2, ones2,
-                        sumOnes: resultOnes,
-                        sumTens: resultTens,
-                        carryValue: 1,
-                        needCarry: true
-                    };
-                }
-            }
-        }
-        // 保底题目 35+47
+    const num1TenEl = document.getElementById('num1_ten');
+    const num1OneEl = document.getElementById('num1_one');
+    const num2TenEl = document.getElementById('num2_ten');
+    const num2OneEl = document.getElementById('num2_one');
+    const resultHundredEl = document.getElementById('result_hundred');
+    const resultTenEl = document.getElementById('result_ten');
+    const resultOneEl = document.getElementById('result_one');
+    const feedbackDiv = document.getElementById('feedbackMsg');
+    const digitsContainer = document.getElementById('digitsContainer');
+    
+    // 获取结果填空数组便于操作
+    const resultSlots = {
+        hundred: resultHundredEl,
+        ten: resultTenEl,
+        one: resultOneEl
+    };
+    
+    // ---------- 辅助函数 ----------
+    function updateDisplayNumbers() {
+        // 两位数总是十位个位显示 (十位不可能为0因为范围10-99)
+        let num1Ten = Math.floor(currentNum1 / 10);
+        let num1One = currentNum1 % 10;
+        let num2Ten = Math.floor(currentNum2 / 10);
+        let num2One = currentNum2 % 10;
+        num1TenEl.innerText = num1Ten;
+        num1OneEl.innerText = num1One;
+        num2TenEl.innerText = num2Ten;
+        num2OneEl.innerText = num2One;
+        
+        // 百位区域两位数没有数字，显示空白占位（保持对齐美观）
+        document.getElementById('num1_hundred').innerText = '';
+        document.getElementById('num2_hundred').innerText = '';
+        
+        // 更新正确结果
+        correctResult = currentNum1 + currentNum2;
+        correctDigits.hundred = Math.floor(correctResult / 100);
+        correctDigits.ten = Math.floor((correctResult % 100) / 10);
+        correctDigits.one = correctResult % 10;
+    }
+    
+    // 清除所有填空 (保留高亮选中的数字)
+    function clearAllSlots() {
+        resultHundredEl.innerText = '?';
+        resultTenEl.innerText = '?';
+        resultOneEl.innerText = '?';
+        resultHundredEl.classList.add('empty');
+        resultTenEl.classList.add('empty');
+        resultOneEl.classList.add('empty');
+        // 清除反馈普通状态
+        feedbackDiv.innerHTML = '🧹 已清空，再试试填入数字吧！';
+        feedbackDiv.classList.remove('correct', 'wrong');
+        setTimeout(() => {
+            if(feedbackDiv.innerHTML === '🧹 已清空，再试试填入数字吧！') 
+                feedbackDiv.innerHTML = '⭐ 点击数字 → 填空，完成竖式！';
+            feedbackDiv.classList.remove('correct', 'wrong');
+        }, 1500);
+    }
+    
+    // 获取当前用户在结果框中填入的数字对象
+    function getUserAnswers() {
+        let getValue = (slotEl) => {
+            let txt = slotEl.innerText;
+            if(txt === '?' || txt === '') return null;
+            let num = parseInt(txt, 10);
+            return isNaN(num) ? null : num;
+        };
         return {
-            num1: 35, num2: 47,
-            tens1:3, ones1:5, tens2:4, ones2:7,
-            sumOnes:2, sumTens:8,
-            carryValue:1, needCarry:true
+            hundred: getValue(resultHundredEl),
+            ten: getValue(resultTenEl),
+            one: getValue(resultOneEl)
         };
     }
-
-    // 更新界面上的数字和空缺正确的值
-    function updateQuizUI(quiz) {
-        // 刷新两个加数
-        num1TensSpan.innerText = quiz.tens1;
-        num1OnesSpan.innerText = quiz.ones1;
-        num2TensSpan.innerText = quiz.tens2;
-        num2OnesSpan.innerText = quiz.ones2;
-
-        // 更新正确值映射
-        correctMap.ones = quiz.sumOnes;
-        correctMap.tens = quiz.sumTens;
-        correctMap.carryRaw = "进1";
-        correctMap.carryDisplay = "进1";   // 拖拽卡片匹配值 “进1”
-
-        // 重置填充槽位
-        resetSlots();
+    
+    // 检查答案是否正确
+    function checkAnswer() {
+        const user = getUserAnswers();
+        let missing = [];
+        if(user.hundred === null) missing.push('百位');
+        if(user.ten === null) missing.push('十位');
+        if(user.one === null) missing.push('个位');
+        if(missing.length > 0) {
+            feedbackDiv.innerHTML = `⚠️ 还有 ${missing.join('、')} 没填，快拖拽数字填满吧！`;
+            feedbackDiv.classList.add('wrong');
+            feedbackDiv.classList.remove('correct');
+            return;
+        }
+        // 比较
+        const isHundredOk = (user.hundred === correctDigits.hundred);
+        const isTenOk = (user.ten === correctDigits.ten);
+        const isOneOk = (user.one === correctDigits.one);
+        if(isHundredOk && isTenOk && isOneOk) {
+            feedbackDiv.innerHTML = '🎉 完全正确！ 太厉害了！ 进位小英雄！ 🎉';
+            feedbackDiv.classList.add('correct');
+            feedbackDiv.classList.remove('wrong');
+            // 附加庆祝效果
+        } else {
+            let correctStr = `${correctDigits.hundred}${correctDigits.ten}${correctDigits.one}`;
+            feedbackDiv.innerHTML = `❌ 哎呀不对！ 正确答案是 ${correctStr}，再试试看进位方法吧~ ❌`;
+            feedbackDiv.classList.add('wrong');
+            feedbackDiv.classList.remove('correct');
+        }
     }
-
-    // 重置所有空缺 (清空显示, 解锁填充状态)
-    function resetSlots() {
-        // 清空显示内容
-        carrySlotEl.innerHTML = "⬚";
-        tensSlotEl.innerHTML = "⬚";
-        onesSlotEl.innerHTML = "⬚";
-        // 移除填充样式
-        carrySlotEl.classList.remove('slot-filled');
-        tensSlotEl.classList.remove('slot-filled');
-        onesSlotEl.classList.remove('slot-filled');
-        // 重置状态
-        filledState = { carry: false, tens: false, ones: false };
-        // 设置槽位可拖拽接收属性
-        setSlotsDropEnabled(true);
-        // 清除消息样式
-        gameMessage.classList.remove('success-message');
-        gameMessage.innerHTML = "🐣 拖动卡片到空缺区域！注意进位1要放在‘进位’格子里。";
+    
+    // 重置高亮数字卡片
+    function clearDigitHighlight() {
+        document.querySelectorAll('.digit-card').forEach(card => {
+            card.classList.remove('selected');
+        });
     }
-
-    // 控制是否允许放置 (未填充时允许)
-    function setSlotsDropEnabled(enable) {
-        let slots = [carrySlotEl, tensSlotEl, onesSlotEl];
+    
+    // 设置某个填空位的数字 (如果填入有效数字)
+    function setSlotValue(slotElement, digit) {
+        if(digit === undefined || digit === null) return;
+        let numDigit = Number(digit);
+        if(isNaN(numDigit)) return;
+        // 限制百位范围逻辑：但是只是游戏，不做强硬限制，但是检查答案会根据正确值反馈
+        // 但为了友好，如果百位填入大于1，提示可能会错，但仍然允许
+        slotElement.innerText = numDigit;
+        slotElement.classList.remove('empty');
+        // 如果填入0, 也显示0
+        if(numDigit === 0) {
+            slotElement.innerText = '0';
+        }
+    }
+    
+    // 清除单个格子内容
+    function clearSlot(slotElement) {
+        slotElement.innerText = '?';
+        slotElement.classList.add('empty');
+    }
+    
+    // 生成随机两位数 (10-99)
+    function randomTwoDigit() {
+        return Math.floor(Math.random() * 90) + 10; // 10~99
+    }
+    
+    // 生成新题目 (随机，可以有进位也可以不进位，都符合练习)
+    function generateNewQuestion() {
+        // 随机两位数
+        let newNum1 = randomTwoDigit();
+        let newNum2 = randomTwoDigit();
+        currentNum1 = newNum1;
+        currentNum2 = newNum2;
+        updateDisplayNumbers();
+        // 清空所有填空
+        clearAllSlots();
+        // 重置选中的数字
+        if(selectedDigit !== null) {
+            selectedDigit = null;
+            clearDigitHighlight();
+        }
+        feedbackDiv.innerHTML = '✨ 新题目来啦！用进位魔法填满空格吧 ✨';
+        feedbackDiv.classList.remove('correct', 'wrong');
+        // 额外更新一下竖式里面的数字已经更新完毕
+    }
+    
+    // 构建数字池 (0-9)
+    function buildDigitPool() {
+        digitsContainer.innerHTML = '';
+        for(let i=0; i<=9; i++) {
+            const card = document.createElement('div');
+            card.classList.add('digit-card');
+            card.innerText = i;
+            card.dataset.digit = i;
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 如果当前点击的卡片已经是选中状态 -> 取消选中
+                if(selectedDigit === i) {
+                    selectedDigit = null;
+                    clearDigitHighlight();
+                } else {
+                    // 否则更新选中的数字
+                    selectedDigit = i;
+                    clearDigitHighlight();
+                    card.classList.add('selected');
+                }
+            });
+            digitsContainer.appendChild(card);
+        }
+    }
+    
+    // 为三个填空位绑定点击交互（拖拽模拟）
+    function bindSlotsEvents() {
+        // 百位、十位、个位 三个格子
+        const slots = [resultHundredEl, resultTenEl, resultOneEl];
         slots.forEach(slot => {
-            if(enable) {
-                slot.setAttribute('data-drop-enabled', 'true');
-            } else {
-                slot.setAttribute('data-drop-enabled', 'false');
+            slot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 如果有选中的数字，则进行填入
+                if(selectedDigit !== null) {
+                    // 填入数字
+                    setSlotValue(slot, selectedDigit);
+                    // 填入后不清除选中，但为了体验可以保持高亮，让小朋友继续填其他位置
+                    // 根据喜好: 保持选中方便连续填，但也可以保持高亮
+                    // 给出细微效果
+                    slot.classList.remove('empty');
+                    // 额外，填入后闪一下
+                    slot.style.transform = 'scale(0.97)';
+                    setTimeout(() => { slot.style.transform = ''; }, 100);
+                    // 清除反馈提示（未检查状态）
+                    feedbackDiv.innerHTML = '📝 继续填空，填完记得点“检查答案”哟！';
+                    feedbackDiv.classList.remove('correct', 'wrong');
+                } else {
+                    // 没有选中数字时，点击格子就是清除当前格子的内容
+                    if(slot.innerText !== '?' && slot.innerText !== '') {
+                        clearSlot(slot);
+                        feedbackDiv.innerHTML = '🗑️ 已清除该位，可以重新拖拽数字~';
+                        setTimeout(() => {
+                            if(feedbackDiv.innerHTML === '🗑️ 已清除该位，可以重新拖拽数字~')
+                                feedbackDiv.innerHTML = '⭐ 点击数字 → 填空，完成竖式！';
+                        }, 1200);
+                    } else {
+                        // 已经是空的，给个小提示
+                        feedbackDiv.innerHTML = '💡 先点击下方数字选中，再点击格子填入吧！';
+                        setTimeout(() => {
+                            if(feedbackDiv.innerHTML === '💡 先点击下方数字选中，再点击格子填入吧！')
+                                feedbackDiv.innerHTML = '⭐ 点击数字 → 填空，完成竖式！';
+                        }, 1000);
+                    }
+                }
+                // 清除高亮选中卡片时? 如果希望填入后取消选中可以取消下一行注释，但根据小朋友喜好可保持选中连续填，我们保留选中状态（需手动取消或者再次点击卡片）
+                // 为了方便，保留选中状态，点其他卡片会更换选中数字，符合预期。
+            });
+        });
+    }
+    
+    // 清除所有按钮附带重置高亮
+    function initButtons() {
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+            clearAllSlots();
+            if(selectedDigit !== null) {
+                selectedDigit = null;
+                clearDigitHighlight();
+            }
+        });
+        document.getElementById('checkAnswerBtn').addEventListener('click', checkAnswer);
+        document.getElementById('newQuestionBtn').addEventListener('click', () => {
+            generateNewQuestion();
+            if(selectedDigit !== null) {
+                selectedDigit = null;
+                clearDigitHighlight();
             }
         });
     }
-
-    // 刷新卡片区域 (根据当前题目生成所有可用卡片)
-    function generateCards() {
-        cardsContainer.innerHTML = '';
-        // 数字卡片 0-9
-        for(let i=0; i<=9; i++) {
-            let card = createDragCard(i.toString(), 'number');
-            cardsContainer.appendChild(card);
-        }
-        // 进位卡片 (进1)
-        let carryCard = createDragCard('进1', 'carry');
-        cardsContainer.appendChild(carryCard);
-        // 重新绑定全局拖拽事件 (因为新卡片)
-        attachDragListeners();
+    
+    // 页面初始化竖式默认示例 (37+25) 进位示范
+    function initDefaultExample() {
+        currentNum1 = 37;
+        currentNum2 = 25;
+        updateDisplayNumbers();
+        clearAllSlots();
+        // 但保留一个默认干净界面
     }
-
-    // 创建可拖拽卡片元素
-    function createDragCard(value, type) {
-        const card = document.createElement('div');
-        card.className = 'drag-card';
-        card.innerText = value;
-        card.setAttribute('data-value', value);
-        card.setAttribute('data-type', type);
-        card.setAttribute('draggable', 'true');
-        // 为了移动端更好的拖拽体验，加上 dragstart 时设置数据
-        return card;
+    
+    // 额外点击页面空白取消高亮? 不做过多复杂，但点击非卡片区域不清除高亮（符合逻辑）
+    document.addEventListener('click', function(e) {
+        // 如果点击的目标不是 .digit-card 也不是 .blank-slot 相关区域，不清除选中，保留高亮更友好
+        // 为了避免干扰，不做全局清除
+    });
+    
+    // 启动一切
+    function initGame() {
+        buildDigitPool();      // 生成数字卡片0-9
+        bindSlotsEvents();     // 绑定填空格交互
+        initButtons();         // 按钮事件
+        initDefaultExample();  // 初始例题: 37+25=62(进位) 展示知识点完美结合
+        updateDisplayNumbers();
+        // 确保高亮清除初始无选中
+        selectedDigit = null;
+        clearDigitHighlight();
+        feedbackDiv.innerHTML = '🐣 试试看：点击数字7 → 再点个位格子，就能填入啦！';
     }
-
-    // 为所有卡片绑定拖拽事件（使用原生HTML5 drag-and-drop）
-    function attachDragListeners() {
-        const cards = document.querySelectorAll('.drag-card');
-        cards.forEach(card => {
-            card.removeEventListener('dragstart', dragStartHandler);
-            card.removeEventListener('dragend', dragEndHandler);
-            card.addEventListener('dragstart', dragStartHandler);
-            card.addEventListener('dragend', dragEndHandler);
-        });
-    }
-
-    // 全局存储当前拖拽的内容
-    let draggingValue = null;
-    let draggingType = null;
-    let draggingElement = null;
-
-    function dragStartHandler(e) {
-        // 保存拖拽的数据
-        draggingValue = e.target.getAttribute('data-value');
-        draggingType = e.target.getAttribute('data-type');
-        draggingElement = e.target;
-        e.dataTransfer.setData('text/plain', draggingValue);
-        e.dataTransfer.effectAllowed = 'copy';
-        e.target.classList.add('dragging');
-        // 为了兼容移动端, 需要设置dragimage (可选)
-        // 移动端必须设置 setDragImage 避免默认半透明
-        let dragIcon = document.createElement('span');
-        dragIcon.innerText = draggingValue;
-        dragIcon.style.fontSize = '28px';
-        document.body.appendChild(dragIcon);
-        e.dataTransfer.setDragImage(dragIcon, 20, 20);
-        setTimeout(() => document.body.removeChild(dragIcon), 0);
-    }
-
-    function dragEndHandler(e) {
-        e.target.classList.remove('dragging');
-        draggingValue = null;
-        draggingType = null;
-        draggingElement = null;
-    }
-
-    // 为放置区添加 dragover / drop 监听
-    function initDropZones() {
-        const dropZones = [carrySlotEl, tensSlotEl, onesSlotEl];
-        dropZones.forEach(zone => {
-            zone.addEventListener('dragover', (e) => {
-                e.preventDefault();  // 必须的，允许放置
-                e.dataTransfer.dropEffect = 'copy';
-            });
-
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                // 检查此槽位是否已经被填充
-                const slotId = zone.id;
-                let slotType = '';
-                if(slotId === 'carrySlot') slotType = 'carry';
-                if(slotId === 'resultTensSlot') slotType = 'tens';
-                if(slotId === 'resultOnesSlot') slotType = 'ones';
-
-                // 判断槽位是否已被填充
-                if(filledState[slotType]) {
-                    gameMessage.innerHTML = '⚠️ 这个位置已经填好啦！试试新题目吧~';
-                    gameMessage.style.background = '#ffe0b5';
-                    return;
-                }
-
-                // 获取拖拽中的卡片数值
-                if(!draggingValue) {
-                    // 尝试从dataTransfer获取
-                    let data = e.dataTransfer.getData('text/plain');
-                    if(!data) return;
-                    draggingValue = data;
-                }
-
-                let cardValue = draggingValue;
-                let isValid = false;
-
-                // 验证正确性
-                if(slotType === 'carry') {
-                    // 进位区域需要匹配“进1”
-                    if(cardValue === '进1') {
-                        isValid = true;
-                    } else {
-                        gameMessage.innerHTML = '❌ 进位位置只能放 “进1” 卡片哟！个位相加满十才进位。';
-                        gameMessage.style.background = '#ffe0b5';
-                        setTimeout(() => {if(gameMessage.innerHTML.includes('进位')) gameMessage.style.background = '#fff2cf';}, 1200);
-                    }
-                }
-                else if(slotType === 'ones') {
-                    const expectedOnes = correctMap.ones;
-                    if(parseInt(cardValue) === expectedOnes) {
-                        isValid = true;
-                    } else {
-                        gameMessage.innerHTML = `❌ 个位结果应该是 ${expectedOnes}，再算一遍个位相加吧！`;
-                        gameMessage.style.background = '#ffe0b5';
-                        setTimeout(() => gameMessage.style.background = '#fff2cf', 1200);
-                    }
-                }
-                else if(slotType === 'tens') {
-                    const expectedTens = correctMap.tens;
-                    if(parseInt(cardValue) === expectedTens) {
-                        isValid = true;
-                    } else {
-                        gameMessage.innerHTML = `❌ 十位结果应该是 ${expectedTens}，别忘了加上进位1哟！`;
-                        gameMessage.style.background = '#ffe0b5';
-                        setTimeout(() => gameMessage.style.background = '#fff2cf', 1200);
-                    }
-                }
-
-                if(isValid) {
-                    // 正确填充
-                    if(slotType === 'carry') {
-                        carrySlotEl.innerHTML = '✨进1✨';
-                        carrySlotEl.classList.add('slot-filled');
-                        filledState.carry = true;
-                    } else if(slotType === 'ones') {
-                        onesSlotEl.innerHTML = cardValue;
-                        onesSlotEl.classList.add('slot-filled');
-                        filledState.ones = true;
-                    } else if(slotType === 'tens') {
-                        tensSlotEl.innerHTML = cardValue;
-                        tensSlotEl.classList.add('slot-filled');
-                        filledState.tens = true;
-                    }
-                    // 移除拖拽的卡片 (从dom中删除，防止重复使用)
-                    if(draggingElement && draggingElement.parentNode) {
-                        draggingElement.remove();
-                    } else {
-                        // 备用: 通过属性寻找卡片删除
-                        const targetCard = document.querySelector(`.drag-card[data-value="${cardValue}"]`);
-                        if(targetCard) targetCard.remove();
-                    }
-                    gameMessage.innerHTML = '✅ 正确！继续拖拽其他空缺吧~';
-                    gameMessage.style.background = '#e2f7cf';
-                    setTimeout(() => gameMessage.style.background = '#fff2cf', 800);
-
-                    // 检查是否全部填满
-                    if(filledState.carry && filledState.tens && filledState.ones) {
-                        gameMessage.innerHTML = '🎉🎉 完美通关！你学会了进位笔算！点“新题目”继续挑战 🎉🎉';
-                        gameMessage.classList.add('success-message');
-                        gameMessage.style.background = '#c5e0b4';
-                        setSlotsDropEnabled(false);
-                    } else {
-                        // 部分填充，保持启用
-                    }
-                } else {
-                    // 无效拖拽不消耗卡片
-                    gameMessage.style.background = '#ffded5';
-                    setTimeout(() => { if(gameMessage.innerHTML.includes('❌')) gameMessage.style.background = '#fff2cf'; }, 1000);
-                }
-                // 清除暂存拖拽数据防止重复
-                draggingValue = null;
-            });
-        });
-    }
-
-    // 重置整个游戏（新题目）
-    function resetGame() {
-        // 生成新题目
-        const newQuiz = generateValidQuiz();
-        currentQuiz = newQuiz;
-        updateQuizUI(currentQuiz);
-        // 重新生成卡片池（全新可拖拽）
-        generateCards();
-        // 重置消息
-        gameMessage.innerHTML = '🌟 新题目！拖动数字和进位1到正确空缺🌟';
-        gameMessage.classList.remove('success-message');
-        gameMessage.style.background = '#fff2cf';
-        setSlotsDropEnabled(true);
-        // 额外确保进位区和数字正确映射更新
-        correctMap.ones = currentQuiz.sumOnes;
-        correctMap.tens = currentQuiz.sumTens;
-    }
-
-    // 初始化页面
-    function init() {
-        const initialQuiz = generateValidQuiz();
-        currentQuiz = initialQuiz;
-        updateQuizUI(currentQuiz);
-        generateCards();
-        initDropZones();
-        // 新题目按钮
-        newBtn.addEventListener('click', () => {
-            resetGame();
-        });
-    }
-
-    // 因为拖拽事件在移动端需要额外让元素 draggable=true 且设置 -webkit-touch-callout 等，已在style处理
-    // 额外提示移动端: 长按卡片即可拖拽 (现代安卓/iOS部分支持)
-    init();
+    
+    initGame();
 </script>
 </body>
 </html>

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>比的基本性质 · 化简魔法学院</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号 (比原基础再大2号：从1.3rem增至1.7rem) */
+    body {
+      font-size: 1.7rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.15);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    .ratio-badge {
+      background: #f9f0ff;
+      border-radius: 2rem;
+    }
+    /* 调整小字体元素相对比例，保持可读性 */
+    .text-xs-custom {
+      font-size: 0.7rem;
+    }
+    @media (max-width: 768px) {
+      .drag-card, .drop-slot {
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 比的基本性质 =======================
+  // 知识点：比的前项和后项同时乘或除以相同的数（0除外），比值不变。
+  // 化简比：化成最简整数比（前项和后项互质）
+  
+  // ---------- 右侧互动游戏：拖拽配对（原比 → 最简整数比）----------
+  // 游戏数据：展示一些比，需要配对到对应的最简整数比
+  const simplifyPairs = [
+    { id: "p1", original: "6 : 8", simplified: "3 : 4" },
+    { id: "p2", original: "10 : 5", simplified: "2 : 1" },
+    { id: "p3", original: "12 : 18", simplified: "2 : 3" },
+    { id: "p4", original: "14 : 21", simplified: "2 : 3" },   // 2:3 会出现重复，但是游戏中使用匹配逻辑允许同一最简比对应多个原比
+    { id: "p5", original: "9 : 12", simplified: "3 : 4" },
+    { id: "p6", original: "16 : 4", simplified: "4 : 1" },
+    { id: "p7", original: "15 : 25", simplified: "3 : 5" },
+    { id: "p8", original: "24 : 36", simplified: "2 : 3" }
+  ];
+  
+  // 游戏组件：将原比拖拽到对应的最简比槽位
+  const MatchingGame = () => {
+    // 原比卡片（未配对）
+    const [originalCards, setOriginalCards] = React.useState(() => 
+      simplifyPairs.map(pair => ({
+        id: pair.id,
+        text: pair.original,
+        targetSimplified: pair.simplified,
+        matched: false
+      }))
+    );
+    
+    // 最简比槽位（根据原比列表生成对应的目标槽位，打乱顺序）
+    const [targetSlots, setTargetSlots] = React.useState(() => {
+      let slots = simplifyPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        simplified: pair.simplified,
+        matched: false,
+        matchedById: null
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) setGameWin(true);
+      else if (!allMatched && gameWin) setGameWin(false);
+    };
+    
+    // 拖拽原比卡片
+    const onDragStart = (e, cardId, targetSimp) => {
+      const card = originalCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "original", cardId, targetSimplified: targetSimp }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "original") return;
+      const { cardId, targetSimplified } = dragData;
+      
+      const targetSlot = targetSlots.find(s => s.id === slotId);
+      const sourceCard = originalCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个比或化简槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      // 验证化简结果是否匹配
+      if (targetSimplified === targetSlot.simplified) {
+        // 配对成功
+        setOriginalCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setTargetSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true, matchedById: cardId } : s));
+        setFeedbackMsg(`✅ 正确！${sourceCard.text} 化成最简整数比是 ${targetSlot.simplified}，利用比的基本性质（同除以最大公因数）`);
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        const newCards = originalCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = targetSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 化简后不是 ${targetSlot.simplified}，再试试看～ 提示：同时除以最大公因数。`);
+        setTimeout(() => setFeedbackMsg(""), 1600);
+      }
+    };
+    
+    const resetGame = () => {
+      const newCards = simplifyPairs.map(pair => ({
+        id: pair.id,
+        text: pair.original,
+        targetSimplified: pair.simplified,
+        matched: false
+      }));
+      let newSlots = simplifyPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        simplified: pair.simplified,
+        matched: false,
+        matchedById: null
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setOriginalCards(newCards);
+      setTargetSlots(newSlots);
+      setGameWin(false);
+      setFeedbackMsg("✨ 新的一局！把左边的比拖拽到右边正确的化简结果上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = originalCards.every(c => c.matched) && targetSlots.every(s => s.matched);
+    
+    // 分组显示未配对的卡片和槽位
+    const unmatchedOriginals = originalCards.filter(c => !c.matched);
+    const unmatchedSlots = targetSlots.filter(s => !s.matched);
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎯 化简魔法 · 拖拽配对</h3>
+          <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧙 玩法：将左边的<strong>比</strong>拖拽到右边对应的<strong>最简整数比</strong>槽位，利用比的基本性质（前项后项同除以最大公因数）。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧原比卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 比卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+              {unmatchedOriginals.length === 0 && <div className="text-center text-green-600 p-2">✨ 全部配对完成！</div>}
+              {unmatchedOriginals.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={true}
+                  onDragStart={(e) => onDragStart(e, card.id, card.targetSimplified)}
+                  onDragEnd={onDragEnd}
+                  className="drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md hover:shadow-lg transition transform hover:scale-102"
+                >
+                  <span className="text-xl font-mono">{card.text}</span>
+                  <div className="text-xs mt-1">✨ 拖拽到右侧化简结果</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧最简比槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎁 最简整数比 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[380px] overflow-y-auto">
+              {unmatchedSlots.length === 0 && <div className="text-center text-green-600 p-2">🎉 太厉害了！所有比都化简成功！</div>}
+              {unmatchedSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over bg-purple-100' : 'bg-white/80 border-2 border-dashed border-emerald-400'}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.simplified}</div>
+                  <div className="text-xs text-gray-500 mt-1">⬅️ 把比拖到这里化简</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 魔法成功！所有比都化成了最简整数比，你掌握了比的基本性质！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 比的基本性质：比的前项和后项同时乘或除以相同的数（0除外），比值不变。化简比就是化成前项后项互质。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：比的基本性质 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">⚖️</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">比的基本性质</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 定义</p>
+            <p>比的前项和后项<strong className="bg-purple-200 px-1 rounded">同时乘或除以相同的数（0除外）</strong>，比值不变。这叫做比的基本性质。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              例如：6 : 8 = (6÷2) : (8÷2) = 3 : 4
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 化简比</p>
+            <p>利用比的基本性质，可以把一个比化成最简单的整数比（前项和后项互质）。</p>
+            <ul className="list-disc pl-5 mt-1 space-y-1 text-sm">
+              <li>整数比：同除以最大公因数</li>
+              <li>分数比：同乘分母的最小公倍数</li>
+              <li>小数比：先化成整数比再化简</li>
+            </ul>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>化简比：<span className="font-mono">12 : 18 = ( : )</span> &nbsp;  <span className="font-mono">0.5 : 2 = ( : )</span></p>
+            <p className="text-sm text-purple-700">（答案：2:3 和 1:4，试着玩玩右边的游戏巩固吧！）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 注意：化简比的结果是一个比，而不是一个数。前项和后项都是整数且互质。
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 化简比小练习（快速挑战）----------
+  const QuickSimplifyPractice = () => {
+    const [question, setQuestion] = React.useState({ original: "8 : 12", answer: "2 : 3" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { original: "8 : 12", answer: "2 : 3" },
+      { original: "15 : 20", answer: "3 : 4" },
+      { original: "18 : 24", answer: "3 : 4" },
+      { original: "10 : 25", answer: "2 : 5" },
+      { original: "14 : 21", answer: "2 : 3" },
+      { original: "0.5 : 2", answer: "1 : 4" }
+    ];
+    
+    const nextQuestion = () => {
+      const random = questionsBank[Math.floor(Math.random() * questionsBank.length)];
+      setQuestion(random);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const checkAnswer = () => {
+      const normalizedUser = userAnswer.replace(/\s/g, '').toLowerCase();
+      const normalizedCorrect = question.answer.replace(/\s/g, '').toLowerCase();
+      if (normalizedUser === normalizedCorrect) {
+        setFeedback("✅ 完全正确！化简比成功！");
+      } else {
+        setFeedback(`❌ 再试试看，${question.original} 化简后应该是 ${question.answer}`);
+      }
+    };
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧪</span>
+          <h3 className="text-xl font-extrabold text-purple-800">化简挑战台</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-mono font-bold text-2xl">{question.original} = ( ? : ? )</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="text" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-purple-300 rounded-lg px-3 py-1 w-32 text-center"
+              placeholder="如 2:3"
+            />
+            <button onClick={checkAnswer} className="bg-purple-400 hover:bg-purple-500 text-white px-3 py-1 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuestion} className="bg-emerald-400 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 化简小练习 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickSimplifyPractice />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 比的基本性质是化简比和求比值的重要工具，也是将来学习比例的基础！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

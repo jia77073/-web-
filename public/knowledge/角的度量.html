@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>角的度量 · 量角器大冒险 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #d49b3a;
+      background-color: #fff8ef;
+    }
+    .drag-over {
+      background-color: #ffe0b5;
+      transform: scale(1.02);
+      border: 2px solid #d49b3a;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #e0c8a0;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .protractor-canvas {
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+      display: inline-block;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 角的度量 =======================
+  // 知识点：角的单位是度(°)，量角器是测量角度的工具，注意内外圈刻度。
+  
+  // ---------- 游戏数据：拖拽配对（角度示意图 ↔ 正确度数）----------
+  // 为了游戏友好，定义4个常见角度的示意图（使用SVG绘制，带量角器风格的角）
+  // 度数分别为 30°, 45°, 60°, 120°
+  const angleQuestions = [
+    { id: 1, angleDeg: 30, svgPath: "30", displayDeg: "30°" },
+    { id: 2, angleDeg: 45, svgPath: "45", displayDeg: "45°" },
+    { id: 3, angleDeg: 60, svgPath: "60", displayDeg: "60°" },
+    { id: 4, angleDeg: 120, svgPath: "120", displayDeg: "120°" }
+  ];
+  
+  // 绘制带量角器刻度风格的角（标准几何图，弧线标注角度）
+  const AngleSvg = ({ deg, size = 100 }) => {
+    // 顶点在 (20, 80) 位置，一条水平边向右，另一条边逆时针旋转 deg 度
+    const vertexX = 20;
+    const vertexY = 80;
+    const armLength = 70;
+    // 计算第二条边的终点: 角度deg从水平线逆时针转
+    const rad = deg * Math.PI / 180;
+    const endX = vertexX + armLength * Math.cos(rad);
+    const endY = vertexY - armLength * Math.sin(rad);
+    // 绘制弧线的半径和位置
+    const arcR = 25;
+    // 弧线的起始角度0到rad
+    const startAngle = 0;
+    const endAngle = rad;
+    // 计算弧线路径 (使用canvas arc 类似，但在SVG中用path)
+    const largeArcFlag = rad > Math.PI ? 1 : 0;
+    const arcStartX = vertexX + arcR;
+    const arcStartY = vertexY;
+    const arcEndX = vertexX + arcR * Math.cos(rad);
+    const arcEndY = vertexY - arcR * Math.sin(rad);
+    // 更精确的弧形使用A命令
+    const sweepFlag = 1;
+    const arcPath = `M ${vertexX + arcR} ${vertexY} A ${arcR} ${arcR} 0 ${largeArcFlag} ${sweepFlag} ${arcEndX} ${arcEndY}`;
+    
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" style={{ background: 'white', borderRadius: '0.5rem' }}>
+        {/* 水平边 */}
+        <line x1={vertexX} y1={vertexY} x2={vertexX + armLength} y2={vertexY} stroke="black" strokeWidth="2.5" />
+        {/* 斜边 */}
+        <line x1={vertexX} y1={vertexY} x2={endX} y2={endY} stroke="black" strokeWidth="2.5" />
+        {/* 顶点标记 */}
+        <circle cx={vertexX} cy={vertexY} r="3" fill="black" />
+        {/* 角度弧线 */}
+        <path d={arcPath} fill="none" stroke="#d97706" strokeWidth="1.8" strokeDasharray="2,1" />
+        {/* 角度数值标注位置（弧线中间附近） */}
+        <text x={vertexX + arcR * 0.7} y={vertexY - arcR * 0.5} fontSize="12" fill="#b45309" fontFamily="sans-serif">{deg}°</text>
+        <text x={vertexX - 8} y={vertexY + 5} fontSize="9" fill="black">顶点</text>
+      </svg>
+    );
+  };
+  
+  // 游戏组件：拖拽配对（将左边角度示意图拖拽到右边正确的度数槽位）
+  const MatchingGame = () => {
+    // 左侧角度卡片（未配对）
+    const [angleCards, setAngleCards] = React.useState(() => 
+      angleQuestions.map(q => ({
+        id: q.id,
+        deg: q.angleDeg,
+        displayDeg: q.displayDeg,
+        matched: false
+      }))
+    );
+    
+    // 右侧度数槽位（打乱顺序）
+    const [degreeSlots, setDegreeSlots] = React.useState(() => {
+      let slots = angleQuestions.map(q => ({
+        id: `slot-${q.id}`,
+        text: q.displayDeg,
+        matchDeg: q.angleDeg,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有角度都找到了自己的度数！你已是量角器小专家！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧角度卡片
+    const onDragStart = (e, cardId, matchDeg) => {
+      const card = angleCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "angle", cardId, matchDeg }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "angle") return;
+      const { cardId, matchDeg } = dragData;
+      
+      const targetSlot = degreeSlots.find(s => s.id === slotId);
+      const sourceCard = angleCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个角度或度数槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配（度数是否相等）
+      if (matchDeg === targetSlot.matchDeg) {
+        // 配对成功
+        setAngleCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setDegreeSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！这个角是 ${matchDeg}°，用量角器测量时要看清内外圈刻度。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = angleCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = degreeSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！这个角的度数不是 ${targetSlot.text}。用量角器再测量一次～ 注意对准顶点和0刻度线。`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newAngles = angleQuestions.map(q => ({
+        id: q.id,
+        deg: q.angleDeg,
+        displayDeg: q.displayDeg,
+        matched: false
+      }));
+      let newSlots = angleQuestions.map(q => ({
+        id: `slot-${q.id}`,
+        text: q.displayDeg,
+        matchDeg: q.angleDeg,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setAngleCards(newAngles);
+      setDegreeSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的角度示意图拖拽到右边正确的度数上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = angleCards.every(c => c.matched) && degreeSlots.every(s => s.matched);
+    const totalPairs = angleQuestions.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#d49b3a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-amber-800">📐 角度配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>角度示意图</strong>拖拽到右边<strong>正确的度数</strong>上，配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧角度卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">📦 角度卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {angleCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.deg)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-white rounded-xl p-2 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102 cursor-grab'}`}
+                  style={{ background: card.matched ? '#e0c8a0' : 'white' }}
+                >
+                  <div className="flex justify-center">
+                    <AngleSvg deg={card.deg} size={80} />
+                  </div>
+                  {!card.matched && <div className="text-xs text-amber-600 mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs text-green-700 mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧度数槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 度数卡片 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto">
+              {degreeSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-3xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把角度拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-amber-100 p-2 rounded-xl text-amber-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 量角器高手！你已掌握角的度量，能准确读出角度啦！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-full">
+          💡 量角器使用口诀：“点对点，线对边，再看另一边；分清内外圈，度数就读全。”
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：角的度量 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#fff4e6] to-[#ffe0b5] rounded-3xl p-5 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📏</span>
+          <h2 className="text-3xl font-extrabold text-amber-900">角的度量</h2>
+        </div>
+        <div className="space-y-4 text-base text-amber-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 角的单位</p>
+            <p>角的大小用<strong>度</strong>作单位，符号是“°”。把半圆分成180等份，每一份所对的角就是<strong>1度</strong>的角。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 认识量角器</p>
+            <p>量角器是测量角度的工具，是一个半圆形的仪器。中心点、0刻度线、内外圈刻度。</p>
+            <div className="mt-2 flex justify-center">
+              <svg width="160" height="90" viewBox="0 0 200 100" className="bg-white rounded-lg shadow-sm">
+                <path d="M 10 90 A 80 80 0 0 1 170 90" fill="none" stroke="#888" strokeWidth="2" />
+                <line x1="10" y1="90" x2="170" y2="90" stroke="#888" strokeWidth="2" />
+                <circle cx="90" cy="90" r="3" fill="red" />
+                <text x="85" y="85" fontSize="10" fill="red">中心点</text>
+                <line x1="90" y1="90" x2="90" y2="10" stroke="red" strokeWidth="1" strokeDasharray="2,2" />
+                <text x="95" y="30" fontSize="9">90°</text>
+                <text x="145" y="92" fontSize="9">0°</text>
+                <text x="20" y="92" fontSize="9">0°</text>
+              </svg>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 量角器使用步骤</p>
+            <ul className="list-decimal pl-5 space-y-1">
+              <li>把量角器的中心与角的顶点重合。</li>
+              <li>0°刻度线与角的一条边重合。</li>
+              <li>角的另一条边所对量角器上的刻度，就是这个角的度数。</li>
+              <li>注意分清内圈和外圈刻度。</li>
+            </ul>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>一个角的一条边对齐内圈0°，另一边指向内圈70°，这个角是（ ）°。如果对齐外圈0°，另一边指向外圈120°，这个角是（ ）°。</p>
+            <p className="text-sm text-amber-700">（答案：70，120）</p>
+          </div>
+          <div className="bg-amber-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“中心对顶点，0线对一边；度数看另一边，内外圈要分清。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：读数挑战（给出量角器示意图，选度数）----------
+  const QuickQuiz = () => {
+    // 模拟三个量角器读数题
+    const [question, setQuestion] = React.useState({ angleDesc: "角的一边对齐内圈0°，另一边指向内圈45°", options: ["45°", "135°", "55°"], correct: "45°" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { angleDesc: "角的一边对齐内圈0°，另一边指向内圈45°", options: ["45°", "135°", "55°"], correct: "45°" },
+      { angleDesc: "角的一边对齐外圈0°，另一边指向外圈120°", options: ["120°", "60°", "30°"], correct: "120°" },
+      { angleDesc: "角的一边对齐内圈0°，另一边指向内圈90°", options: ["90°", "100°", "80°"], correct: "90°" },
+      { angleDesc: "角的一边对齐外圈0°，另一边指向外圈30°", options: ["30°", "150°", "70°"], correct: "30°" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.angleDesc}，读数是 ${question.correct}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.angleDesc}，正确答案是 ${question.correct}。注意分清内外圈刻度！`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-amber-800">快问快答 · 读数挑战</h3>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.angleDesc}</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-amber-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-amber-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-amber-700 text-sm border border-amber-200">
+            🌈 量角器是测量角度的神奇工具，学会用量角器，你就能精确知道角的大小！多练习，成为几何小高手。
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

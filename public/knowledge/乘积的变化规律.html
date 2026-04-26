@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小探险：乘积的变化规律 | 互动游戏课堂</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升触屏拖拽体验 */
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #F0F9F0 0%, #E6F3E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, 'BlinkMacSystemFont', 'Roboto', sans-serif;
+            padding: 20px;
+        }
+
+        /* 主容器 - 响应式左右布局 */
+        .course-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 64px 48px 64px 48px;
+            box-shadow: 0 20px 35px rgba(100, 108, 85, 0.2);
+            backdrop-filter: blur(2px);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右内部栅格 */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区域 */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 260px;
+            background: #F0F7FF;
+            padding: 28px 24px;
+            border-radius: 48px 24px 48px 24px;
+            margin: 16px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+            transition: all 0.2s;
+        }
+
+        /* 右侧游戏区域 */
+        .game-area {
+            flex: 1.8;
+            min-width: 300px;
+            background: #FFFFFFE6;
+            backdrop-filter: blur(4px);
+            border-radius: 48px 48px 48px 48px;
+            margin: 16px;
+            padding: 28px 20px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s;
+        }
+
+        /* 知识点标题 */
+        .knowledge-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2F6B47;
+            border-left: 8px solid #7BC47F;
+            padding-left: 18px;
+            margin-bottom: 20px;
+            letter-spacing: -0.3px;
+        }
+
+        .rule-box {
+            background: #FEF9E6;
+            padding: 16px 20px;
+            border-radius: 32px;
+            margin: 20px 0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+            border: 1px solid #D9E8D9;
+        }
+
+        .rule-text {
+            font-size: 1.2rem;
+            line-height: 1.45;
+            color: #2C5A2E;
+            font-weight: 500;
+        }
+
+        .rule-highlight {
+            background: #FFE5B4;
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 40px;
+            font-weight: bold;
+            color: #B45F1B;
+        }
+
+        /* 竖式对齐展示 (个位十位严格对齐) */
+        .vertical-math {
+            background: #FFFCF0;
+            border-radius: 28px;
+            padding: 20px 18px;
+            margin: 20px 0;
+            font-family: 'Courier New', 'SF Mono', 'JetBrains Mono', monospace;
+            font-weight: bold;
+            box-shadow: inset 0 1px 4px #0001, 0 6px 12px #cbdcb330;
+        }
+
+        .vertical-math h3 {
+            font-family: system-ui;
+            font-size: 1.25rem;
+            margin: 0 0 12px 0;
+            color: #3A7B4B;
+        }
+
+        .multiplication {
+            display: inline-block;
+            text-align: right;
+            background: #FFFFFF;
+            padding: 12px 20px;
+            border-radius: 28px;
+            width: auto;
+        }
+
+        .mult-row {
+            display: flex;
+            justify-content: flex-start;
+            gap: 8px;
+            font-size: 1.8rem;
+            line-height: 1.3;
+            letter-spacing: 4px;
+        }
+
+        .mult-row span {
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .mult-sign {
+            margin-right: 12px;
+            font-weight: bold;
+        }
+
+        .line {
+            border-top: 3px solid #3b7b4b;
+            margin: 8px 0;
+            width: 100%;
+        }
+
+        .result-row {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2B6E3C;
+        }
+
+        /* 右侧游戏区域样式 */
+        .game-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .game-header h2 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #4C9F70, #2A6B44);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin: 0;
+        }
+        .game-sub {
+            color: #5f8b6f;
+            font-size: 0.9rem;
+        }
+
+        /* 题目面板 */
+        .question-panel {
+            background: #F4F9F0;
+            border-radius: 48px;
+            padding: 20px;
+            margin: 16px 0 24px;
+            box-shadow: 0 6px 12px rgba(55, 85, 45, 0.1);
+            text-align: center;
+        }
+
+        .equation-big {
+            font-size: 2rem;
+            font-weight: bold;
+            font-family: monospace;
+            background: #FFF;
+            display: inline-block;
+            padding: 12px 24px;
+            border-radius: 60px;
+            margin: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .arrow-change {
+            font-size: 1.3rem;
+            margin: 10px 0;
+            color: #E67E22;
+            font-weight: 600;
+        }
+
+        .new-equation {
+            background: #FFFAE6;
+            border-radius: 48px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+
+        .drop-zone {
+            background: #FEF2D6;
+            border: 3px dashed #6C9E6F;
+            border-radius: 48px;
+            padding: 18px 10px;
+            margin: 20px auto;
+            width: 85%;
+            text-align: center;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .drop-zone p {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #688B5E;
+        }
+
+        .drop-target-value {
+            font-size: 3rem;
+            font-weight: 800;
+            font-family: monospace;
+            background: #FFF1C1;
+            display: inline-block;
+            padding: 8px 24px;
+            border-radius: 60px;
+            min-width: 120px;
+            letter-spacing: 4px;
+            color: #B45F2A;
+        }
+
+        /* 可拖拽卡片区域 */
+        .drag-cards {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 25px 0 20px;
+        }
+
+        .drag-card {
+            background: #FFE0A3;
+            width: 100px;
+            height: 100px;
+            border-radius: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.4rem;
+            font-weight: bold;
+            font-family: monospace;
+            color: #3A5E2C;
+            box-shadow: 0 10px 0 #C29B4A;
+            cursor: grab;
+            transition: 0.05s linear;
+            text-align: center;
+            backdrop-filter: blur(2px);
+            border: 2px solid #F7D98C;
+        }
+
+        .drag-card:active {
+            cursor: grabbing;
+        }
+
+        .drag-card[draggable="true"]:active {
+            opacity: 0.7;
+        }
+
+        /* 反馈区域 */
+        .message-area {
+            background: #E7F2E3;
+            border-radius: 36px;
+            padding: 12px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 12px 0;
+            color: #2E6738;
+        }
+
+        .btn-reset {
+            background: #F3B33D;
+            border: none;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 12px 28px;
+            border-radius: 40px;
+            color: #2E3820;
+            cursor: pointer;
+            transition: 0.1s linear;
+            box-shadow: 0 5px 0 #AD6B2C;
+            font-family: inherit;
+            width: fit-content;
+            margin: 8px auto 0;
+        }
+
+        .btn-reset:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #AD6B2C;
+        }
+
+        .progress {
+            font-size: 1rem;
+            background: #D3E6D0;
+            display: inline-block;
+            padding: 5px 16px;
+            border-radius: 50px;
+        }
+
+        @media (max-width: 780px) {
+            .knowledge-area, .game-area {
+                margin: 12px;
+                padding: 20px 16px;
+            }
+            .drag-card {
+                width: 75px;
+                height: 75px;
+                font-size: 1.8rem;
+            }
+            .equation-big {
+                font-size: 1.5rem;
+                padding: 8px 16px;
+            }
+            .mult-row {
+                font-size: 1.4rem;
+            }
+            .result-row {
+                font-size: 1.4rem;
+            }
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #799b75;
+            padding: 16px;
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧知识点区域 -->
+        <div class="knowledge-area">
+            <div class="knowledge-title">📖 乘积的变化规律</div>
+            <div class="rule-box">
+                <div class="rule-text">
+                    🌟 <span class="rule-highlight">一个因数不变</span>，另一个因数 <strong>乘几</strong>，<br>
+                    积也<span class="rule-highlight">乘几</span>。<br>
+                    🌟 另一个因数 <strong>除以几</strong>（不为0），积也<span class="rule-highlight">除以几</span>。
+                </div>
+                <div style="margin-top: 12px; font-size:1rem; color:#527a56;">
+                    例如：3 × 4 = 12<br>
+                    如果4变成8（乘2），积12也乘2变成24 ➜ 3×8=24 ✅
+                </div>
+            </div>
+            <!-- 竖式对齐范例 (个位十位严格对齐) -->
+            <div class="vertical-math">
+                <h3>✏️ 竖式对齐小示范</h3>
+                <div class="multiplication">
+                    <div class="mult-row">
+                        <span class="mult-sign"> </span>
+                        <span>2</span><span>3</span>
+                    </div>
+                    <div class="mult-row">
+                        <span class="mult-sign">×</span>
+                        <span></span><span>4</span>
+                    </div>
+                    <div class="line"></div>
+                    <div class="mult-row result-row">
+                        <span></span><span>9</span><span>2</span>
+                    </div>
+                    <div style="font-size:0.8rem; text-align:center; margin-top:8px;">✔️ 个位对个位，十位对十位</div>
+                </div>
+                <div style="margin-top: 12px; background:#FEF1D6; border-radius: 20px; padding: 8px; font-size:0.9rem;">
+                    💡 规律小窍门：<br>
+                    23 × 4 = 92 ，如果第二个因数4变成8（×2），积92 × 2 = 184。
+                </div>
+            </div>
+            <div class="rule-text" style="font-size:0.9rem; margin-top:8px;">
+                🧸 试试右边小游戏！把正确的积 <strong>拖拽</strong> 到问号区 ✨
+            </div>
+        </div>
+
+        <!-- 右侧游戏区域 -->
+        <div class="game-area">
+            <div class="game-header">
+                <h2>🎣 拖拖乐 · 积木变变变</h2>
+                <div class="game-sub">🐣 长按数字卡片 → 拖拽到❓位置 → 松开手指配对！</div>
+            </div>
+
+            <div class="question-panel" id="gameQuestionPanel">
+                <!-- 动态题目会在这里渲染 -->
+            </div>
+
+            <div class="drag-cards" id="dragCardsContainer">
+                <!-- 动态生成可拖拽卡片 -->
+            </div>
+
+            <div class="message-area" id="gameMessage">
+                ✨ 把正确的积拖进黄色虚线框里吧！
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div class="progress" id="progressIndicator">第1 / 5题</div>
+                <button class="btn-reset" id="resetGameBtn">🔄 重来一次</button>
+            </div>
+            <footer>💡 提示：因数变了，积也跟着变同样倍数～</footer>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 题库 (乘积变化规律：一个因数不变，另一个因数乘/除变化，积相应变化) ----------
+    const questionBank = [
+        {
+            baseMult1: 6,
+            baseMult2: 3,
+            baseProduct: 18,
+            newMult1: 6,
+            newMult2: 6,    // 3 -> 6 (乘2)
+            correctProduct: 36,
+            changeDesc: "另一个因数3变成了6 (×2)",
+            hint: "因数乘2，积也乘2 → 18×2=36"
+        },
+        {
+            baseMult1: 4,
+            baseMult2: 5,
+            baseProduct: 20,
+            newMult1: 4,
+            newMult2: 10,   // 5 -> 10 (乘2)
+            correctProduct: 40,
+            changeDesc: "另一个因数5变成了10 (×2)",
+            hint: "积也要乘2 → 20×2=40"
+        },
+        {
+            baseMult1: 7,
+            baseMult2: 2,
+            baseProduct: 14,
+            newMult1: 7,
+            newMult2: 8,    // 2 -> 8 (乘4)
+            correctProduct: 56,
+            changeDesc: "另一个因数2变成了8 (×4)",
+            hint: "积也乘4 → 14×4=56"
+        },
+        {
+            baseMult1: 5,
+            baseMult2: 9,
+            baseProduct: 45,
+            newMult1: 5,
+            newMult2: 27,   // 9->27 (×3)
+            correctProduct: 135,
+            changeDesc: "另一个因数9变成了27 (×3)",
+            hint: "积也乘3 → 45×3=135"
+        },
+        {
+            baseMult1: 12,
+            baseMult2: 4,
+            baseProduct: 48,
+            newMult1: 12,
+            newMult2: 12,   // 4->12 (×3)
+            correctProduct: 144,
+            changeDesc: "另一个因数4变成了12 (×3)",
+            hint: "积48 × 3 = 144"
+        }
+    ];
+
+    let currentIndex = 0;          // 当前第几题(0开始)
+    let totalQuestions = questionBank.length;
+    let currentCorrectValue = 0;
+    let lockNext = false;           // 防止连点或重复正确加载
+
+    // 生成干扰项 (基于正确值，产生2个不同且合理的错误选项，均为正整数)
+    function generateDistractors(correctVal) {
+        let distractors = new Set();
+        distractors.add(correctVal);
+        // 干扰1: 加减偏移，或倍率差异
+        let candidate1 = correctVal + (correctVal > 20 ? -8 : 2);
+        if(candidate1 <= 0) candidate1 = correctVal + 3;
+        if(candidate1 === correctVal) candidate1 = correctVal + 1;
+        // 干扰2: 用乘除偏移
+        let candidate2 = Math.floor(correctVal * 0.6);
+        if(candidate2 <= 0 || candidate2 === correctVal) candidate2 = correctVal + 4;
+        if(candidate2 === candidate1) candidate2 = correctVal - 2 > 0 ? correctVal - 2 : correctVal + 5;
+        
+        let opts = [correctVal, candidate1, candidate2];
+        // 保证三个选项互不相同且为正整数
+        while(opts[0] === opts[1]) opts[1] = opts[1] + 1;
+        while(opts[0] === opts[2] || opts[1] === opts[2]) opts[2] = opts[2] + 1;
+        if(opts[2] <= 0) opts[2] = correctVal + 2;
+        // 洗牌
+        for (let i = opts.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [opts[i], opts[j]] = [opts[j], opts[i]];
+        }
+        return opts;
+    }
+
+    // 渲染当前题目 + 生成拖拽卡片选项
+    function renderCurrentGame() {
+        if (currentIndex >= totalQuestions) {
+            // 通关啦
+            document.getElementById('gameQuestionPanel').innerHTML = `
+                <div style="text-align:center; padding:30px;">
+                    🎉🎉🎉 太棒啦！ 🎉🎉🎉<br>
+                    你完全掌握了乘积的变化规律！<br>
+                    🌟 超级数学之星 🌟
+                </div>
+            `;
+            document.getElementById('dragCardsContainer').innerHTML = `<div style="text-align:center; width:100%;">🏆 恭喜通关！点击重来继续挑战 🏆</div>`;
+            document.getElementById('gameMessage').innerHTML = '🥳 恭喜你完成了所有挑战！规律记得牢牢的～';
+            document.getElementById('progressIndicator').innerHTML = `通关完成!`;
+            return;
+        }
+
+        const q = questionBank[currentIndex];
+        currentCorrectValue = q.correctProduct;
+
+        // 渲染左侧题目区
+        const panelHtml = `
+            <div style="margin-bottom: 12px;">
+                <div class="equation-big">${q.baseMult1} × ${q.baseMult2} = ${q.baseProduct}</div>
+                <div class="arrow-change">⬇️ 规律变化：${q.changeDesc} ⬇️</div>
+                <div class="new-equation">
+                    <span style="font-size:1.5rem;">✨ 新算式 ✨</span><br>
+                    <span class="equation-big" style="background:#E9F3E3;">${q.newMult1} × ${q.newMult2} =  ?</span>
+                </div>
+            </div>
+            <div class="drop-zone" id="dropZoneTarget" data-dropzone="true">
+                <p>📦 把正确的积拖到这里 ➡️</p>
+                <div class="drop-target-value" id="dropPlaceholder">❓❓❓</div>
+            </div>
+            <div style="font-size:0.85rem; color:#ad7a42; background:#FFF3DF; border-radius:30px; padding:6px; margin-top:8px;">
+                💡 ${q.hint}
+            </div>
+        `;
+        document.getElementById('gameQuestionPanel').innerHTML = panelHtml;
+
+        // 生成可拖拽卡片 (三个选项，包含正确值 + 干扰)
+        const options = generateDistractors(q.correctProduct);
+        const dragContainer = document.getElementById('dragCardsContainer');
+        dragContainer.innerHTML = '';
+        options.forEach(optValue => {
+            const card = document.createElement('div');
+            card.className = 'drag-card';
+            card.setAttribute('draggable', 'true');
+            card.setAttribute('data-value', optValue);
+            card.innerText = optValue;
+            // drag 事件
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+            // 移动端需要设置dragimage? 默认可以; 为了触屏长按拖拽启动, 必须加上draggable=true.
+            // 同时避免默认图片
+            card.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', optValue);
+                e.dataTransfer.effectAllowed = 'copy';
+                // 设置拖拽图标更友好
+                const dragIcon = document.createElement('div');
+                dragIcon.textContent = optValue;
+                dragIcon.style.position = 'absolute';
+                dragIcon.style.top = '-1000px';
+                document.body.appendChild(dragIcon);
+                e.dataTransfer.setDragImage(dragIcon, 0, 0);
+                setTimeout(() => document.body.removeChild(dragIcon), 0);
+            });
+            dragContainer.appendChild(card);
+        });
+
+        // 重新绑定放置区事件 (因为panel刷新后, dropzone重新生成)
+        bindDropZoneEvents();
+        // 更新进度文本
+        document.getElementById('progressIndicator').innerHTML = `第${currentIndex+1} / ${totalQuestions}题`;
+        // 清除消息（保留普通提示，不要错误残留）
+        const msgDiv = document.getElementById('gameMessage');
+        if(msgDiv && !msgDiv.innerHTML.includes('正确') && !msgDiv.innerHTML.includes('错误')) {
+            msgDiv.innerHTML = '✨ 把正确的积拖进黄色虚线框里吧！';
+        } else if(msgDiv.innerHTML.includes('错误')) {
+            msgDiv.innerHTML = '✨ 再试试看！长按数字拖拽到问号区～';
+        }
+    }
+
+    // 全局存储拖拽数据变量
+    let dragValue = null;
+    function handleDragStart(e) {
+        const val = e.target.getAttribute('data-value');
+        if(val !== null) {
+            e.dataTransfer.setData('text/plain', val);
+            e.dataTransfer.effectAllowed = 'copy';
+            dragValue = val;
+        } else {
+            e.preventDefault();
+            return false;
+        }
+    }
+    function handleDragEnd(e) {
+        dragValue = null;
+    }
+
+    // 绑定drop区域的 dragover / drop 事件
+    function bindDropZoneEvents() {
+        const dropZone = document.getElementById('dropZoneTarget');
+        if(!dropZone) return;
+        // 移除旧监听避免重复绑定，用新替换
+        const newDropZone = dropZone.cloneNode(true);
+        dropZone.parentNode.replaceChild(newDropZone, dropZone);
+        const finalDropZone = document.getElementById('dropZoneTarget');
+        if(!finalDropZone) return;
+
+        finalDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();  // 必须，允许放置
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        finalDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if(lockNext) {
+                showMessage('🎈 别着急，正在加载下一题～', '#D4A373');
+                return;
+            }
+            // 获取拖拽的数据
+            let draggedVal = e.dataTransfer.getData('text/plain');
+            if(!draggedVal) {
+                // 兼容备用
+                if(dragValue) draggedVal = dragValue;
+                else return;
+            }
+            const droppedNumber = parseInt(draggedVal, 10);
+            if(isNaN(droppedNumber)) return;
+
+            // 验证是否正确
+            if(droppedNumber === currentCorrectValue) {
+                // 正确！
+                showMessage('🎉 完全正确！ +1  🎉 乘积变化规律掌握啦！', '#6FBF4C');
+                // 播放正确反馈后进入下一题
+                lockNext = true;
+                // 更新显示放置区为正确数字
+                const placeholderDiv = document.getElementById('dropPlaceholder');
+                if(placeholderDiv) placeholderDiv.innerText = currentCorrectValue;
+                // 延迟加载下一题，让小朋友看到正确积出现在框内
+                setTimeout(() => {
+                    // 移动到下一题
+                    if(currentIndex + 1 < totalQuestions) {
+                        currentIndex++;
+                        renderCurrentGame();
+                    } else if(currentIndex + 1 === totalQuestions) {
+                        // 当前是最后一题并且正确，完成所有题目
+                        currentIndex++;
+                        renderCurrentGame(); // 显示通关界面
+                        showMessage('🏆 太厉害了！所有规律你都学会啦！ 🏆', '#E9B35F');
+                    } else {
+                        renderCurrentGame();
+                    }
+                    lockNext = false;
+                }, 800);
+            } else {
+                // 错误处理
+                showMessage(`❌ 再观察一下！积应该是 ${currentCorrectValue}，因数变了积也要变相同倍数哟～`, '#E68A2E');
+                // 错误动画闪烁一下放置区
+                const dropTargetDiv = document.getElementById('dropPlaceholder');
+                if(dropTargetDiv) {
+                    dropTargetDiv.style.transform = 'scale(0.95)';
+                    setTimeout(() => { if(dropTargetDiv) dropTargetDiv.style.transform = ''; }, 200);
+                }
+                // 不清空放置区内容，依然保持???
+            }
+        });
+    }
+
+    function showMessage(msg, bgColorHint = null) {
+        const msgDiv = document.getElementById('gameMessage');
+        if(msgDiv) {
+            msgDiv.innerHTML = msg;
+            if(bgColorHint) {
+                msgDiv.style.backgroundColor = '#FFF2DF';
+                msgDiv.style.transition = '0.2s';
+            } else {
+                msgDiv.style.backgroundColor = '#E7F2E3';
+            }
+            setTimeout(() => {
+                if(msgDiv && !msgDiv.innerHTML.includes('正确') && !msgDiv.innerHTML.includes('错误')) {
+                    // 保留一下但不覆盖重要提示
+                }
+                if(msgDiv && msgDiv.innerHTML === msg) {
+                    if(currentIndex < totalQuestions)
+                        msgDiv.innerHTML = '✨ 把正确的积拖进黄色虚线框里吧！';
+                    else
+                        msgDiv.innerHTML = '🥳 课程完成，真棒！';
+                    msgDiv.style.backgroundColor = '#E7F2E3';
+                }
+            }, 2000);
+        }
+    }
+
+    // 重置整个游戏
+    function resetGame() {
+        if(lockNext) return;
+        currentIndex = 0;
+        lockNext = false;
+        renderCurrentGame();
+        showMessage('🔄 游戏已重置，继续挑战乘积变化规律吧！', '#F3B33D');
+        const msgDiv = document.getElementById('gameMessage');
+        if(msgDiv) msgDiv.style.backgroundColor = '#E7F2E3';
+    }
+
+    // 初始化添加重置按钮监听
+    function initGame() {
+        renderCurrentGame();
+        const resetBtn = document.getElementById('resetGameBtn');
+        if(resetBtn) {
+            resetBtn.addEventListener('click', () => resetGame());
+        }
+        // 适配移动端，避免拖动页面时干扰
+        window.addEventListener('dragstart', (e) => {
+            if(!e.target.closest('.drag-card')) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // 启动
+    initGame();
+</script>
+</body>
+</html>

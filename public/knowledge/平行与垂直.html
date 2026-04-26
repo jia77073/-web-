@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>平行与垂直 · 直线关系侦探 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #d49b3a;
+      background-color: #fff8ef;
+    }
+    .drag-over {
+      background-color: #ffe0b5;
+      transform: scale(1.02);
+      border: 2px solid #d49b3a;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #e0c8a0;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .line-svg {
+      background: white;
+      border-radius: 0.75rem;
+      display: inline-block;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 平行与垂直 =======================
+  // 知识点：在同一平面内，不相交的两条直线互相平行；相交成直角的两条直线互相垂直。
+  
+  // ---------- 游戏数据：拖拽配对（直线关系示意图/描述 → 平行或垂直）----------
+  const relationItems = [
+    { id: 1, description: "两条直线不相交，距离处处相等", category: "平行", matchKey: "parallel", svgType: "parallel" },
+    { id: 2, description: "两条直线相交成直角（90°）", category: "垂直", matchKey: "perpendicular", svgType: "perpendicular" },
+    { id: 3, description: "火车铁轨的两条钢轨", category: "平行", matchKey: "parallel", svgType: "parallel" },
+    { id: 4, description: "黑板的长边和宽边", category: "垂直", matchKey: "perpendicular", svgType: "perpendicular" },
+    { id: 5, description: "字母 H 中的两条竖线", category: "平行", matchKey: "parallel", svgType: "parallel" },
+    { id: 6, description: "十字路口的斑马线和路沿（相交成直角）", category: "垂直", matchKey: "perpendicular", svgType: "perpendicular" }
+  ];
+  
+  // 根据类型绘制示意图
+  const RelationSvg = ({ type, size = 80 }) => {
+    if (type === "parallel") {
+      return (
+        <svg width={size} height={size} viewBox="0 0 100 80" className="line-svg" style={{ background: 'white' }}>
+          <line x1="20" y1="20" x2="80" y2="20" stroke="black" strokeWidth="3" />
+          <line x1="20" y1="60" x2="80" y2="60" stroke="black" strokeWidth="3" />
+          <text x="30" y="45" fontSize="12" fill="#555">∥</text>
+        </svg>
+      );
+    } else {
+      return (
+        <svg width={size} height={size} viewBox="0 0 100 80" className="line-svg" style={{ background: 'white' }}>
+          <line x1="20" y1="20" x2="80" y2="60" stroke="black" strokeWidth="3" />
+          <line x1="20" y1="60" x2="80" y2="20" stroke="black" strokeWidth="3" />
+          <circle cx="50" cy="40" r="3" fill="black" />
+          <text x="55" y="45" fontSize="12" fill="#555">⊥</text>
+        </svg>
+      );
+    }
+  };
+  
+  // 游戏组件：拖拽配对
+  const MatchingGame = () => {
+    // 左侧关系卡片（未配对）
+    const [relationCards, setRelationCards] = React.useState(() => 
+      relationItems.map(item => ({
+        id: item.id,
+        text: item.description,
+        svgType: item.svgType,
+        category: item.category,
+        matchKey: item.matchKey,
+        matched: false
+      }))
+    );
+    
+    // 右侧分类槽位（平行、垂直）
+    const categorySlots = [
+      { id: "slot-parallel", text: "平行", matchKey: "parallel", matched: false },
+      { id: "slot-perp", text: "垂直", matchKey: "perpendicular", matched: false }
+    ];
+    
+    // 槽位记录当前已匹配的卡片数量（每个槽位可以匹配多个卡片，但每个卡片只能匹配一次）
+    // 我们需要动态管理每个槽位已匹配的卡片ID集合，简化：每个槽位记录匹配次数，但胜利条件是所有卡片都配对。
+    // 因为只有两个槽位，每个槽位可以接收多个正确卡片，我们直接根据card的matchKey找到对应槽位，配对成功后卡片标记为已用，槽位不需要标记为已用。
+    // 这样槽位可以无限次接收正确卡片，胜利条件是所有卡片都被配对。
+    const [slotMatchCounts, setSlotMatchCounts] = React.useState({ "parallel": 0, "perpendicular": 0 });
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const totalCards = relationCards.length;
+    const matchedCount = relationCards.filter(c => c.matched).length;
+    
+    const checkVictory = (cards) => {
+      const allMatched = cards.every(c => c.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有直线关系都找到了自己的类别！你已是平行与垂直专家！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧卡片
+    const onDragStart = (e, cardId, matchKey) => {
+      const card = relationCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "relation", cardId, matchKey }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "relation") return;
+      const { cardId, matchKey } = dragData;
+      
+      const targetSlot = categorySlots.find(s => s.id === slotId);
+      const sourceCard = relationCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched) {
+        setFeedbackMsg("⏳ 这个关系卡片已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配（卡片的matchKey是否等于槽位的matchKey）
+      if (matchKey === targetSlot.matchKey) {
+        // 配对成功
+        setRelationCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setSlotMatchCounts(prev => ({
+          ...prev,
+          [matchKey]: prev[matchKey] + 1
+        }));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！“${sourceCard.text}” 属于 ${targetSlot.text} 关系。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = relationCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        checkVictory(newCards);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！“${sourceCard.text}” 不是 ${targetSlot.text} 关系。再想一想平行和垂直的定义～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newCards = relationItems.map(item => ({
+        id: item.id,
+        text: item.description,
+        svgType: item.svgType,
+        category: item.category,
+        matchKey: item.matchKey,
+        matched: false
+      }));
+      setRelationCards(newCards);
+      setSlotMatchCounts({ parallel: 0, perpendicular: 0 });
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的直线关系拖拽到右边正确的分类上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#d49b3a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-amber-800">📐 平行与垂直 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalCards}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>直线关系（描述/示意图）</strong>拖拽到右边<strong>正确的分类槽位</strong>上（平行或垂直），配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧关系卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">📦 直线关系卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {relationCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchKey)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-white rounded-xl p-2 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102 cursor-grab'}`}
+                  style={{ background: card.matched ? '#e0c8a0' : 'white' }}
+                >
+                  <div className="flex justify-center items-center gap-2">
+                    <RelationSvg type={card.svgType} size={60} />
+                    <div className="text-left text-sm font-medium text-gray-700 max-w-[150px]">{card.text}</div>
+                  </div>
+                  {!card.matched && <div className="text-xs text-amber-600 mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs text-green-700 mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧分类槽位区（两个大槽位） */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3 flex flex-col gap-4">
+            {categorySlots.map(slot => (
+              <div 
+                key={slot.id}
+                onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                onDragLeave={onDragLeaveSlot}
+                onDrop={(e) => onDropToSlot(e, slot.id)}
+                className={`drop-slot rounded-2xl p-4 text-center transition-all flex-1 flex flex-col items-center justify-center ${dragOverSlotId === slot.id ? 'drag-over' : ''}`}
+              >
+                <div className="text-4xl font-bold text-emerald-700 mb-2">{slot.text}</div>
+                <div className="text-sm text-gray-500">⬅️ 把直线关系拖到这里</div>
+                {slot.matchKey === "parallel" && (
+                  <div className="mt-2 flex gap-1">
+                    <div className="w-8 h-0.5 bg-gray-400"></div>
+                    <div className="w-8 h-0.5 bg-gray-400"></div>
+                  </div>
+                )}
+                {slot.matchKey === "perpendicular" && (
+                  <div className="mt-2 flex justify-center">
+                    <div className="w-8 h-0.5 bg-gray-400 rotate-45"></div>
+                    <div className="w-8 h-0.5 bg-gray-400 -rotate-45"></div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-amber-100 p-2 rounded-xl text-amber-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 几何小侦探！你已掌握平行与垂直，能轻松分辨直线关系！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-full">
+          💡 平行：同一平面内不相交的两条直线；垂直：相交成直角的两条直线。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：平行与垂直 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#fff4e6] to-[#ffe0b5] rounded-3xl p-5 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📏</span>
+          <h2 className="text-3xl font-extrabold text-amber-900">平行与垂直</h2>
+        </div>
+        <div className="space-y-4 text-base text-amber-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 平行</p>
+            <p>在同一平面内，<strong>不相交</strong>的两条直线叫做平行线。平行线之间的距离处处相等。</p>
+            <div className="mt-2 flex justify-center gap-2">
+              <div className="w-16 h-0.5 bg-gray-700"></div>
+              <div className="w-16 h-0.5 bg-gray-700"></div>
+              <span className="text-sm ml-1">∥</span>
+            </div>
+            <p className="text-sm mt-1">🌰 铁轨、黑板的上边和下边、字母H的两竖</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">⊥ 垂直</p>
+            <p>两条直线相交成<strong>直角（90°）</strong>，就说这两条直线互相垂直。其中一条直线是另一条的垂线。</p>
+            <div className="mt-2 flex justify-center">
+              <div className="relative w-12 h-12">
+                <div className="absolute top-0 left-0 w-12 h-0.5 bg-gray-700 rotate-45 origin-center" style={{ top: '50%', left: 0 }}></div>
+                <div className="absolute top-0 left-0 w-12 h-0.5 bg-gray-700 -rotate-45 origin-center" style={{ top: '50%', left: 0 }}></div>
+              </div>
+              <span className="text-sm ml-1">⊥</span>
+            </div>
+            <p className="text-sm mt-1">🌰 黑板的长边和宽边、十字路口、字母L</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 如何判断？</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>看两条直线是否相交：不相交→平行；相交→看夹角是否为90°。</li>
+              <li>用三角尺的直角可以检验垂直。</li>
+            </ul>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>数学课本的对边互相（ ）；相邻的边互相（ ）。</p>
+            <p className="text-sm text-amber-700">（答案：平行，垂直）</p>
+          </div>
+          <div className="bg-amber-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“平行线，永不相交，处处等距；垂直线，相交直角，彼此垂直。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断平行还是垂直 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ description: "铁轨的两条钢轨", options: ["平行", "垂直"], correct: "平行" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { description: "铁轨的两条钢轨", options: ["平行", "垂直"], correct: "平行" },
+      { description: "黑板的长边和宽边", options: ["平行", "垂直"], correct: "垂直" },
+      { description: "字母 H 的两条竖线", options: ["平行", "垂直"], correct: "平行" },
+      { description: "十字路口的横线和竖线", options: ["平行", "垂直"], correct: "垂直" },
+      { description: "长方形对边", options: ["平行", "垂直"], correct: "平行" },
+      { description: "正方形相邻两边", options: ["平行", "垂直"], correct: "垂直" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！“${question.description}” 是 ${question.correct}关系。`);
+      } else {
+        setFeedback(`❌ 不对哦，“${question.description}” 是 ${question.correct}关系。再想想定义～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-amber-800">快问快答 · 平行或垂直</h3>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.description}</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-amber-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-amber-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-amber-700 text-sm border border-amber-200">
+            🌈 平行和垂直是几何世界中最基本的两种直线关系。掌握了它们，你就能更好地理解图形和生活中的结构！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🎖️ 质数和合数 · 军营大挑战 | 军绿特训</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+    }
+    .drag-card:active {
+      opacity: 0.7;
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.2s ease;
+    }
+    .drop-zone.drag-over {
+      background-color: #9eae6b;  /* 军绿高亮 */
+      border-color: #f5c542;
+      transform: scale(1.02);
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    /* 迷彩点缀背景 */
+    .military-pattern {
+      background-image: radial-gradient(circle at 10% 20%, rgba(70, 60, 30, 0.1) 2%, transparent 2.5%);
+      background-size: 28px 28px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#4A5D23] to-[#2C3A1F] min-h-screen flex items-center justify-center p-4 font-sans military-pattern">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（质数 & 合数 军绿特训）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#2F3A24]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8B9A46] h-full text-[#F1F0D5]">
+        <div className="flex items-center gap-2 border-b-2 border-[#9AAE5C] pb-3 mb-4">
+          <span className="text-4xl">🎖️</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">质数 & 合数<br/><span className="text-sm font-normal text-[#E3E0B0]">军营侦察 · 一招判断</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#3E4D2E]/90 rounded-2xl p-4 border border-[#A9B86B] shadow-inner">
+            <p className="font-bold text-[#F7F2B0] flex items-center gap-2">✨ 质数（Prime）定义：</p>
+            <p className="text-sm mt-1 text-[#F0EEC8]">一个大于1的自然数，除了1和它自身以外不再有其他因数，这样的数叫做<strong className="text-[#FFE484]">质数</strong>。</p>
+            <div className="mt-1 text-xs bg-[#2C3820]/70 p-1 rounded-lg inline-block text-[#E7E5BC]">例：2, 3, 5, 7, 11, 13, 17, 19, 23……</div>
+          </div>
+          <div className="bg-[#3E4D2E]/90 rounded-2xl p-4 border border-[#A9B86B]">
+            <p className="font-bold text-[#F7F2B0]">✨ 合数（Composite）定义：</p>
+            <p className="text-sm mt-1 text-[#F0EEC8]">大于1的自然数，除了1和它本身以外还有别的因数，这样的数叫做<strong className="text-[#FFE484]">合数</strong>。</p>
+            <div className="mt-1 text-xs bg-[#2C3820]/70 p-1 rounded-lg inline-block text-[#E7E5BC]">例：4, 6, 8, 9, 10, 12, 14, 15……</div>
+          </div>
+          <div className="bg-[#3E4D2E]/90 rounded-2xl p-4 border border-[#A9B86B]">
+            <p className="font-bold text-[#F7F2B0]">📌 特别提醒：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm text-[#F0EEC8]">
+              <li><strong>1</strong> 既不是质数也不是合数（本训练数字从2开始，放心作战）</li>
+              <li>判断技巧：试除法——检查是否有2~√n之间的因数</li>
+              <li>100以内质数口诀：二三五七和十一，十三后面是十七……</li>
+            </ul>
+          </div>
+          <div className="bg-[#4D5E35]/80 rounded-2xl p-3 text-center text-sm italic border border-[#B7C26A]">
+            🪖 右侧特训场：将数字军卡拖拽到正确的「质军营」或「合军营」！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 质数判断函数 (n >= 2) ----------
+  const isPrime = (n) => {
+    if (n < 2) return false;
+    if (n === 2) return true;
+    if (n % 2 === 0) return false;
+    const limit = Math.sqrt(n);
+    for (let i = 3; i <= limit; i += 2) {
+      if (n % i === 0) return false;
+    }
+    return true;
+  };
+
+  // 生成随机整数 (min, max 包含)
+  const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  // 生成不重复的数字 (范围2~100)
+  const generateUniqueNumber = (existingNumbersSet, maxAttempts = 30) => {
+    let attempts = 0;
+    let candidate;
+    do {
+      candidate = randomInt(2, 100);
+      attempts++;
+      if (attempts > maxAttempts) break;
+    } while (existingNumbersSet.has(candidate));
+    return candidate;
+  };
+
+  // 生成初始卡片数组 (5~6个，确保不重复)
+  const generateNumberCards = (count = 5) => {
+    let cards = [];
+    let usedValues = new Set();
+    for (let i = 0; i < count; i++) {
+      let num = generateUniqueNumber(usedValues);
+      usedValues.add(num);
+      cards.push({
+        id: Date.now() + i + Math.random() * 10000,
+        value: num,
+        matched: false,
+        matchedType: null,   // 'prime' 或 'composite'
+      });
+    }
+    return cards;
+  };
+
+  // 篮子配置 (两个阵营)
+  const BASKETS = [
+    { type: 'prime', label: '质数军营', icon: '⭐', bgColor: 'bg-amber-800/60', borderColor: 'border-amber-500', hint: '只有1和本身两个因数', campColor: 'text-amber-200' },
+    { type: 'composite', label: '合数军营', icon: '⚙️', bgColor: 'bg-lime-800/60', borderColor: 'border-lime-500', hint: '至少有三个因数', campColor: 'text-lime-200' }
+  ];
+
+  // ---------- 拖拽分类游戏组件 (质数合数特训版) ----------
+  const MultipleSortGame = ({ resetKey, onNewGame }) => {
+    const [cards, setCards] = React.useState(() => generateNumberCards(5));
+    const [score, setScore] = React.useState(0);          // 正确分类计数 (已匹配卡片数)
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 重置游戏 (全部清空，新卡片)
+    const resetGame = () => {
+      setCards(generateNumberCards(5));
+      setScore(0);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 监听胜利条件: 所有卡片 matched === true
+    React.useEffect(() => {
+      if (cards.length > 0 && cards.every(card => card.matched === true) && !isVictory) {
+        setIsVictory(true);
+      } else if (cards.some(card => !card.matched) && isVictory) {
+        setIsVictory(false);
+      }
+    }, [cards, isVictory]);
+    
+    // 监听外部重置 (新的一篮)
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽开始
+    const onDragStart = (e, card) => {
+      if (card.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.id, value: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    
+    const onDragLeave = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 获取数字的正确分类 (质数/合数)
+    const getCorrectType = (value) => {
+      if (isPrime(value)) return 'prime';
+      return 'composite';   // 因为数字范围2~100, 非质数即合数
+    };
+    
+    // 放置到篮子
+    const onDrop = (e, basketType) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      
+      let dragId, dragValue;
+      try {
+        const { id, value } = JSON.parse(rawData);
+        dragId = id;
+        dragValue = value;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = cards.find(c => c.id === dragId);
+      if (!targetCard || targetCard.matched) {
+        setErrorMsg('⚙️ 这个数字军卡已经归队啦！不能重复投放');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const correctType = getCorrectType(dragValue);
+      const isCorrect = (correctType === basketType);
+      
+      if (isCorrect) {
+        // 正确分类
+        setCards(prevCards =>
+          prevCards.map(card =>
+            card.id === dragId ? { ...card, matched: true, matchedType: basketType } : card
+          )
+        );
+        setScore(prev => prev + 1);
+        setErrorMsg('');
+      } else {
+        // 错误提示：告诉正确阵营
+        const correctCampName = correctType === 'prime' ? '质数军营' : '合数军营';
+        const oppositeCamp = basketType === 'prime' ? '质数军营' : '合数军营';
+        setErrorMsg(`❌ 战术失误！ ${dragValue} 不是${oppositeCamp}，它属于 ${correctCampName}。再侦察一次～`);
+        setTimeout(() => setErrorMsg(''), 1900);
+      }
+    };
+    
+    // 换掉未分类的卡片 (保留已匹配的，刷新未匹配的数字)
+    const refreshUnmatchedCards = () => {
+      if (isVictory) {
+        // 如果已经胜利，直接重置整个游戏 (相当于新的一局)
+        resetGame();
+        if (onNewGame) onNewGame();
+        return;
+      }
+      
+      setCards(prevCards => {
+        const matchedCards = prevCards.filter(c => c.matched);
+        const unmatchedCards = prevCards.filter(c => !c.matched);
+        if (unmatchedCards.length === 0) return prevCards;
+        
+        // 收集已经存在的数字 (匹配的 + 即将新生成的需要避开)
+        const existingValues = new Set(matchedCards.map(c => c.value));
+        let newUnmatched = [];
+        let attempts = 0;
+        for (let i = 0; i < unmatchedCards.length; i++) {
+          let newNum;
+          let safe = false;
+          let localAttempts = 0;
+          while (!safe && localAttempts < 40) {
+            newNum = randomInt(2, 100);
+            if (!existingValues.has(newNum) && !newUnmatched.some(c => c.value === newNum)) {
+              safe = true;
+            }
+            localAttempts++;
+          }
+          existingValues.add(newNum);
+          newUnmatched.push({
+            id: Date.now() + i + Math.random() * 10000,
+            value: newNum,
+            matched: false,
+            matchedType: null
+          });
+          attempts++;
+        }
+        return [...matchedCards, ...newUnmatched];
+      });
+      setErrorMsg('');
+    };
+    
+    // 重置所有 (新的一篮)
+    const resetAll = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    // 胜利祝贺组件 (军营凯旋)
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-[#7D8F42] to-[#5A6E2E] rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#F3E57A]">
+        <div className="text-2xl font-bold text-[#FFF3BF]">🏆 全营凯旋！ 🏆</div>
+        <div className="text-sm text-[#FCF9CF] font-semibold">所有数字军卡都正确归队！点击「新的一篮」继续特训～</div>
+      </div>
+    );
+    
+    const correctCount = cards.filter(c => c.matched).length;
+    const totalCount = cards.length;
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度 + 士气条 */}
+        <div className="flex justify-between items-center bg-[#2A351E]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#869B47]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎖️</span>
+            <span className="font-bold text-[#F0EFC5]">分类进度</span>
+            <span className="text-lg font-black text-[#FFEF9E]">{correctCount} / {totalCount}</span>
+          </div>
+          <div className="w-32 bg-[#4F5D38] rounded-full h-2.5">
+            <div className="bg-[#EAB308] h-2.5 rounded-full transition-all duration-300" style={{ width: `${(correctCount/totalCount)*100}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#556B2F] px-2 py-1 rounded-full text-[#F6F2C8] border border-[#B8C47F]">🥾 拖拽军卡 精准入营</div>
+        </div>
+        
+        {/* 数字卡片区域 (军卡展示) */}
+        <div className="bg-[#3F4D2C]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#A2B466]">
+          <div className="text-center text-sm font-semibold text-[#F5F2C3] mb-2">📦 待分类数字军卡（拖拽到对应军营）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {cards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.matched}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-2xl shadow-xl flex flex-col items-center justify-center transition-all ${
+                  card.matched 
+                    ? 'bg-[#5C6F3A]/70 opacity-80 cursor-default border-2 border-[#A0B86A]' 
+                    : 'bg-gradient-to-br from-[#6C8342] to-[#4C6130] cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-[#F4E37C] shadow-lg'
+                }`}
+              >
+                {card.matched ? (
+                  <>
+                    <span className="text-3xl">✅</span>
+                    <span className="text-xs text-[#EFEDB0] mt-1">已入营</span>
+                    <span className="text-xs font-mono text-[#FCF9D7]">{card.value}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-4xl font-black text-[#FFF5C4]">{card.value}</span>
+                    <span className="text-[10px] text-[#F0EC9E]">🎯 拖拽我</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          {cards.length === 0 && <div className="text-center text-[#E9E6B3] mt-4">✨ 所有军卡已完成特训 ✨</div>}
+        </div>
+        
+        {/* 两个军营篮子 (质数 & 合数) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+          {BASKETS.map(basket => (
+            <div
+              key={basket.type}
+              className={`drop-zone ${basket.bgColor} border-4 ${basket.borderColor} rounded-2xl p-3 text-center transition-all shadow-lg backdrop-blur-sm`}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, basket.type)}
+            >
+              <div className="flex justify-center items-center gap-3 text-2xl font-bold">
+                <span className="text-3xl">{basket.icon}</span>
+                <span className={`${basket.campColor} drop-shadow-md`}>{basket.label}</span>
+              </div>
+              <div className="text-xs text-[#E0DCA5] mt-1">{basket.hint}</div>
+              {/* 显示已经正确放入该军营的数字 */}
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5 min-h-[48px]">
+                {cards.filter(c => c.matched && c.matchedType === basket.type).map(c => (
+                  <span key={c.id} className="bg-[#2A331C]/80 rounded-full px-2.5 py-0.5 text-xs font-mono text-[#FDF4BF] border border-[#AAB96D] shadow-sm">{c.value}</span>
+                ))}
+                {cards.filter(c => c.matched && c.matchedType === basket.type).length === 0 && 
+                  <span className="text-[11px] text-[#C6D48B] italic">—— 暂无部署 ——</span>
+                }
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 错误警示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#2C2819]/90 text-[#FFDD99] font-bold p-2.5 rounded-xl border-l-8 border-[#FFB347] backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋消息 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮组 (军营风格) */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={refreshUnmatchedCards}
+            className="flex-1 bg-[#7A6233] hover:bg-[#5E4A24] text-[#FFF2C1] font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98] border border-[#CDB27A]"
+          >
+            🔄 换掉未归营的军卡
+          </button>
+          <button 
+            onClick={resetAll}
+            className="flex-1 bg-[#4F6736] hover:bg-[#3A4E25] text-[#FEF5CD] font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98] border border-[#9EB563]"
+          >
+            🧺 新的一篮 · 重新特训
+          </button>
+        </div>
+        
+        <div className="text-xs text-center text-[#E9ECB9] bg-[#29351C]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 侦察技巧：质数只有两个因数；合数至少三个。2是最小的质数，1特殊不参训。拖拽数字到正确军营即可！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (军绿迷彩风格) 质数合数特训 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 军绿战术手册 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动特训区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#2B3720]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#A9BE6F]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#FFFAD6] flex items-center gap-2">
+                <span className="text-3xl">⚔️</span>
+                质数·合数军营挑战
+              </h3>
+              <span className="text-sm bg-[#536B31] px-3 py-1 rounded-full text-[#FEF1B0] border border-[#CDE57A]">🎯 拖拽数字 精准归队</span>
+            </div>
+            <MultipleSortGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-[#EFF2C1] bg-[#314023]/80 rounded-full py-2 px-3 flex justify-center gap-4 backdrop-blur-sm border border-[#879E51]">
+            <span>🎖️ 玩法：观察数字 → 判断质数/合数 → 拖拽到正确军营（质数营⭐ 或 合数营⚙️）</span>
+            <span>🏅 所有军卡归营即获得「优秀侦察兵」称号！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

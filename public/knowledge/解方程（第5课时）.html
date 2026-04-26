@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>解方程·第5课时 | 括号魔法学院</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫主题 */
+    body {
+      font-size: 1.3rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .scroll-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scroll-panel::-webkit-scrollbar-track {
+      background: #f1e4f0;
+      border-radius: 8px;
+    }
+    .scroll-panel::-webkit-scrollbar-thumb {
+      background: #aa7bc0;
+      border-radius: 8px;
+    }
+    .drag-equation {
+      cursor: grab;
+      transition: all 0.1s ease;
+    }
+    .drag-equation:active {
+      cursor: grabbing;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.65;
+      filter: grayscale(0.15);
+      background: #c8b0da;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    input, button {
+      font-size: 1rem;
+    }
+    .method-badge {
+      background: #f0e6ff;
+      border-radius: 2rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 解方程第5课时 · 带括号方程 a(x±b)=c =======================
+  // ---------- 知识点：整体法 & 去括号法 示例数据 ----------
+  // 左侧练习题库 (6道典型题，包含整数、小数，涵盖 a(x+b)=c 和 a(x-b)=c)
+  const buildPracticeEquations = () => {
+    return [
+      { id: "p1", text: "2(x + 3) = 10", correct: 2, type: "plus", hintOverall: "整体法: 两边同时除以2得 x+3=5 → x=2", hintExpand: "去括号: 2x+6=10 → 2x=4 → x=2" },
+      { id: "p2", text: "3(x - 4) = 9", correct: 7, type: "minus", hintOverall: "整体法: 两边同时除以3得 x-4=3 → x=7", hintExpand: "去括号: 3x-12=9 → 3x=21 → x=7" },
+      { id: "p3", text: "4(x + 2.5) = 18", correct: 2, type: "plus", hintOverall: "整体法: 两边除以4得 x+2.5=4.5 → x=2", hintExpand: "去括号: 4x+10=18 → 4x=8 → x=2" },
+      { id: "p4", text: "5(x - 1.2) = 14", correct: 4, type: "minus", hintOverall: "整体法: 两边除以5得 x-1.2=2.8 → x=4", hintExpand: "去括号: 5x-6=14 → 5x=20 → x=4" },
+      { id: "p5", text: "2.5(x + 4) = 15", correct: 2, type: "plus", hintOverall: "整体法: 两边除以2.5得 x+4=6 → x=2", hintExpand: "去括号: 2.5x+10=15 → 2.5x=5 → x=2" },
+      { id: "p6", text: "1.5(x - 2) = 6", correct: 6, type: "minus", hintOverall: "整体法: 两边除以1.5得 x-2=4 → x=6", hintExpand: "去括号: 1.5x-3=6 → 1.5x=9 → x=6" }
+    ];
+  };
+  
+  const PRACTICE_LIST = buildPracticeEquations();
+  
+  // 浮点比较
+  const isFloatEqual = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+  
+  // 生成检验反馈（包含两种解法思路）
+  const getDetailedFeedback = (eq, userVal) => {
+    const { text, correct, hintOverall, hintExpand } = eq;
+    let [leftRaw, rightRaw] = text.split('=').map(s => s.trim());
+    let leftExpr = leftRaw.replace(/x/gi, `(${userVal})`);
+    let leftEval;
+    try { leftEval = eval(leftExpr); } catch(e) { leftEval = "?"; }
+    const rightVal = parseFloat(rightRaw);
+    const isValid = isFloatEqual(leftEval, correct);
+    let msg = `📐 检验：x = ${userVal} 代入 ${text}，左边 = ${leftExpr} = ${leftEval}，右边 = ${rightVal}。`;
+    if (isValid) {
+      msg += ` ✅ 正确！\n✨ 解法参考：\n• 整体法：${hintOverall}\n• 去括号法：${hintExpand}`;
+    } else {
+      msg += ` ❌ 解错误，正确答案是 ${correct}。\n💡 正确思路：\n• 整体法：${hintOverall}\n• 去括号法：${hintExpand}`;
+    }
+    return { msg, isValid };
+  };
+  
+  // ---------- 左侧练习组件 ----------
+  const PracticePanel = () => {
+    const [eqList, setEqList] = React.useState(() => 
+      PRACTICE_LIST.map(eq => ({ ...eq, userAnswer: "", feedback: null, isCorrect: null, showMethod: false }))
+    );
+    
+    const handleAnswerChange = (id, value) => {
+      setEqList(prev => prev.map(eq => eq.id === id ? { ...eq, userAnswer: value, feedback: null, isCorrect: null } : eq));
+    };
+    
+    const handleCheck = (id) => {
+      setEqList(prev => prev.map(eq => {
+        if (eq.id !== id) return eq;
+        const userVal = parseFloat(eq.userAnswer);
+        if (isNaN(userVal)) return { ...eq, feedback: "📛 输入数字再检验哟！", isCorrect: null };
+        const { msg, isValid } = getDetailedFeedback(eq, userVal);
+        return { ...eq, feedback: msg, isCorrect: isValid, showMethod: true };
+      }));
+    };
+    
+    const handleShowAnswer = (id) => {
+      setEqList(prev => prev.map(eq => {
+        if (eq.id !== id) return eq;
+        const correctVal = eq.correct;
+        const { msg } = getDetailedFeedback(eq, correctVal);
+        return { ...eq, userAnswer: correctVal.toString(), feedback: msg, isCorrect: true, showMethod: true };
+      }));
+    };
+    
+    const resetProgress = () => {
+      setEqList(prev => prev.map(eq => ({ ...eq, userAnswer: "", feedback: null, isCorrect: null, showMethod: false })));
+    };
+    
+    const correctCount = eqList.filter(eq => eq.isCorrect === true).length;
+    const total = eqList.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb]">
+        <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
+          <h3 className="text-2xl font-extrabold text-purple-800">📝 小试牛刀 · 带括号方程</h3>
+          <div className="flex gap-3 items-center">
+            <span className="bg-purple-200 px-3 py-1 rounded-full text-base font-bold">✅ {correctCount}/{total}</span>
+            <button onClick={resetProgress} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow">🔄 重置练习</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto scroll-panel pr-1">
+          {eqList.map(eq => (
+            <div key={eq.id} className="bg-white rounded-xl p-3 shadow border border-purple-200">
+              <div className="font-mono font-bold text-xl text-purple-800">{eq.text}</div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <input 
+                  type="number" step="any" value={eq.userAnswer}
+                  onChange={(e) => handleAnswerChange(eq.id, e.target.value)}
+                  placeholder="x = ?"
+                  className="flex-1 min-w-[100px] border border-purple-300 rounded-lg px-2 py-1.5 text-base bg-gray-50 focus:ring-2 focus:ring-purple-300"
+                />
+                <button onClick={() => handleCheck(eq.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">🔍 检验</button>
+                <button onClick={() => handleShowAnswer(eq.id)} className="bg-purple-400 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm shadow">📖 答案+双法</button>
+              </div>
+              {eq.feedback && (
+                <div className={`mt-2 text-sm p-2 rounded-lg whitespace-pre-line ${eq.isCorrect ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+                  {eq.feedback}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 text-center text-sm text-purple-700 bg-purple-50 p-2 rounded-xl">
+          💡 两种方法：整体法（括号当整体）& 去括号法（分配律），选你喜欢的！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 易错点总结与改正卡片 ----------
+  const ErrorSummary = () => {
+    return (
+      <div className="bg-white/90 rounded-3xl p-5 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-3xl">⚠️</span>
+          <h3 className="text-2xl font-extrabold text-purple-800">易错点诊所 · 错题改正</h3>
+        </div>
+        <div className="space-y-3">
+          <div className="bg-rose-50 rounded-xl p-3 border-l-8 border-rose-400">
+            <p className="font-bold text-rose-800">❌ 常见错误1：去括号时忘记变号</p>
+            <p className="text-sm">例如 <span className="font-mono">3(x - 4) = 9</span> 错误写成 <span className="font-mono line-through">3x - 4 = 9</span> ❌</p>
+            <p className="text-sm font-semibold text-green-700">✅ 改正：去括号要用分配律，<span className="font-mono">3×x - 3×4 = 3x - 12</span>，再解方程。</p>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-3 border-l-8 border-rose-400">
+            <p className="font-bold text-rose-800">❌ 常见错误2：整体法忘记两边同时除以a</p>
+            <p className="text-sm">例如 <span className="font-mono">4(x + 2) = 20</span> 错误直接去括号而复杂化，或者忘记整体处理。</p>
+            <p className="text-sm font-semibold text-green-700">✅ 改正：整体法更简洁，两边同时除以4得 <span className="font-mono">x+2=5</span>，再解。</p>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-3 border-l-8 border-rose-400">
+            <p className="font-bold text-rose-800">❌ 常见错误3：小数系数计算粗心</p>
+            <p className="text-sm">例如 <span className="font-mono">2.5(x+4)=15</span> 整体除以2.5时算错小数除法。</p>
+            <p className="text-sm font-semibold text-green-700">✅ 改正：可以把小数化成分数或细心计算，<span className="font-mono">15 ÷ 2.5 = 6</span>。</p>
+          </div>
+          <div className="bg-emerald-50 rounded-xl p-3 text-center text-sm">
+            📖 小口诀：“括号方程不用怕，整体去括号两方法；整体先除系数a，去括号用分配律；细心变号别忘记，解得x笑哈哈！”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 右侧互动游戏：拖拽配对（方程 & 对应的解法第一步）----------
+  // 游戏机制：展示4个带括号方程，右侧展示4个“方法第一步”卡片（描述正确的第一步操作，包括整体法或去括号法第一步）
+  // 小朋友将方程拖拽到对应的正确方法卡片上，配对成功两者都标记为完成。全部配对成功获胜。
+  const MatchingGame = () => {
+    // 游戏数据: 方程 + 对应的正确方法描述
+    const gameQuestions = [
+      { eq: "2(x + 3) = 10", methodDesc: "整体法：两边同时除以2", matchKey: "method1" },
+      { eq: "3(x - 4) = 9", methodDesc: "整体法：两边同时除以3", matchKey: "method2" },
+      { eq: "4(x + 1) = 20", methodDesc: "去括号法：4x + 4 = 20", matchKey: "method3" },
+      { eq: "5(x - 2) = 15", methodDesc: "去括号法：5x - 10 = 15", matchKey: "method4" }
+    ];
+    
+    // 初始化状态: 方程卡片列表(未配对), 方法卡片列表(未配对)
+    const [equations, setEquations] = React.useState(() => 
+      gameQuestions.map((q, idx) => ({
+        id: `eq-${idx}`,
+        text: q.eq,
+        matchKey: q.matchKey,
+        matched: false
+      }))
+    );
+    const [methods, setMethods] = React.useState(() => {
+      const methodList = gameQuestions.map((q, idx) => ({
+        id: `method-${idx}`,
+        desc: q.methodDesc,
+        matchKey: q.matchKey,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = methodList.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [methodList[i], methodList[j]] = [methodList[j], methodList[i]];
+      }
+      return methodList;
+    });
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverId, setDragOverId] = React.useState(null);
+    const [errorTip, setErrorTip] = React.useState("");
+    
+    const checkWin = (eqs, meths) => {
+      const allEqMatched = eqs.every(e => e.matched);
+      const allMethMatched = meths.every(m => m.matched);
+      if (allEqMatched && allMethMatched && !gameWin) {
+        setGameWin(true);
+      } else if ((!allEqMatched || !allMethMatched) && gameWin) {
+        setGameWin(false);
+      }
+    };
+    
+    // 拖拽方程
+    const onDragStart = (e, eqId, eqMatchKey) => {
+      const eq = equations.find(e => e.id === eqId);
+      if (eq?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "equation", eqId, matchKey: eqMatchKey }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    // 方法槽位拖拽悬停
+    const onDragOverMethod = (e, methodId) => {
+      e.preventDefault();
+      setDragOverId(methodId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveMethod = () => setDragOverId(null);
+    
+    // 放置到方法卡片上
+    const onDropToMethod = (e, methodId) => {
+      e.preventDefault();
+      setDragOverId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "equation") return;
+      const { eqId, matchKey: eqMatchKey } = dragData;
+      const targetMethod = methods.find(m => m.id === methodId);
+      const sourceEq = equations.find(e => e.id === eqId);
+      if (!targetMethod || !sourceEq) return;
+      if (sourceEq.matched || targetMethod.matched) {
+        setErrorTip("⏳ 这个卡片已经配对过了！");
+        setTimeout(() => setErrorTip(""), 1200);
+        return;
+      }
+      // 验证匹配
+      if (targetMethod.matchKey === eqMatchKey) {
+        // 配对成功
+        setEquations(prev => prev.map(e => e.id === eqId ? { ...e, matched: true } : e));
+        setMethods(prev => prev.map(m => m.id === methodId ? { ...m, matched: true } : m));
+        setErrorTip("✅ 配对正确！继续加油～");
+        setTimeout(() => setErrorTip(""), 1000);
+        // 检查胜利
+        const newEqs = equations.map(e => e.id === eqId ? { ...e, matched: true } : e);
+        const newMeths = methods.map(m => m.id === methodId ? { ...m, matched: true } : m);
+        checkWin(newEqs, newMeths);
+      } else {
+        setErrorTip(`❌ 配对错误！“${sourceEq.text}” 的正确方法不是 “${targetMethod.desc}”。再试试看！`);
+        setTimeout(() => setErrorTip(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newEqs = gameQuestions.map((q, idx) => ({
+        id: `eq-${idx}`,
+        text: q.eq,
+        matchKey: q.matchKey,
+        matched: false
+      }));
+      let newMeths = gameQuestions.map((q, idx) => ({
+        id: `method-${idx}`,
+        desc: q.methodDesc,
+        matchKey: q.matchKey,
+        matched: false
+      }));
+      for (let i = newMeths.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newMeths[i], newMeths[j]] = [newMeths[j], newMeths[i]];
+      }
+      setEquations(newEqs);
+      setMethods(newMeths);
+      setGameWin(false);
+      setErrorTip("");
+      setDragOverId(null);
+    };
+    
+    const allMatched = equations.every(e => e.matched) && methods.every(m => m.matched);
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎮 配对魔法 · 拖拽连连看</h3>
+          <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          ✨ 把左边的方程<strong>拖拽</strong>到右边正确的解法第一步卡片上！每个只能配对一次～
+        </p>
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧方程区 */}
+          <div className="flex-1 bg-purple-50/50 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 方程卡片</div>
+            <div className="space-y-3">
+              {equations.map(eq => (
+                <div 
+                  key={eq.id}
+                  draggable={!eq.matched}
+                  onDragStart={(e) => onDragStart(e, eq.id, eq.matchKey)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-equation bg-gradient-to-r from-purple-400 to-fuchsia-300 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${eq.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl font-mono">{eq.text}</span>
+                  {eq.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* 右侧方法卡片区 */}
+          <div className="flex-1 bg-amber-50/50 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎯 解法第一步卡片</div>
+            <div className="grid grid-cols-1 gap-3">
+              {methods.map(method => (
+                <div 
+                  key={method.id}
+                  onDragOver={(e) => onDragOverMethod(e, method.id)}
+                  onDragLeave={onDragLeaveMethod}
+                  onDrop={(e) => onDropToMethod(e, method.id)}
+                  className={`border-2 rounded-xl p-3 text-center transition-all ${dragOverId === method.id ? 'drag-over bg-purple-100 border-purple-500' : 'border-amber-300 bg-white/80'} ${method.matched ? 'matched-card' : 'cursor-pointer'}`}
+                >
+                  <span className="font-semibold text-amber-800">{method.desc}</span>
+                  {method.matched && <div className="text-xs text-green-700 mt-1">✅ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {errorTip && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {errorTip}
+          </div>
+        )}
+        {allMatched && !gameWin && (
+          <div className="mt-3 text-center bg-green-200 p-2 rounded-xl text-green-800 font-bold">🎉 完美配对！点击「新的一局」继续挑战 🎉</div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🏆 太厉害了！所有方程和方法都配对成功，你已经掌握括号方程的解法啦！ 🏆
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 游戏玩法：把左边方程拖到右边对应的“解法第一步”卡片上，配对正确即可得分。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 知识点：整体法和去括号法详解 + 例题展示 ----------
+  const KnowledgeSection = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-4xl">🧙</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">第5课时 · 带括号方程 ax±b=c</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">🔑 两种核心解法</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <div className="bg-purple-50 p-3 rounded-xl">
+                <p className="font-bold text-purple-800">✨ 整体法</p>
+                <p>把括号内的式子看作一个整体，两边先除以系数a，再解简单方程。</p>
+                <p className="font-mono text-sm mt-1">例：2(x+3)=10 → 两边÷2 → x+3=5 → x=2</p>
+              </div>
+              <div className="bg-purple-50 p-3 rounded-xl">
+                <p className="font-bold text-purple-800">✨ 去括号法</p>
+                <p>用乘法分配律去掉括号，再按两步方程求解。</p>
+                <p className="font-mono text-sm mt-1">例：2(x+3)=10 → 2x+6=10 → 2x=4 → x=2</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400">
+            <p className="font-bold">📖 例题精讲 · 两种方法各解一遍</p>
+            <p className="mt-1"><strong>方程：</strong> <span className="font-mono font-bold">4(x - 2) = 12</span></p>
+            <p><span className="font-bold text-purple-700">整体法：</span> 两边同时除以4 → x - 2 = 3 → x = 5</p>
+            <p><span className="font-bold text-purple-700">去括号法：</span> 4x - 8 = 12 → 4x = 20 → x = 5</p>
+            <p className="text-sm mt-1">✅ 两种方法结果一样，选择自己喜欢的方法即可！</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            🌟 小提醒：无论用哪种方法，最后都要记得<strong>检验</strong>！
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 练习 + 易错总结 */}
+        <div className="flex-1 xl:w-3/5 space-y-6">
+          <KnowledgeSection />
+          <PracticePanel />
+          <ErrorSummary />
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

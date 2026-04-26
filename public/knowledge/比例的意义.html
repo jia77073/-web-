@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>比例的意义 · 配对魔法学院 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号（基础1.8rem，相比之前1.5rem再增大0.3rem） */
+    body {
+      font-size: 1.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    /* 调整小号文字相对比例，保持可读性 */
+    .text-xs-custom {
+      font-size: 0.65rem;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      .drag-card, .drop-slot {
+        font-size: 0.9rem;
+      }
+    }
+    /* 确保卡片内文字适中 */
+    .card-value {
+      font-size: 1.3rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 比例的意义 =======================
+  // 知识点：表示两个比相等的式子叫做比例。判断两个比能否组成比例，看比值是否相等。
+  
+  // ---------- 游戏数据：配对相等的比（组成比例）----------
+  const ratioPairs = [
+    { id: 1, leftRatio: "3 : 4", rightRatio: "6 : 8", leftValue: 0.75, rightValue: 0.75 },
+    { id: 2, leftRatio: "5 : 2", rightRatio: "10 : 4", leftValue: 2.5, rightValue: 2.5 },
+    { id: 3, leftRatio: "2 : 5", rightRatio: "4 : 10", leftValue: 0.4, rightValue: 0.4 },
+    { id: 4, leftRatio: "1 : 3", rightRatio: "3 : 9", leftValue: 1/3, rightValue: 1/3 },
+    { id: 5, leftRatio: "4 : 7", rightRatio: "8 : 14", leftValue: 4/7, rightValue: 4/7 },
+    { id: 6, leftRatio: "9 : 6", rightRatio: "3 : 2", leftValue: 1.5, rightValue: 1.5 }
+  ];
+  
+  // 游戏组件：拖拽配对（将左边比拖拽到右边相等的比上）
+  const MatchingGame = () => {
+    // 左侧比卡片（未配对）
+    const [leftCards, setLeftCards] = React.useState(() => 
+      ratioPairs.map(pair => ({
+        id: pair.id,
+        text: pair.leftRatio,
+        matchId: pair.id,
+        matched: false
+      }))
+    );
+    
+    // 右侧比槽位（打乱顺序）
+    const [rightSlots, setRightSlots] = React.useState(() => {
+      let slots = ratioPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.rightRatio,
+        matchId: pair.id,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有比例都配对成功！你已掌握比例的意义！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧卡片
+    const onDragStart = (e, cardId, matchId) => {
+      const card = leftCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "ratio", cardId, matchId }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "ratio") return;
+      const { cardId, matchId } = dragData;
+      
+      const targetSlot = rightSlots.find(s => s.id === slotId);
+      const sourceCard = leftCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个比或槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证是否匹配（matchId 相等表示比值相等）
+      if (matchId === targetSlot.matchId) {
+        // 配对成功
+        setLeftCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setRightSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.text} = ${targetSlot.text}，因为它们的比值相等，可以组成比例。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = leftCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = rightSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 和 ${targetSlot.text} 的比值不相等，不能组成比例。再试试看～`);
+        setTimeout(() => setFeedbackMsg(""), 1600);
+      }
+    };
+    
+    const resetGame = () => {
+      const newLeft = ratioPairs.map(pair => ({
+        id: pair.id,
+        text: pair.leftRatio,
+        matchId: pair.id,
+        matched: false
+      }));
+      let newRight = ratioPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.rightRatio,
+        matchId: pair.id,
+        matched: false
+      }));
+      for (let i = newRight.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newRight[i], newRight[j]] = [newRight[j], newRight[i]];
+      }
+      setLeftCards(newLeft);
+      setRightSlots(newRight);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的比拖拽到右边相等的比上，组成比例吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = leftCards.every(c => c.matched) && rightSlots.every(s => s.matched);
+    const totalPairs = ratioPairs.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎯 比例配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>比</strong>拖拽到右边<strong>比值相等的比</strong>上，组成比例！配对正确会消除。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧比卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 比卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+              {leftCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchId)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl font-mono">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧比值槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎁 相等的比 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[380px] overflow-y-auto">
+              {rightSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把比拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 魔法成功！所有比都找到了自己的伙伴，你理解了比例的意义！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 比例的意义：表示两个比相等的式子叫做比例。判断两个比能否组成比例，就看它们的比值是否相等。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：比例的意义 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">⚖️</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">比例的意义</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是比例？</p>
+            <p><strong className="bg-purple-200 px-1 rounded">表示两个比相等的式子</strong>叫做比例。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              例如：3 : 4 = 6 : 8  或  <span className="text-nowrap">3/4 = 6/8</span>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 判断方法</p>
+            <p>判断两个比能否组成比例，关键看它们的<strong className="bg-amber-200 px-1 rounded">比值是否相等</strong>。</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>分别求出两个比的比值。</li>
+              <li>如果比值相等，就能组成比例；否则不能。</li>
+            </ul>
+            <div className="mt-2 text-sm bg-amber-50 p-2 rounded">
+              🌰 例：2:5 = 0.4，4:10 = 0.4 → 2:5 = 4:10，可以组成比例。
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 比例的项</p>
+            <p>在比例 3:4 = 6:8 中，3、4、6、8都叫做比例的项。两端的两项叫做<strong>外项</strong>（3和8），中间的两项叫做<strong>内项</strong>（4和6）。</p>
+            <p className="text-sm mt-1">✨ 比例的基本性质：外项积 = 内项积（3×8 = 4×6）。</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“判断比例看比值，相等就能组比例；外项内项乘积等，比例性质要记清。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速判断练习（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ left: "3:5", right: "6:10", answer: true });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { left: "3:5", right: "6:10", answer: true },
+      { left: "4:7", right: "8:14", answer: true },
+      { left: "2:3", right: "4:9", answer: false },
+      { left: "5:2", right: "10:4", answer: true },
+      { left: "1:4", right: "2:8", answer: true },
+      { left: "7:3", right: "14:9", answer: false }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.answer);
+      if (isCorrect) {
+        setFeedback("✅ 正确！这两个比能组成比例（比值相等）");
+      } else {
+        setFeedback(`❌ 不对哦，${question.left} 和 ${question.right} 的比值 ${question.answer ? '相等' : '不相等'}，${question.answer ? '可以' : '不能'}组成比例。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 比例判断</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-mono font-bold text-2xl">{question.left} 和 {question.right}</p>
+          <p className="text-sm mb-2">能否组成比例？</p>
+          <div className="flex gap-4 justify-center">
+            <button onClick={() => checkAnswer(true)} className={`px-5 py-2 rounded-full font-bold transition ${userChoice === true ? (question.answer ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-100'}`}>✅ 能</button>
+            <button onClick={() => checkAnswer(false)} className={`px-5 py-2 rounded-full font-bold transition ${userChoice === false ? (!question.answer ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-red-100'}`}>❌ 不能</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 比例在生活中的应用：地图比例尺、调配果汁、建筑图纸…… 掌握比例，发现世界的和谐美！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

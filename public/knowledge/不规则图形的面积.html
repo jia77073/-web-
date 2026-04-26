@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>小学数学几何乐园 - 长方体和正方体 | 不规则图形面积</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- 自定义 tailwind 配置微调 -->
+    <style>
+        /* 自定义滚动条和拖拽优化 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 拖拽时的半透明效果 */
+        .drag-item:active {
+            opacity: 0.6;
+            cursor: grabbing;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #e9d5ff;
+            border-color: #7c3aed;
+            transform: scale(1.01);
+        }
+        /* 移动端优化长按菜单 */
+        [draggable=true] {
+            user-select: none;
+            -webkit-user-drag: element;
+            touch-action: manipulation;
+        }
+        /* 大号字体基础 */
+        .big-text {
+            font-size: 1.3rem;
+            line-height: 1.4;
+        }
+        @media (min-width: 768px) {
+            .big-text {
+                font-size: 1.5rem;
+            }
+        }
+        .game-card {
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#CBAACB] to-[#D9C2E6] min-h-screen p-4 md:p-6 font-sans">
+
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // 几何小课堂组件 (知识点 + 拖拽匹配游戏)
+        const GeometryGame = () => {
+            // ---------- 知识点数据 ----------
+            const knowledgePoints = {
+                cuboid: {
+                    title: "📦 长方体",
+                    content: "• 有6个面，相对的面完全相同。<br/>• 表面积公式：<span class='font-bold text-indigo-800'>S = 2(ab + ah + bh)</span><br/>• 体积公式：<span class='font-bold text-indigo-800'>V = 长 × 宽 × 高</span><br/>• 生活中的例子：文具盒、冰箱。"
+                },
+                cube: {
+                    title: "🧊 正方体",
+                    content: "• 特殊的长方体，6个面都是正方形。<br/>• 表面积公式：<span class='font-bold text-indigo-800'>S = 6a²</span><br/>• 体积公式：<span class='font-bold text-indigo-800'>V = a³</span><br/>• 特点：长宽高都相等，如骰子、魔方。"
+                },
+                irregular: {
+                    title: "🌀 不规则图形面积",
+                    content: "• 方法1：<span class='font-bold text-indigo-800'>分割法</span> → 分成几个基本图形再相加。<br/>• 方法2：<span class='font-bold text-indigo-800'>添补法</span> → 补成规则图形再减去多余部分。<br/>• 方法3：<span class='font-bold text-indigo-800'>数方格法</span>（估算）。<br/>• 示例：L形花园可以分成两个长方形求面积。"
+                }
+            };
+
+            // ---------- 游戏配置 (拖拽匹配) ----------
+            // 定义三个图形区域（目标放置区）
+            const targetSlots = [
+                { id: "cuboid", name: "长方体", icon: "📐", correctAnswerId: "ans_cuboid", hint: "表面积公式是？", description: "6个面，相对面相等" },
+                { id: "cube", name: "正方体", icon: "🎲", correctAnswerId: "ans_cube", hint: "所有棱长相等，表面积公式？", description: "6个正方形面" },
+                { id: "irregular", name: "不规则图形", icon: "🌀", correctAnswerId: "ans_irregular", hint: "怎样求它的面积？", description: "割补法 / 分割法" }
+            ];
+
+            // 可拖拽答案卡片 (小朋友要拖拽的内容)
+            const answerCards = [
+                { id: "ans_cuboid", text: "📐 长方体表面积 = (长×宽 + 长×高 + 宽×高) × 2", emoji: "📦", type: "公式" },
+                { id: "ans_cube", text: "🧊 正方体表面积 = 棱长 × 棱长 × 6", emoji: "✨", type: "公式" },
+                { id: "ans_irregular", text: "🔀 不规则图形面积 → 分割法 / 添补法，拼成基本图形", emoji: "🧩", type: "方法" }
+            ];
+
+            // 状态管理
+            // 每个放置区匹配到的答案文本 (null 表示未匹配)
+            const [slotMatches, setSlotMatches] = React.useState({
+                cuboid: null,
+                cube: null,
+                irregular: null
+            });
+            // 已经被正确使用的答案id集合 (不可重复拖拽)
+            const [usedAnswerIds, setUsedAnswerIds] = React.useState(new Set());
+            // 全局提示消息 (成功/错误反馈)
+            const [message, setMessage] = React.useState({ text: "✨ 把右边的答案卡片拖拽到对应的图形框里吧！", type: "info" });
+            // 胜利彩蛋标志
+            const [gameWin, setGameWin] = React.useState(false);
+            
+            // 拖拽相关: 记录当前正在拖拽的答案id
+            const dragAnswerIdRef = React.useRef(null);
+
+            // 监听是否全部匹配完成
+            React.useEffect(() => {
+                const allMatched = targetSlots.every(slot => slotMatches[slot.id] !== null);
+                if (allMatched && targetSlots.length > 0 && !gameWin) {
+                    setGameWin(true);
+                    setMessage({ text: "🎉 太棒了！你掌握了长方体、正方体和不规则图形的面积公式！ 🎉", type: "success" });
+                } else if (!allMatched && gameWin) {
+                    setGameWin(false);
+                }
+            }, [slotMatches, gameWin]);
+
+            // 显示临时提示（自动消失）
+            const showTemporaryMessage = (msg, type = "error") => {
+                setMessage({ text: msg, type });
+                setTimeout(() => {
+                    setMessage(prev => prev.text === msg ? { text: "💡 继续挑战！把答案拖到正确的图形区～", type: "info" } : prev);
+                }, 2000);
+            };
+
+            // 拖拽开始: 保存被拖拽的答案id
+            const handleDragStart = (e, answerId) => {
+                if (usedAnswerIds.has(answerId)) {
+                    e.preventDefault();
+                    showTemporaryMessage("⛔ 这个答案已经配对过了！点击重置按钮可以重新挑战~", "error");
+                    return false;
+                }
+                dragAnswerIdRef.current = answerId;
+                e.dataTransfer.setData("text/plain", answerId);
+                e.dataTransfer.effectAllowed = "copy";
+                // 设置拖拽图标
+                if (e.target && e.target.tagName) {
+                    e.target.style.opacity = "0.5";
+                }
+                // 移动端拖拽兼容: 需要允许拖动
+                return true;
+            };
+
+            const handleDragEnd = (e) => {
+                if (e.target) {
+                    e.target.style.opacity = "";
+                }
+                dragAnswerIdRef.current = null;
+            };
+
+            // 拖拽经过目标区时阻止默认行为以允许放置
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+
+            // 拖拽进入时高亮放置区
+            const handleDragEnter = (e, slotId) => {
+                e.preventDefault();
+                const dropZone = document.getElementById(`dropzone-${slotId}`);
+                if (dropZone) dropZone.classList.add("drag-over");
+            };
+
+            const handleDragLeave = (e, slotId) => {
+                const dropZone = document.getElementById(`dropzone-${slotId}`);
+                if (dropZone) dropZone.classList.remove("drag-over");
+            };
+
+            // 放置逻辑：判断答案是否匹配当前目标区
+            const handleDrop = (e, targetSlot) => {
+                e.preventDefault();
+                // 移除高亮
+                const dropZone = document.getElementById(`dropzone-${targetSlot.id}`);
+                if (dropZone) dropZone.classList.remove("drag-over");
+
+                // 获取拖拽的答案id
+                let draggedAnswerId = dragAnswerIdRef.current;
+                if (!draggedAnswerId) {
+                    // 备用: 从 dataTransfer 获取
+                    draggedAnswerId = e.dataTransfer.getData("text/plain");
+                }
+                if (!draggedAnswerId) return;
+
+                // 1. 检查该答案是否已经被使用过
+                if (usedAnswerIds.has(draggedAnswerId)) {
+                    showTemporaryMessage("❌ 这个卡片已经配对过了！按「🔄 重置游戏」可以重新玩哦~", "error");
+                    return;
+                }
+
+                // 2. 检查目标区域是否已经有答案匹配过了
+                if (slotMatches[targetSlot.id] !== null) {
+                    showTemporaryMessage(`⚠️ ${targetSlot.name}区域已经配对完成了！不能重复放置。重置后可重新挑战。`, "error");
+                    return;
+                }
+
+                // 3. 验证匹配: 目标的正确答案id 是否等于 拖拽的答案id
+                const isMatch = (targetSlot.correctAnswerId === draggedAnswerId);
+                if (isMatch) {
+                    // 匹配正确: 更新状态
+                    // 找到对应的答案卡片文本
+                    const matchedCard = answerCards.find(card => card.id === draggedAnswerId);
+                    const answerText = matchedCard ? matchedCard.text : "✓ 已匹配";
+                    
+                    // 更新放置区的匹配内容
+                    setSlotMatches(prev => ({
+                        ...prev,
+                        [targetSlot.id]: answerText
+                    }));
+                    // 将该答案id标记为已使用
+                    setUsedAnswerIds(prev => new Set([...prev, draggedAnswerId]));
+                    
+                    // 播放正确提示
+                    showTemporaryMessage(`✅ 正确！${targetSlot.name} 的 ${matchedCard?.type || "知识点"}配对成功！`, "success");
+                    
+                    // 检查是否全部完成，在useEffect中处理胜利信息
+                } else {
+                    // 匹配错误
+                    const wrongCard = answerCards.find(card => card.id === draggedAnswerId);
+                    const wrongText = wrongCard ? wrongCard.text : "这个答案";
+                    showTemporaryMessage(`❌ 配对错误！“${wrongText}” 不属于 ${targetSlot.name}，再试试看吧~`, "error");
+                }
+                // 清空临时拖拽id引用
+                dragAnswerIdRef.current = null;
+            };
+
+            // 重置游戏
+            const resetGame = () => {
+                setSlotMatches({
+                    cuboid: null,
+                    cube: null,
+                    irregular: null
+                });
+                setUsedAnswerIds(new Set());
+                setGameWin(false);
+                setMessage({ text: "🔄 游戏已重置！继续拖动卡片配对挑战吧！", type: "info" });
+                // 重置拖拽引用
+                dragAnswerIdRef.current = null;
+                // 额外移除所有高亮
+                document.querySelectorAll('.drop-zone').forEach(el => el.classList.remove('drag-over'));
+            };
+
+            // 计算已经正确配对数量
+            const matchedCount = Object.values(slotMatches).filter(v => v !== null).length;
+            const totalCount = targetSlots.length;
+
+            return (
+                <div className="w-full">
+                    {/* 主布局: 左侧知识点 + 右侧游戏区, 响应式 */}
+                    <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                        {/* ================= 左侧：知识点区域 ================= */}
+                        <div className="lg:w-5/12 bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-white/40">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 mb-4 flex items-center gap-2 border-b-4 border-purple-300 pb-2">
+                                📖 几何小课堂 <span className="text-lg bg-purple-200 px-3 py-1 rounded-full text-purple-800">小学必会</span>
+                            </h2>
+                            <div className="space-y-6 big-text">
+                                {/* 长方体知识点 */}
+                                <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-sm">
+                                    <h3 className="text-2xl font-bold text-indigo-700 flex items-center gap-2">📦 长方体</h3>
+                                    <div className="mt-2 text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: knowledgePoints.cuboid.content }} />
+                                    <div className="mt-3 bg-indigo-100/50 p-2 rounded-xl text-indigo-800 text-base md:text-lg">
+                                        💡 小口诀：长宽高，分三组；对面相等面积足；求表面积全相加，体积长宽高乘积出！
+                                    </div>
+                                </div>
+                                {/* 正方体知识点 */}
+                                <div className="bg-gradient-to-r from-cyan-50 to-sky-50 p-4 rounded-2xl shadow-sm">
+                                    <h3 className="text-2xl font-bold text-sky-700 flex items-center gap-2">🧊 正方体</h3>
+                                    <div className="mt-2 text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: knowledgePoints.cube.content }} />
+                                    <div className="mt-3 bg-sky-100/50 p-2 rounded-xl text-sky-800 text-base md:text-lg">
+                                        💡 正方体是特殊的长方体，棱长都相等，表面积=6a²，体积=a³。
+                                    </div>
+                                </div>
+                                {/* 不规则图形面积 */}
+                                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-2xl shadow-sm">
+                                    <h3 className="text-2xl font-bold text-amber-700 flex items-center gap-2">🌀 不规则图形面积</h3>
+                                    <div className="mt-2 text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: knowledgePoints.irregular.content }} />
+                                    <div className="mt-3 bg-amber-100/50 p-2 rounded-xl text-amber-800 text-base md:text-lg">
+                                        💡 小技巧：分割、添补、数格子，不规则图形也能变规则！
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-5 text-center text-sm text-purple-600 bg-purple-100/60 rounded-xl p-2">
+                                🌟 数学很有趣，公式记得牢，解题快又好！
+                            </div>
+                        </div>
+
+                        {/* ================= 右侧：互动小游戏 (拖拽匹配 类似“连连看+配对”) ================= */}
+                        <div className="lg:w-7/12 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 flex flex-col border border-purple-200">
+                            <div className="flex justify-between items-center flex-wrap gap-2 border-b-2 border-purple-300 pb-3 mb-4">
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                    🎮 拖拽匹配大挑战 
+                                    <span className="text-base bg-purple-200 px-3 py-1 rounded-full">🐣 动手动脑</span>
+                                </h2>
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-purple-100 rounded-full px-4 py-1 text-purple-700 font-bold text-lg">
+                                        配对进度: {matchedCount}/{totalCount}
+                                    </div>
+                                    <button 
+                                        onClick={resetGame}
+                                        className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold py-2 px-4 rounded-full shadow-md transition transform hover:scale-105 text-lg flex items-center gap-1"
+                                    >
+                                        🔄 重置游戏
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 全局消息提示 */}
+                            <div className={`mb-4 p-3 rounded-xl text-center font-medium transition-all big-text ${message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' : message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                                {message.text}
+                            </div>
+
+                            {/* 三个放置区 (目标图形区域) */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+                                {targetSlots.map(slot => (
+                                    <div 
+                                        key={slot.id}
+                                        className="bg-gradient-to-b from-purple-50 to-pink-50 rounded-2xl shadow-lg overflow-hidden border-2 border-purple-200 transition-all hover:shadow-xl"
+                                    >
+                                        <div className="bg-purple-200 p-3 text-center">
+                                            <div className="text-4xl">{slot.icon}</div>
+                                            <h3 className="text-2xl font-black text-purple-800">{slot.name}</h3>
+                                            <p className="text-sm text-purple-600">{slot.description}</p>
+                                        </div>
+                                        {/* 放置区拖拽区域 */}
+                                        <div 
+                                            id={`dropzone-${slot.id}`}
+                                            onDragOver={handleDragOver}
+                                            onDragEnter={(e) => handleDragEnter(e, slot.id)}
+                                            onDragLeave={(e) => handleDragLeave(e, slot.id)}
+                                            onDrop={(e) => handleDrop(e, slot)}
+                                            className={`drop-zone m-3 p-4 min-h-[120px] rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center ${
+                                                slotMatches[slot.id] !== null 
+                                                    ? 'bg-green-100 border-green-400 shadow-inner' 
+                                                    : 'bg-white/60 border-purple-300 hover:bg-purple-50'
+                                            }`}
+                                        >
+                                            {slotMatches[slot.id] !== null ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-3xl">✅</span>
+                                                    <p className="font-bold text-green-700 text-lg">已配对</p>
+                                                    <p className="text-sm md:text-base bg-green-50 p-1 rounded-md text-gray-700">{slotMatches[slot.id]}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <span className="text-4xl block mb-2">⬇️</span>
+                                                    <p className="text-purple-500 font-medium text-base md:text-lg">{slot.hint}</p>
+                                                    <p className="text-xs text-gray-400 mt-1">✨ 把正确答案拖到这里 ✨</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-2 text-center text-xs text-gray-400">
+                                            匹配正确卡片即可
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 可拖拽答案卡片区 (类似扭蛋机/卡片池) */}
+                            <div className="mt-2">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className="text-2xl font-bold text-purple-700 flex items-center gap-2">
+                                        🃏 拖拽卡片池 
+                                        <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">用手指/鼠标长按拖拽</span>
+                                    </h3>
+                                    <span className="text-sm text-purple-500">💡 把正确卡片拖到上方对应的图形框里</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {answerCards.map(card => {
+                                        const isUsed = usedAnswerIds.has(card.id);
+                                        return (
+                                            <div
+                                                key={card.id}
+                                                draggable={!isUsed}
+                                                onDragStart={(e) => !isUsed && handleDragStart(e, card.id)}
+                                                onDragEnd={handleDragEnd}
+                                                className={`drag-item cursor-grab active:cursor-grabbing rounded-2xl p-4 shadow-lg transition-all transform hover:scale-105 flex items-center gap-3 ${
+                                                    isUsed 
+                                                        ? 'bg-gray-300 opacity-60 cursor-not-allowed grayscale' 
+                                                        : 'bg-gradient-to-br from-amber-200 to-yellow-300 hover:from-amber-300 hover:to-yellow-400'
+                                                }`}
+                                                style={{ touchAction: 'none' }}
+                                            >
+                                                <div className="text-4xl">{card.emoji}</div>
+                                                <div className="flex-1">
+                                                    <p className={`font-bold text-base md:text-lg ${isUsed ? 'text-gray-600' : 'text-amber-900'}`}>
+                                                        {card.text.length > 30 ? card.text.substring(0, 28) + "…" : card.text}
+                                                    </p>
+                                                    <p className="text-xs text-amber-700 mt-1">{isUsed ? "✓ 已使用" : "👉 拖拽我配对"}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-5 bg-purple-100/70 p-3 rounded-xl text-purple-700 text-sm flex flex-wrap gap-2 justify-center">
+                                    <span>📌 玩法说明：</span>
+                                    <span>① 用手指/鼠标长按卡片（答案）</span>
+                                    <span>② 拖拽到上方对应的图形框中</span>
+                                    <span>③ 匹配正确即可得分！全部配对成功获得胜利🌟</span>
+                                </div>
+                                {gameWin && (
+                                    <div className="mt-4 bg-green-200 text-green-800 p-4 rounded-2xl text-center text-xl font-bold animate-pulse flex items-center justify-center gap-3">
+                                        🏆 恭喜你完成所有挑战！ 🏆<span className="text-3xl">🎉🎉🎉</span>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* 移动端适配说明辅助 */}
+                            <div className="mt-3 text-center text-xs text-purple-500">
+                                💡 小提示：如果移动端拖拽不流畅，尝试长按卡片后轻轻拖拽至目标区域即可。支持所有现代浏览器~
+                            </div>
+                        </div>
+                    </div>
+                    {/* 底部可爱装饰 */}
+                    <div className="text-center mt-8 text-purple-800 text-sm bg-white/30 rounded-full py-2 px-4 w-fit mx-auto backdrop-blur-sm">
+                        🌈 小数学家，加油！ 复习公式 + 拖拽游戏 = 几何小天才 🌟
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        ReactDOM.createRoot(document.getElementById("root")).render(
+            <React.StrictMode>
+                <GeometryGame />
+            </React.StrictMode>
+        );
+    </script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🍰 分数的初步认识 · 数学游乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+    }
+    .drag-card:active {
+      opacity: 0.7;
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.2s ease;
+    }
+    .drop-zone.drag-over {
+      background-color: #e9d5ff;
+      border-color: #9b4dff;
+      transform: scale(1.02);
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#CBAACB] to-[#D9C2E6] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（分数的初步认识）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-purple-200/80 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-purple-300 pb-3 mb-4">
+          <span className="text-3xl">🍰</span>
+          <h2 className="text-2xl font-extrabold text-purple-800">分数的初步认识<br/><span className="text-sm font-normal">平均分 · 几分之一 · 几分之几</span></h2>
+        </div>
+        <div className="space-y-4 text-purple-800">
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700 flex items-center gap-2">📖 什么是分数？</p>
+            <p className="text-sm mt-1">把一个整体<span className="font-bold">平均分</span>成若干份，表示这样的一份或几份的数叫做分数。<br/>
+            比如：把一个蛋糕平均分成4份，取其中1份就是 <span className="inline-block font-mono font-bold text-purple-700 bg-purple-200 px-2 rounded">¼</span> ，读作四分之一。</p>
+            <div className="mt-2 text-center text-xs bg-white/60 p-2 rounded-lg">
+              <span className="font-bold">3</span>  &nbsp;← 分子（表示取的份数）<br/>
+              —— &nbsp;分数线<br/>
+              <span className="font-bold">4</span>  &nbsp;← 分母（表示平均分的总份数）
+            </div>
+          </div>
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700">🍕 生活小例子：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li>把披萨平均分成2块，一块就是 <span className="font-mono font-bold">½</span></li>
+              <li>把巧克力平均分成8块，3块就是 <span className="font-mono font-bold">⅜</span></li>
+              <li>一个圆形平均分成4份，其中3份就是 <span className="font-mono font-bold">¾</span></li>
+            </ul>
+          </div>
+          <div className="bg-purple-50/90 rounded-2xl p-4 border border-purple-200">
+            <p className="font-bold text-purple-700">🎯 小口诀：</p>
+            <p className="text-sm italic text-center">分母表示总份数，分子表示取几份；<br/>平均分是前提，分数才能说得清。</p>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center">
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">½ 读作二分之一</span>
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">¼ 读作四分之一</span>
+              <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">¾ 读作四分之三</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-purple-700 bg-purple-100/70 p-2 rounded-xl">
+          🎮 右边游戏：把分数卡片拖拽到正确的披萨图案下面吧！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 圆形分数绘制组件 (Canvas) ----------
+  // 根据分数值绘制圆形着色部分（支持 1/2, 1/4, 3/4 等）
+  const drawFractionCircle = (canvas, fractionValue, size = 120) => {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const centerX = size / 2;
+    const centerY = size / 2;
+    const radius = size / 2 - 6;
+    
+    // 解析分数
+    let [numerator, denominator] = fractionValue.split('/').map(Number);
+    if (isNaN(numerator) || isNaN(denominator)) return;
+    
+    // 清空
+    ctx.clearRect(0, 0, size, size);
+    
+    // 绘制背景浅色圆 (未着色部分)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = '#FDE68A'; // 淡黄色饼皮
+    ctx.fill();
+    ctx.strokeStyle = '#D97706';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 根据分数计算需要着色的扇形 (从顶部开始顺时针)
+    const angle = (numerator / denominator) * 2 * Math.PI;
+    if (angle > 0) {
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      // 起始角度为 -PI/2 (12点钟方向)
+      ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + angle);
+      ctx.closePath();
+      // 着色使用草莓酱色
+      ctx.fillStyle = '#EC4899';
+      ctx.fill();
+      ctx.strokeStyle = '#D97706';
+      ctx.stroke();
+    }
+    
+    // 画内部小圆心标记 (可选)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = '#FCD34D';
+    ctx.fill();
+    
+    // 如果分母为2/4/8等，可以画辅助线增加趣味 (简单画几条线)
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY - radius);
+    ctx.lineTo(centerX, centerY + radius);
+    ctx.moveTo(centerX - radius, centerY);
+    ctx.lineTo(centerX + radius, centerY);
+    ctx.strokeStyle = '#FDE68A';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // 根据分母画分割虚线
+    if (denominator === 4) {
+      // 画两条对角线 (45度和135度)
+      const offset = radius * 0.707;
+      ctx.beginPath();
+      ctx.moveTo(centerX - offset, centerY - offset);
+      ctx.lineTo(centerX + offset, centerY + offset);
+      ctx.moveTo(centerX + offset, centerY - offset);
+      ctx.lineTo(centerX - offset, centerY + offset);
+      ctx.stroke();
+    }
+  };
+  
+  // 圆形分数组件
+  const FractionCircle = ({ fraction, size = 120, isMatched = false }) => {
+    const canvasRef = React.useRef(null);
+    React.useEffect(() => {
+      if (canvasRef.current) {
+        drawFractionCircle(canvasRef.current, fraction, size);
+      }
+    }, [fraction, size]);
+    return (
+      <div className="relative flex justify-center">
+        <canvas 
+          ref={canvasRef} 
+          width={size} 
+          height={size} 
+          className="rounded-full shadow-md bg-white/30"
+          style={{ width: size, height: size }}
+        />
+        {isMatched && (
+          <div className="absolute inset-0 flex items-center justify-center bg-purple-500/40 rounded-full backdrop-blur-sm">
+            <span className="text-4xl">✅</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // ---------- 拖拽配对游戏 ----------
+  // 初始分数数据
+  const FRACTIONS_DATA = [
+    { value: "1/2", display: "½", name: "二分之一" },
+    { value: "1/4", display: "¼", name: "四分之一" },
+    { value: "3/4", display: "¾", name: "四分之三" }
+  ];
+  
+  // 生成随机顺序数组
+  const shuffleArray = (arr) => {
+    const newArr = [...arr];
+    for (let i = newArr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+  };
+  
+  const DragDropGame = ({ resetKey, onNewGame }) => {
+    // 图形列表顺序（初始随机）
+    const [fractionsOrder, setFractionsOrder] = React.useState(() => shuffleArray(FRACTIONS_DATA));
+    // 卡片列表顺序（初始随机，卡片内容与分数对应）
+    const [cardsOrder, setCardsOrder] = React.useState(() => shuffleArray(FRACTIONS_DATA));
+    // 已匹配的分数值集合（配对成功的分数）
+    const [matchedSet, setMatchedSet] = React.useState(new Set());
+    // 临时错误提示消息
+    const [errorMsg, setErrorMsg] = React.useState('');
+    // 胜利状态
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 重置整个游戏 (外部触发新游戏)
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    const resetGame = () => {
+      // 随机打乱图形和卡片顺序
+      setFractionsOrder(shuffleArray(FRACTIONS_DATA));
+      setCardsOrder(shuffleArray(FRACTIONS_DATA));
+      setMatchedSet(new Set());
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 检查是否全部匹配
+    React.useEffect(() => {
+      if (matchedSet.size === FRACTIONS_DATA.length && FRACTIONS_DATA.length > 0) {
+        setIsVictory(true);
+      } else {
+        if (isVictory && matchedSet.size !== FRACTIONS_DATA.length) setIsVictory(false);
+      }
+    }, [matchedSet]);
+    
+    // 处理拖拽开始
+    const onDragStart = (e, fractionValue, cardItem) => {
+      // 如果这个卡片已经被匹配过了，不允许拖拽
+      if (matchedSet.has(fractionValue)) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', fractionValue);
+      e.dataTransfer.effectAllowed = 'copy';
+      // 自定义拖拽图像（可选）
+      e.target.style.opacity = '0.5';
+      e.dataTransfer.setDragImage(e.target, 20, 20);
+    };
+    
+    const onDragEnd = (e) => {
+      e.target.style.opacity = '';
+    };
+    
+    const onDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      // 添加高亮样式
+      const dropZone = e.currentTarget;
+      if (!dropZone.classList.contains('drag-over')) {
+        dropZone.classList.add('drag-over');
+      }
+    };
+    
+    const onDragLeave = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 处理放置
+    const onDrop = (e, targetFraction) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const draggedFraction = e.dataTransfer.getData('text/plain');
+      if (!draggedFraction) return;
+      
+      // 检查目标图形是否已经被匹配过
+      if (matchedSet.has(targetFraction)) {
+        setErrorMsg('🎯 这个披萨已经配对过了！换一个试试～');
+        setTimeout(() => setErrorMsg(''), 1500);
+        return;
+      }
+      
+      // 检查拖拽的卡片是否已经被匹配（安全）
+      if (matchedSet.has(draggedFraction)) {
+        setErrorMsg('🌟 这个卡片已经用过了哟！');
+        setTimeout(() => setErrorMsg(''), 1500);
+        return;
+      }
+      
+      // 判断分数是否匹配
+      if (draggedFraction === targetFraction) {
+        // 配对成功
+        setMatchedSet(prev => {
+          const newSet = new Set(prev);
+          newSet.add(draggedFraction);
+          return newSet;
+        });
+        // 成功小提示 (无错误)
+        setErrorMsg('');
+      } else {
+        // 配对错误
+        setErrorMsg(`❌ 不对哦！ ${draggedFraction} 应该拖到对应颜色的披萨下面～ 再试试看！`);
+        setTimeout(() => setErrorMsg(''), 1800);
+      }
+    };
+    
+    // 换一组新题目（重新洗牌）
+    const handleNewRound = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    // 判断卡片是否已被匹配，用于控制draggable和显示隐藏
+    const isCardMatched = (fractionValue) => matchedSet.has(fractionValue);
+    
+    // 胜利时的彩带动效
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-green-300 to-emerald-400 rounded-2xl p-3 mt-2 animate-bounce shadow-lg">
+        <div className="text-2xl font-bold text-white">🎉 太棒啦！ 🎉</div>
+        <div className="text-sm text-white font-semibold">你已经掌握了分数的初步认识！点击“新的一轮”继续挑战～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 游戏标题区 */}
+        <div className="flex justify-between items-center flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🍕</span>
+            <h3 className="font-bold text-purple-800">拖拽配对 · 分数小厨师</h3>
+          </div>
+          <div className="text-xs bg-white/60 rounded-full px-3 py-1 text-purple-700">
+            已配对 {matchedSet.size} / {FRACTIONS_DATA.length}
+          </div>
+        </div>
+        
+        {/* 左侧图形区域（上面展示分数图，下方放置区） */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {fractionsOrder.map((fractionObj) => {
+            const fractionValue = fractionObj.value;
+            const isMatched = matchedSet.has(fractionValue);
+            return (
+              <div key={fractionValue} className="flex flex-col items-center bg-white/50 rounded-2xl p-3 shadow-md">
+                {/* 圆形分数图 */}
+                <FractionCircle fraction={fractionValue} size={110} isMatched={isMatched} />
+                {/* 放置区（Drop Zone） */}
+                <div
+                  className={`drop-zone w-full mt-3 p-3 text-center rounded-xl border-3 border-dashed transition-all ${
+                    isMatched 
+                      ? 'bg-green-100 border-green-400 text-green-700' 
+                      : 'bg-purple-50 border-purple-300 text-purple-600 hover:bg-purple-100'
+                  }`}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={(e) => onDrop(e, fractionValue)}
+                >
+                  {isMatched ? (
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-2xl">✅</span>
+                      <span className="font-bold font-mono">{fractionObj.display}</span>
+                      <span className="text-sm">已配对</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-medium">
+                      🧸 把 <span className="font-mono font-bold">{fractionObj.display}</span> 拖到这里 →
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* 可拖拽卡片区域 */}
+        <div className="mt-2">
+          <div className="text-center text-sm font-semibold text-purple-700 bg-white/40 rounded-full py-1 mb-3">
+            🧸 下面这些分数卡片，请你拖拽到对应披萨下面的盒子里！
+          </div>
+          <div className="flex flex-wrap justify-center gap-4">
+            {cardsOrder.map((card) => {
+              const isMatchedCard = isCardMatched(card.value);
+              return (
+                <div
+                  key={card.value}
+                  draggable={!isMatchedCard}
+                  onDragStart={(e) => onDragStart(e, card.value, card)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-28 h-28 rounded-2xl shadow-lg flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition-all ${
+                    isMatchedCard 
+                      ? 'bg-gray-300 opacity-50 cursor-default shadow-inner' 
+                      : 'bg-gradient-to-br from-pink-200 to-purple-200 hover:scale-105 border-2 border-purple-400'
+                  }`}
+                >
+                  {isMatchedCard ? (
+                    <div className="text-center">
+                      <div className="text-3xl">✔️</div>
+                      <div className="text-xs text-gray-600">已完成</div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-5xl font-black text-purple-800">{card.display}</div>
+                      <div className="text-xs text-purple-600 mt-1">{card.name}</div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* 错误提示或胜利信息 */}
+        {errorMsg && (
+          <div className="text-center bg-amber-100 text-amber-800 font-bold p-2 rounded-xl border-l-4 border-amber-500 animate-pulse">
+            {errorMsg}
+          </div>
+        )}
+        
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={handleNewRound}
+            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🎲 新的一轮（洗牌）
+          </button>
+        </div>
+        
+        <div className="text-xs text-center text-purple-800 bg-white/50 rounded-full py-1.5 px-3">
+          💡 小提示：先看左边披萨被涂色的部分，再找对应的分数卡片拖拽进去！配对正确会变绿哟～
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (淡紫主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGameRequest = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-purple-200/80">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-purple-800 flex items-center gap-2">
+                <span className="text-2xl">🍭</span>
+                小小糕点师 · 分数配对
+              </h3>
+              <span className="text-sm bg-purple-100 px-3 py-1 rounded-full text-purple-700">✨ 拖拽卡片到盒子 ✨</span>
+            </div>
+            <DragDropGame resetKey={gameResetKey} onNewGame={handleNewGameRequest} />
+          </div>
+          <div className="text-xs text-center text-purple-800 bg-white/60 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>🎮 玩法：把右边的分数卡片，拖到左边对应颜色披萨下面的方框里。</span>
+            <span>🏆 全部配对成功就能获得小厨师勋章！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

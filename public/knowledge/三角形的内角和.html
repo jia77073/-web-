@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>三角形的内角和 · 角度拼图师 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .angle-badge {
+      background: #fef9e6;
+      border-radius: 1rem;
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 三角形的内角和 =======================
+  // 知识点：三角形内角和等于180°。
+  
+  // ---------- 游戏数据：8个角度组合（4个能构成三角形，4个不能）----------
+  const angleGroups = [
+    { id: 1, angles: [30, 60, 90], canForm: true, display: "30°, 60°, 90°" },
+    { id: 2, angles: [45, 45, 90], canForm: true, display: "45°, 45°, 90°" },
+    { id: 3, angles: [60, 60, 60], canForm: true, display: "60°, 60°, 60°" },
+    { id: 4, angles: [50, 60, 70], canForm: true, display: "50°, 60°, 70°" },
+    { id: 5, angles: [30, 40, 100], canForm: false, display: "30°, 40°, 100°" },
+    { id: 6, angles: [20, 50, 110], canForm: false, display: "20°, 50°, 110°" },
+    { id: 7, angles: [90, 30, 50], canForm: false, display: "90°, 30°, 50°" },
+    { id: 8, angles: [120, 30, 20], canForm: false, display: "120°, 30°, 20°" }
+  ];
+  
+  // 生成右侧可拖拽卡片（每组角度一个卡片，打乱顺序）
+  const generateCards = () => {
+    let cards = angleGroups.map(group => ({
+      id: `card-${group.id}`,
+      text: group.display,
+      canForm: group.canForm,
+      matched: false
+    }));
+    // 打乱顺序
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    return cards;
+  };
+  
+  // 游戏组件：拖拽配对（将角度组合卡片拖拽到“能”或“不能”的槽位）
+  const MatchingGame = () => {
+    const [cards, setCards] = React.useState(() => generateCards());
+    // 两个槽位：can（内角和为180°），cannot（内角和不为180°）
+    const [slots, setSlots] = React.useState({
+      can: { filledCards: [], correctLabel: "能构成三角形" },
+      cannot: { filledCards: [], correctLabel: "不能构成三角形" }
+    });
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalCards = cards.length;
+    const matchedCount = cards.filter(c => c.matched).length;
+    
+    const checkVictory = (currentCards) => {
+      const allMatched = currentCards.every(c => c.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有角度组合都判断正确！你已是内角和专家！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, canForm) => {
+      const card = cards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, canForm }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, canForm } = dragData;
+      
+      const sourceCard = cards.find(c => c.id === cardId);
+      if (!sourceCard || sourceCard.matched) {
+        setFeedbackMsg("⏳ 这张卡片已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 判断拖拽到的槽位是否正确：slotId为"can"时要求canForm为true，"cannot"时要求canForm为false
+      let isCorrect = false;
+      if (slotId === "can" && canForm === true) isCorrect = true;
+      if (slotId === "cannot" && canForm === false) isCorrect = true;
+      
+      if (!isCorrect) {
+        const targetSlotName = slotId === "can" ? "能构成三角形" : "不能构成三角形";
+        setFeedbackMsg(`❌ 配对错误！“${sourceCard.text}” 的内角和是 ${canForm ? 180 : '不是180'}°，不应该放在“${targetSlotName}”区域。再算一算内角和吧～`);
+        setTimeout(() => setFeedbackMsg(""), 2000);
+        return;
+      }
+      
+      // 配对成功
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setSlots(prev => ({
+        ...prev,
+        [slotId]: { ...prev[slotId], filledCards: [...prev[slotId].filledCards, sourceCard.text] }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！“${sourceCard.text}” 的内角和是 ${canForm ? '180°' : '不是180°'}，${canForm ? '能' : '不能'}构成三角形！`);
+      setTimeout(() => setFeedbackMsg(""), 1200);
+      
+      const newCards = cards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+      checkVictory(newCards);
+    };
+    
+    const resetGame = () => {
+      setCards(generateCards());
+      setSlots({
+        can: { filledCards: [], correctLabel: "能构成三角形" },
+        cannot: { filledCards: [], correctLabel: "不能构成三角形" }
+      });
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把角度组合卡片拖拽到正确的区域（能/不能构成三角形）吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">📐 内角和配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalCards}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：计算每个角度组合的内角和，然后将下面的<strong>角度卡片</strong>拖拽到上方正确的区域（“能构成三角形”或“不能构成三角形”）。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col gap-4 flex-1">
+          {/* 两个槽位区域：能构成三角形 和 不能构成三角形 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 能构成三角形槽位 */}
+            <div 
+              onDragOver={(e) => onDragOverSlot(e, "can")}
+              onDragLeave={onDragLeaveSlot}
+              onDrop={(e) => onDropToSlot(e, "can")}
+              className={`drop-slot rounded-2xl p-3 text-center transition-all ${dragOverSlotId === "can" ? 'drag-over' : ''}`}
+            >
+              <div className="text-xl font-bold text-green-800 mb-2">✅ 能构成三角形（内角和=180°）</div>
+              <div className="min-h-[120px] bg-white/50 rounded-xl p-2">
+                {slots.can.filledCards.length === 0 ? (
+                  <div className="text-gray-500 text-sm">⬅️ 把能构成三角形的卡片拖拽到这里</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {slots.can.filledCards.map((text, idx) => (
+                      <div key={idx} className="bg-green-100 px-3 py-1 rounded-full text-sm font-mono">{text}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 不能构成三角形槽位 */}
+            <div 
+              onDragOver={(e) => onDragOverSlot(e, "cannot")}
+              onDragLeave={onDragLeaveSlot}
+              onDrop={(e) => onDropToSlot(e, "cannot")}
+              className={`drop-slot rounded-2xl p-3 text-center transition-all ${dragOverSlotId === "cannot" ? 'drag-over' : ''}`}
+            >
+              <div className="text-xl font-bold text-red-700 mb-2">❌ 不能构成三角形（内角和≠180°）</div>
+              <div className="min-h-[120px] bg-white/50 rounded-xl p-2">
+                {slots.cannot.filledCards.length === 0 ? (
+                  <div className="text-gray-500 text-sm">⬅️ 把不能构成三角形的卡片拖拽到这里</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {slots.cannot.filledCards.map((text, idx) => (
+                      <div key={idx} className="bg-red-100 px-3 py-1 rounded-full text-sm font-mono">{text}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* 卡片池区域 */}
+          <div className="bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 角度组合卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[300px] overflow-y-auto">
+              {cards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.canForm)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-44 h-28 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-base px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个卡片只能用一次，根据三角形内角和180°判断能否构成三角形。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 角度拼图师！你已完全掌握三角形内角和定理！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 三角形内角和 = 180°。已知两个角，可以求出第三个角；已知三个角，和为180°才能构成三角形。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：三角形的内角和 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📐</span>
+          <h2 className="text-3xl font-extrabold text-green-900">三角形的内角和</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 重要定理</p>
+            <p><strong>三角形内角和等于180°</strong>。</p>
+            <p>无论是什么形状的三角形，三个内角的度数之和总是180°。</p>
+            <div className="mt-2 bg-green-100 p-2 rounded-lg font-mono text-center">∠A + ∠B + ∠C = 180°</div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 验证方法</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>量一量：用量角器测量三个角，再加起来。</li>
+              <li>拼一拼：把三个角剪下来拼在一起，正好成一个平角（180°）。</li>
+            </ul>
+            <div className="mt-2 flex justify-center">
+              <svg width="180" height="100" viewBox="0 0 200 100">
+                <polygon points="30,70 90,70 60,20" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2" />
+                <path d="M 45 35 A 15 15 0 0 1 60 25" fill="none" stroke="#d97706" strokeWidth="1.5" />
+                <path d="M 60 25 A 15 15 0 0 1 75 35" fill="none" stroke="#d97706" strokeWidth="1.5" />
+                <path d="M 75 35 A 15 15 0 0 1 45 35" fill="none" stroke="#d97706" strokeWidth="1.5" />
+                <text x="35" y="30" fontSize="12" fill="#b45309">∠1</text>
+                <text x="65" y="18" fontSize="12" fill="#b45309">∠2</text>
+                <text x="80" y="35" fontSize="12" fill="#b45309">∠3</text>
+              </svg>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 应用</p>
+            <p>已知三角形两个角的度数，可以求出第三个角的度数：<br/>
+            ∠C = 180° - ∠A - ∠B。</p>
+            <p className="text-sm mt-1">🌰 已知∠A=50°，∠B=60°，则∠C=180-50-60=70°。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>一个三角形，∠A=40°，∠B=70°，∠C=（ ）°；一个三角形，∠A=90°，∠B=45°，∠C=（ ）°。</p>
+            <p className="text-sm text-green-700">（答案：70，45）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“三角形内角和，永远一百八；已知两个角，第三轻松加。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：求未知角（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ a: 50, b: 60, answer: 70 });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { a: 50, b: 60, answer: 70, text: "∠A=50°，∠B=60°，∠C=?" },
+      { a: 90, b: 45, answer: 45, text: "∠A=90°，∠B=45°，∠C=?" },
+      { a: 30, b: 30, answer: 120, text: "∠A=30°，∠B=30°，∠C=?" },
+      { a: 80, b: 50, answer: 50, text: "∠A=80°，∠B=50°，∠C=?" },
+      { a: 120, b: 30, answer: 30, text: "∠A=120°，∠B=30°，∠C=?" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const userVal = parseFloat(userAnswer);
+      if (isNaN(userVal)) {
+        setFeedback("📛 输入数字答案哟～");
+        return;
+      }
+      if (Math.abs(userVal - question.answer) < 0.01) {
+        setFeedback(`✅ 正确！${question.text} ∠C = ${question.answer}°。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.answer}°。内角和是180°，∠C=180-${question.a}-${question.b}=${question.answer}。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 求未知角</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="number" step="any" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-green-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="输入度数"
+            />
+            <button onClick={checkAnswer} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 三角形内角和定理是几何中最重要的定理之一，它帮助我们计算未知角度，也为学习多边形内角和打下基础。
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

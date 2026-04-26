@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>六年级浓度问题·配比实验室 | 拖拽排序 + 应用题闯关</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (移动端完美支持) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 6px 0 #c29b4a;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #ffe0a3;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        /* 浓度小提示 */
+        .concentration-badge {
+            background: #e9d5ff;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 浓度问题 (求浓度、溶质、稀释、浓缩、混合配比)
+        const concentrationQuestions = [
+            {
+                text: "🧪 把 20 克盐放入 80 克水中，完全溶解后，盐水的浓度是多少？",
+                answer: 20,
+                solution: "🎯 浓度公式：浓度 = (溶质质量 ÷ 溶液质量) × 100%。溶液质量 = 盐 + 水 = 20+80=100克，浓度 = 20÷100×100% = 20%。"
+            },
+            {
+                text: "💧 现有 200 克浓度为 15% 的盐水，其中含盐多少克？含水多少克？(回答含盐质量即可)",
+                answer: 30,
+                solution: "🎯 溶质质量 = 溶液质量 × 浓度 = 200 × 15% = 30 (克)，水 = 200 - 30 = 170 克。"
+            },
+            {
+                text: "🚰 有一杯 300 克浓度为 8% 的糖水，要把它稀释成 5% 的糖水，需要加水多少克？",
+                answer: 180,
+                solution: "🎯 稀释前后溶质质量不变。原糖 = 300×8% = 24克。稀释后溶液 = 24÷5% = 480克，加水 = 480 - 300 = 180克。"
+            },
+            {
+                text: "🧂 在 400 克浓度为 10% 的盐水中，加入 100 克盐，完全溶解后新盐水的浓度是多少？",
+                answer: 28,
+                solution: "🎯 原盐 = 400×10% = 40克，加盐后总盐 = 40+100=140克，溶液质量 = 400+100=500克，新浓度 = 140÷500×100% = 28%。"
+            },
+            {
+                text: "⚗️ 现有两种盐水，甲种浓度为 30%，乙种浓度为 10%，要配制成 20% 的盐水 200 克，需要甲种盐水多少克？",
+                answer: 100,
+                solution: "🎯 十字交叉法或方程：设甲 x 克，乙 (200-x)克，则 30%x + 10%(200-x) = 20%×200 → 0.3x+20-0.1x=40 → 0.2x=20 → x=100。"
+            },
+            {
+                text: "🌊 一瓶 500 克浓度为 20% 的酒精溶液，倒出 100 克后，再用水加满，此时酒精浓度是多少？",
+                answer: 16,
+                solution: "🎯 倒出100克，倒出酒精 = 100×20%=20克，剩余酒精 = 500×20% - 20 = 100-20=80克，溶液仍为500克，浓度 = 80÷500×100%=16%。"
+            },
+            {
+                text: "🥤 在 600 克浓度为 5% 的糖水中，加入 200 克浓度为 20% 的糖水，混合后的浓度是多少？",
+                answer: 8.75,
+                solution: "🎯 总糖 = 600×5% + 200×20% = 30 + 40 = 70克，总溶液 = 600+200=800克，浓度 = 70÷800×100% = 8.75%。"
+            },
+            {
+                text: "🧴 有含盐 15% 的盐水 200 克，要使其浓度变为 25%，需要蒸发掉多少克水？",
+                answer: 80,
+                solution: "🎯 浓缩时溶质不变。原盐 = 200×15% = 30克，新溶液质量 = 30÷25% = 120克，蒸发水 = 200-120=80克。"
+            },
+            {
+                text: "🧪 实验室需要配置 10% 的盐酸溶液 500 克，现有 25% 的盐酸溶液，需要加水多少克？",
+                answer: 300,
+                solution: "🎯 稀释：设需要 25% 盐酸 x 克，则 0.25x = 500×10% = 50 → x=200克，加水 = 500-200=300克。"
+            }
+        ];
+
+        // 左侧浓度应用题组件
+        const ConcentrationApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * concentrationQuestions.length);
+                const newQ = { ...concentrationQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (concentrationQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = parseFloat(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案（整数或小数）哟～");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！浓度问题掌握得非常扎实！ 🧪🔬");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。看看解题思路吧～`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载浓度题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-300 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">🧪</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">浓度实验室·配比高手</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-[#F3E8FF] to-[#FDE9F0] rounded-2xl p-4 mb-5 shadow-inner">
+                        <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">溶质·溶剂·溶液·浓度</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>🧂 <span className="font-semibold">基本公式</span>：浓度 = (溶质质量 ÷ 溶液质量) × 100%；溶液 = 溶质 + 溶剂。</li>
+                            <li>💧 <span className="font-semibold">稀释问题</span>：加水前后溶质质量不变，新溶液质量 = 原溶质 ÷ 新浓度。</li>
+                            <li>🔥 <span className="font-semibold">浓缩问题</span>：蒸发水（或加溶质）前后溶质（或溶剂）质量不变，找准不变量。</li>
+                            <li>🧪 <span className="font-semibold">混合配比</span>：总溶质 = 各溶液溶质之和，总溶液 = 各溶液质量之和，再求浓度。</li>
+                            <li>⚖️ <span className="font-semibold">十字交叉法</span>：适用于两种溶液混合求质量比。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目卡片 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-amber-400 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 浓度挑战</span>
+                            <button onClick={handleNext} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="number" 
+                                step="any"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入你的答案 (数字)"
+                                className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈区 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 解题思路</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-purple-600 text-sm italic">💡 提示：抓住不变量（溶质或溶剂），灵活运用浓度公式。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        🧪 浓度 = (溶质/溶液)×100%  |  稀释加溶剂  |  浓缩蒸发水或加溶质
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏：浓度问题解题步骤拖拽排序 (稀释/浓缩/混合经典)
+        const stepsChallenges = [
+            {
+                title: "🧪 挑战1：稀释问题",
+                description: "有 200 克浓度为 20% 的盐水，要稀释成 10% 的盐水，需要加水多少克？",
+                correctSteps: [
+                    "① 稀释前后溶质质量不变。原溶质 = 200 × 20% = 40 (克)。",
+                    "② 稀释后溶液质量 = 溶质 ÷ 新浓度 = 40 ÷ 10% = 400 (克)。",
+                    "③ 需要加水的质量 = 新溶液 - 原溶液 = 400 - 200 = 200 (克)。",
+                    "④ 答：需要加水 200 克。"
+                ]
+            },
+            {
+                title: "🔥 挑战2：浓缩（蒸发水）",
+                description: "有 300 克浓度为 8% 的盐水，要使其浓度变为 12%，需要蒸发掉多少克水？",
+                correctSteps: [
+                    "① 蒸发水前后溶质不变。原溶质 = 300 × 8% = 24 (克)。",
+                    "② 新溶液质量 = 溶质 ÷ 新浓度 = 24 ÷ 12% = 200 (克)。",
+                    "③ 蒸发水质量 = 原溶液 - 新溶液 = 300 - 200 = 100 (克)。",
+                    "④ 答：需要蒸发掉 100 克水。"
+                ]
+            },
+            {
+                title: "🧴 挑战3：混合配比",
+                description: "将 100 克 30% 的盐水与 200 克 15% 的盐水混合，混合后浓度是多少？",
+                correctSteps: [
+                    "① 分别计算溶质：甲溶质 = 100×30% = 30克；乙溶质 = 200×15% = 30克。",
+                    "② 总溶质 = 30 + 30 = 60 克；总溶液 = 100 + 200 = 300 克。",
+                    "③ 混合后浓度 = 60 ÷ 300 × 100% = 20%。",
+                    "④ 答：混合后浓度为 20%。"
+                ]
+            },
+            {
+                title: "⚗️ 挑战4：加盐浓缩",
+                description: "在 400 克浓度为 10% 的盐水中加入多少克盐，可以使其浓度变为 20%？",
+                correctSteps: [
+                    "① 原溶质 = 400×10% = 40克；设加盐 x 克。",
+                    "② 新溶质 = 40 + x，新溶液 = 400 + x。",
+                    "③ 根据浓度公式：(40+x) / (400+x) = 20% = 0.2。",
+                    "④ 解方程：40+x = 0.2(400+x) → 40+x = 80+0.2x → 0.8x=40 → x=50 (克)。"
+                ]
+            }
+        ];
+
+        // 右侧拖拽排序组件
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            // 随机加载挑战并打乱步骤顺序
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                const stepsCopy = [...newChallenge.correctSteps];
+                // Fisher-Yates 打乱顺序
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确的浓度解题逻辑顺序排列！(从上到下)');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 每当 shuffledSteps 变化，重新初始化 Sortable 实例
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) sortableRef.current.destroy();
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => { /* 无额外动作，用户主动检查 */ }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            // 检查排序顺序是否正确
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美排序！浓度问题解题逻辑完全正确！成为配比大师！🏅');
+                    setCheckStyle('success');
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想浓度问题的解题流程：找不变量→列关系式→计算→作答。重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载趣味排序游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·浓度特工队</h2>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-indigo-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下逻辑递进）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[320px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-amber-400 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-purple-500">
+                        💡 拖拽卡片调整顺序，排序正确即掌握浓度解题逻辑（分析不变量→列式→求解→作答）。
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 拖拽排序小游戏融合浓度知识点：稀释·浓缩·混合配比，在排序中强化溶质守恒思维！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件：左右布局
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 浓度应用题训练 */}
+                    <div className="flex-1">
+                        <ConcentrationApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

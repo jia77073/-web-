@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🔮 分数的基本性质 · 薰衣草庄园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(230, 220, 250, 0.6);
+      border: 2px dashed #9b7bc9;
+    }
+    .drop-slot.drag-over {
+      background-color: #e9daff;
+      border-color: #7c3aed;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #e0cdfa;
+      border: 2px solid #8b5cf6;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .lavender-bg {
+      background-image: radial-gradient(circle at 20% 40%, rgba(139, 92, 246, 0.08) 2.5%, transparent 2.8%);
+      background-size: 38px 38px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#E9D9FF] to-[#C4B5FD] min-h-screen flex items-center justify-center p-4 font-sans lavender-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数：约分/计算最简分数，以及判断两个分数是否相等（利用十字相乘）----------
+  const areEqualFractions = (fracA, fracB) => {
+    const [aNum, aDen] = fracA.split('/').map(Number);
+    const [bNum, bDen] = fracB.split('/').map(Number);
+    if (isNaN(aNum) || isNaN(aDen) || isNaN(bNum) || isNaN(bDen) || aDen === 0 || bDen === 0) return false;
+    return aNum * bDen === bNum * aDen;
+  };
+
+  // 生成一个随机分数（最简形式，分母2~12，分子小于分母或者大于分母，但保持合理范围）
+  const generateSimpleFraction = (existingSet) => {
+    const maxAttempts = 30;
+    for (let i = 0; i < maxAttempts; i++) {
+      let denominator = Math.floor(Math.random() * 11) + 2; // 2~12
+      let numerator = Math.floor(Math.random() * (denominator * 2)) + 1; // 1 ~ 2*denom
+      // 避免分数过于复杂，但保留多样性
+      const fraction = `${numerator}/${denominator}`;
+      // 可选：不强制最简，但为了漂亮，但无所谓
+      if (!existingSet.has(fraction)) {
+        existingSet.add(fraction);
+        return fraction;
+      }
+    }
+    return "2/3";
+  };
+
+  // 根据一个基准分数，生成它的若干个等值分数（分子分母同时乘k, k=2~5）
+  const generateEquivalentFractions = (baseFraction, count = 2) => {
+    const [num, den] = baseFraction.split('/').map(Number);
+    let equivalents = [];
+    let usedMultipliers = new Set();
+    for (let i = 0; i < count * 2; i++) {
+      let k = Math.floor(Math.random() * 5) + 2; // 2~6
+      while (usedMultipliers.has(k)) {
+        k = Math.floor(Math.random() * 5) + 2;
+      }
+      usedMultipliers.add(k);
+      const newNum = num * k;
+      const newDen = den * k;
+      if (newNum <= 60 && newDen <= 60) { // 保持数字不大
+        equivalents.push(`${newNum}/${newDen}`);
+      }
+      if (equivalents.length === count) break;
+    }
+    // 如果不够，补简单倍数
+    while (equivalents.length < count) {
+      let k = equivalents.length + 2;
+      equivalents.push(`${num * k}/${den * k}`);
+    }
+    return equivalents;
+  };
+
+  // 生成一组挑战目标 (包含一个基准分数 + 需要匹配的等值分数列表)
+  // 每个目标对象: { id, baseFraction, targetSlots: [{expectedFraction, matched:false, matchedValue:null}] }
+  // 简化设计：每个目标分数下面设置2个等值分数槽位。玩家需要将正确的等值分数卡片拖拽到对应槽位。
+  const generateChallengeSet = (count = 3) => {
+    let usedBaseFractions = new Set();
+    let challenges = [];
+    for (let i = 0; i < count; i++) {
+      let baseFrac = generateSimpleFraction(usedBaseFractions);
+      usedBaseFractions.add(baseFrac);
+      let equivalents = generateEquivalentFractions(baseFrac, 2); // 每个基准分数配2个等值分数
+      let slots = equivalents.map(frac => ({
+        expectedFraction: frac,
+        matched: false,
+        matchedValue: null
+      }));
+      challenges.push({
+        id: `ch-${Date.now()}-${i}-${Math.random()}`,
+        baseFraction: baseFrac,
+        slots: slots
+      });
+    }
+    return challenges;
+  };
+
+  // 生成所有卡片池：包含所有挑战中的期望等值分数 + 若干干扰项（非等值但形式相似的分数）
+  const generateAnswerCards = (challenges) => {
+    let correctFractions = new Set();
+    challenges.forEach(ch => {
+      ch.slots.forEach(slot => {
+        correctFractions.add(slot.expectedFraction);
+      });
+    });
+    let correctArray = Array.from(correctFractions);
+    // 干扰池（随机生成一些分数，确保不等于任何正确等值分数，也不等于基准分数）
+    let distractorPool = [];
+    let usedDistractors = new Set();
+    let attempts = 0;
+    while (distractorPool.length < Math.min(correctArray.length, 4) && attempts < 60) {
+      let fakeFrac = generateSimpleFraction(new Set());
+      // 确保不是任何正确等值分数，也不是任何基准分数（但基准分数不一定会出现在卡片里，不过无妨）
+      let isDistractor = !correctFractions.has(fakeFrac);
+      if (isDistractor && !usedDistractors.has(fakeFrac)) {
+        usedDistractors.add(fakeFrac);
+        distractorPool.push(fakeFrac);
+      }
+      attempts++;
+    }
+    // 额外加几个经典干扰
+    const extraDistractors = ["3/4", "5/6", "4/5", "7/8"];
+    for (let ex of extraDistractors) {
+      if (!correctFractions.has(ex) && distractorPool.length < correctArray.length + 1) {
+        if (!distractorPool.includes(ex)) distractorPool.push(ex);
+      }
+    }
+    let allCardValues = [...correctArray, ...distractorPool];
+    // 洗牌
+    for (let i = allCardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCardValues[i], allCardValues[j]] = [allCardValues[j], allCardValues[i]];
+    }
+    return allCardValues.map((val, idx) => ({
+      id: `card-${Date.now()}-${idx}-${Math.random()}`,
+      value: val,
+      used: false
+    }));
+  };
+
+  // ---------- 左侧知识点卡片：分数的基本性质 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#F5F0FF]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#C4B5FD] h-full text-[#4C1D95]">
+        <div className="flex items-center gap-2 border-b-2 border-[#A78BFA] pb-3 mb-4">
+          <span className="text-4xl">🔮</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">分数的基本性质<br/><span className="text-sm font-normal text-[#6D28D9]">薰衣草课堂 · 等值变换</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#EDE9FE] rounded-2xl p-4 border border-[#C4B5FD]">
+            <p className="font-bold text-[#5B21B6] flex items-center gap-2">✨ 核心性质</p>
+            <p className="text-sm mt-1">分数的分子和分母同时乘或除以相同的数（0除外），分数的大小不变。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg inline-block shadow-sm">📖 例：1/2 = 2/4 = 3/6 = 4/8 ……</div>
+          </div>
+          <div className="bg-[#EDE9FE] rounded-2xl p-4 border border-[#C4B5FD]">
+            <p className="font-bold text-[#5B21B6]">🔍 应用场景</p>
+            <p className="text-sm mt-1">约分、通分、比较大小都离不开分数的基本性质。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">⚡ 约分：分子分母同除以公因数 → 最简分数</div>
+            <div className="mt-1 text-xs bg-white/70 p-2 rounded-lg">✨ 通分：化为同分母分数</div>
+          </div>
+          <div className="bg-[#E0D5FF] rounded-2xl p-3 text-center text-sm border border-[#A78BFA]">
+            🎯 庄园挑战：将右侧「等值分数卡片」拖拽到对应基准分数下方的空槽中。每个槽位匹配一个正确的等值分数！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：等值分数匹配挑战 ----------
+  const EquivalentFractionGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => generateChallengeSet(3));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 根据challenges刷新卡片池
+    const initCards = (currentChallenges) => {
+      return generateAnswerCards(currentChallenges);
+    };
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    // 检查胜利：所有挑战的所有槽位都被填满
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.slots.every(slot => slot.matched === true));
+      if (allFilled && !isVictory) {
+        setIsVictory(true);
+      } else if (!allFilled && isVictory) {
+        setIsVictory(false);
+      }
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    // 重置整个游戏
+    const resetGame = () => {
+      const newChallenges = generateChallengeSet(3);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    // 槽位拖拽悬停
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到具体槽位 (challengeId, slotIndex)
+    const onDropToSlot = (e, challengeId, slotIndex) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      let draggedCardId, draggedValue;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('🌸 这张卡片已经被使用过了！不能重复投放。');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      // 找到对应的挑战和槽位
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      const targetSlot = targetChallenge.slots[slotIndex];
+      if (targetSlot.matched) {
+        setErrorMsg('🔮 这个等值分数槽位已有匹配，不能再放啦！');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      // 验证拖拽的分数是否与期望的等值分数相等（利用分数的基本性质比较）
+      const expectedFrac = targetSlot.expectedFraction;
+      const isEqual = areEqualFractions(draggedValue, expectedFrac);
+      if (!isEqual) {
+        setErrorMsg(`❌ 不匹配！ ${draggedValue} 与 ${expectedFrac} 不相等。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1700);
+        return;
+      }
+      
+      // 正确匹配：更新卡片为已用，更新槽位状态
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].slots[slotIndex].matched = true;
+      newChallenges[challengeIndex].slots[slotIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度（不清除数对，只重置匹配状态和卡片）
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        slots: ch.slots.map(slot => ({ ...slot, matched: false, matchedValue: null }))
+      }));
+      const resetCards = answerCards.map(card => ({ ...card, used: false }));
+      // 打乱卡片顺序增加趣味
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 全新游戏（重新生成基准分数与等值分数）
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    // 统计数据
+    const totalSlots = challenges.reduce((acc, ch) => acc + ch.slots.length, 0);
+    const filledSlots = challenges.reduce((acc, ch) => acc + ch.slots.filter(s => s.matched).length, 0);
+    const progressPercent = totalSlots === 0 ? 0 : (filledSlots / totalSlots) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-purple-400 to-indigo-500 rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#F3E8FF]">
+        <div className="text-2xl font-bold text-white">🌸 完美庄园！全部匹配正确 🌸</div>
+        <div className="text-sm text-purple-100 font-semibold">所有等值分数都已归位！点击「全新挑战」继续练习～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#F3ECFE]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#CBB9FF]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎯</span>
+            <span className="font-bold text-[#5B21B6]">等值配对进度</span>
+            <span className="text-lg font-black text-purple-800">{filledSlots} / {totalSlots}</span>
+          </div>
+          <div className="w-36 bg-[#DDD0FF] rounded-full h-2.5">
+            <div className="bg-[#8B5CF6] h-2.5 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#EADDFF] px-2 py-1 rounded-full text-purple-800 border border-[#B49BEF]">🔮 拖拽等值卡片 放入花槽</div>
+        </div>
+        
+        {/* 挑战区域：每个基准分数 + 槽位 */}
+        <div className="bg-[#F7F2FF]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#CABEFF]">
+          <div className="text-center text-sm font-semibold text-[#5B21B6] mb-3">📌 将右侧等值分数卡片拖拽到对应基准分数的下方空槽中</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-[#F3E9FF] rounded-xl p-3 border border-[#BCA9F5] shadow-sm">
+                <div className="text-center mb-3">
+                  <div className="text-xl font-black text-purple-900 bg-white/60 inline-block px-4 py-1 rounded-full shadow-sm">
+                    {challenge.baseFraction}
+                  </div>
+                  <div className="text-[10px] text-purple-600 mt-1">基准分数</div>
+                </div>
+                <div className="space-y-3">
+                  {challenge.slots.map((slot, idx) => (
+                    <div
+                      key={idx}
+                      className={`drop-slot rounded-xl p-2 text-center transition-all ${slot.matched ? 'filled-slot' : ''}`}
+                      onDragOver={onDragOverSlot}
+                      onDragLeave={onDragLeaveSlot}
+                      onDrop={(e) => onDropToSlot(e, challenge.id, idx)}
+                    >
+                      <div className="text-xs font-semibold text-purple-700">🌸 等值分数槽 {idx+1}</div>
+                      {slot.matched ? (
+                        <div className="text-lg font-bold text-purple-800 mt-1">{slot.matchedValue}</div>
+                      ) : (
+                        <div className="text-sm text-purple-500 mt-1 border-t border-dashed border-purple-300 pt-1">⬅️ 拖拽卡片至此</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-[#F2EAFF]/80 rounded-2xl p-4 border border-[#CAB6FC]">
+          <div className="text-center text-sm font-semibold text-[#5B21B6] mb-2">🎴 分数卡片库（拖拽到上方等值槽位）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-xl font-bold transition-all ${
+                  card.used 
+                    ? 'bg-gray-300/60 cursor-default border-2 border-gray-400 text-gray-500' 
+                    : 'bg-gradient-to-br from-purple-200 to-indigo-200 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-purple-500 text-purple-900'
+                }`}
+              >
+                {card.used ? '✓ 已用' : card.value}
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-purple-500">加载卡片中...</div>}
+          </div>
+          <div className="text-[11px] text-center text-purple-700 mt-2">💡 每个卡片只能用一次，匹配正确的等值分数即可填满花槽</div>
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FDE68A]/90 text-purple-800 font-bold p-2.5 rounded-xl border-l-8 border-[#F59E0B] backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-1">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#A78BFA] hover:bg-[#8B5CF6] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批分数）
+          </button>
+        </div>
+        <div className="text-xs text-center text-purple-900 bg-[#EFE6FF]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 小提示：分数的分子分母同时乘或除以相同的数，分数大小不变。找到与基准分数等值的卡片拖拽到对应槽位！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#F9F5FF]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#CBB9FF]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#5B21B6] flex items-center gap-2">
+                <span className="text-3xl">🔮</span>
+                等值分数 · 薰衣草庄园
+              </h3>
+              <span className="text-sm bg-[#E0CFFF] px-3 py-1 rounded-full text-purple-800 border border-purple-300">🎴 拖拽匹配挑战</span>
+            </div>
+            <EquivalentFractionGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

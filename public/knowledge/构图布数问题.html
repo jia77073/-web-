@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>构图布数小英雄 | 图形填数 · 数字规律 · 逻辑推理</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 自定义拖拽效果 */
+        .dragging-card {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            transition: 0.08s linear;
+            box-shadow: 0 0 0 4px #c084fc, 0 0 0 8px rgba(192,132,252,0.3);
+            background-color: #f3e8ff !important;
+        }
+        /* 自定义滚动条 */
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #9333ea;
+            border-radius: 10px;
+        }
+        /* 胜利闪光 */
+        .win-glow {
+            animation: winPulse 0.6s ease-in-out 2;
+        }
+        @keyframes winPulse {
+            0% { box-shadow: 0 0 0 0 #c084fc; }
+            50% { box-shadow: 0 0 0 12px rgba(192,132,252,0.6); background-color: #fae8ff; }
+            100% { box-shadow: 0 0 0 0 #c084fc; }
+        }
+        [draggable=true] {
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        /* 三角形图形中用flex自定义定位 */
+        .triangle-container {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            aspect-ratio: 1 / 0.9;
+        }
+        .slot-circle {
+            transition: all 0.1s ease;
+            cursor: pointer;
+        }
+        /* 移动端小调整 */
+        @media (max-width: 640px) {
+            .slot-circle {
+                width: 48px;
+                height: 48px;
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-fuchsia-50 to-purple-100 min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root"></div>
+
+<script type="text/babel">
+    // 构图布数专项训练 —— 三角形填数 (每条边和相等)
+    const { useState, useCallback, useEffect, useRef } = React;
+
+    // 三角形6个位置的索引定义:
+    // 0: 上顶点, 1: 左下顶点, 2: 右下顶点, 3: 左边中点, 4: 右边中点, 5: 底边中点
+    // 三条边组成:
+    // 边A: 上顶点(0) - 左边中点(3) - 左下顶点(1)
+    // 边B: 上顶点(0) - 右边中点(4) - 右下顶点(2)
+    // 边C: 左下顶点(1) - 底边中点(5) - 右下顶点(2)
+    const EDGES = [
+        [0, 3, 1],   // 左边
+        [0, 4, 2],   // 右边
+        [1, 5, 2]    // 底边
+    ];
+
+    // 获取所有边的和（基于slots数组）
+    const getEdgeSums = (slots) => {
+        return EDGES.map(edge => {
+            let sum = 0;
+            for (let idx of edge) {
+                const val = slots[idx];
+                if (val === null || val === undefined) return null; // 未填满
+                sum += val;
+            }
+            return sum;
+        });
+    };
+
+    // 检查胜利条件: 每个位置都填满 && 三边和相等
+    const checkWinCondition = (slots) => {
+        if (slots.some(s => s === null)) return false;
+        const sums = getEdgeSums(slots);
+        if (sums.some(s => s === null)) return false;
+        return sums[0] === sums[1] && sums[1] === sums[2];
+    };
+
+    // 生成随机打乱的数字数组 (1~6)
+    const getShuffledNumbers = () => {
+        const arr = [1, 2, 3, 4, 5, 6];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    // 主组件
+    const GraphFillGame = () => {
+        // 6个槽位，存储数字或null
+        const [slots, setSlots] = useState(Array(6).fill(null));
+        // 下方数字卡片展示顺序（未使用的数字按此顺序展示）
+        const [cardOrder, setCardOrder] = useState(() => getShuffledNumbers());
+        // 胜利状态
+        const [isWin, setIsWin] = useState(false);
+        // 反馈消息
+        const [message, setMessage] = useState("✨ 把数字拖拽到三角形空位，让每条边数字之和相等！");
+        // 拖拽中的数字值
+        const dragValueRef = useRef(null);
+        // 是否已经胜利弹窗效果（避免重复）
+        const winFlagRef = useRef(false);
+        
+        // 计算当前未被使用的数字集合 (基于slots中已经填写的值)
+        const getUnusedNumbers = useCallback(() => {
+            const used = slots.filter(v => v !== null);
+            const all = [1,2,3,4,5,6];
+            const unused = all.filter(n => !used.includes(n));
+            // 返回未使用数字列表，按照 cardOrder 的顺序展示（但需要保证顺序仅影响显示）
+            // 如果某些数字不在cardOrder中（重置等），我们合并排序: 优先按cardOrder顺序，其余追加
+            const orderSet = new Set(cardOrder);
+            const ordered = cardOrder.filter(n => unused.includes(n));
+            const rest = unused.filter(n => !orderSet.has(n)).sort((a,b)=>a-b);
+            return [...ordered, ...rest];
+        }, [slots, cardOrder]);
+        
+        // 重新计算胜利状态
+        useEffect(() => {
+            const win = checkWinCondition(slots);
+            if (win && !winFlagRef.current) {
+                setIsWin(true);
+                setMessage("🎉🎉 太棒啦！三条边和完全相等！你真是布数小天才！ 🎉🎉");
+                winFlagRef.current = true;
+                // 添加动画效果
+                const container = document.getElementById("triangleContainer");
+                if (container) container.classList.add("win-glow");
+                setTimeout(() => {
+                    if (container) container.classList.remove("win-glow");
+                }, 800);
+            } else if (!win) {
+                if (winFlagRef.current) winFlagRef.current = false;
+                setIsWin(false);
+                // 如果未胜利但全部填满给出提示
+                if (!slots.some(s => s === null)) {
+                    const sums = getEdgeSums(slots);
+                    if (sums[0] !== null && (sums[0] !== sums[1] || sums[1] !== sums[2])) {
+                        setMessage("⚠️ 所有格子已经填满，但三边和不相等，再调整试试看！可以拖拽数字互相替换或重置全部~");
+                    }
+                } else {
+                    if (!isWin) setMessage(prev => prev.includes("胜利") ? "💪 继续尝试！把数字拖拽到空圈里，让三边和相等~" : prev);
+                }
+            }
+        }, [slots]);
+        
+        // 重置当前题目（清空所有槽位，但保留数字顺序不重置? 不清除原数字顺序只清空槽位）
+        const resetSlots = () => {
+            setSlots(Array(6).fill(null));
+            setIsWin(false);
+            winFlagRef.current = false;
+            setMessage("🔄 已清空所有格子，重新拖拽数字挑战吧！");
+        };
+        
+        // 换一题：完全重置，打乱卡片顺序，清空槽位
+        const handleNewGame = () => {
+            const newOrder = getShuffledNumbers();
+            setCardOrder(newOrder);
+            setSlots(Array(6).fill(null));
+            setIsWin(false);
+            winFlagRef.current = false;
+            setMessage("🌟 新题目来啦！将1~6的数字拖拽到三角形中，让每条边和相等！");
+        };
+        
+        // 拖拽数字开始
+        const onDragStart = (e, num) => {
+            if (isWin) {
+                e.preventDefault();
+                setMessage("🏆 已经获胜啦！点「换一题」继续挑战吧！");
+                return false;
+            }
+            dragValueRef.current = num;
+            e.dataTransfer.setData("text/plain", num);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target.classList) e.target.classList.add("dragging-card");
+        };
+        
+        const onDragEnd = (e) => {
+            if (e.target.classList) e.target.classList.remove("dragging-card");
+            dragValueRef.current = null;
+            // 移除高亮
+            document.querySelectorAll(".slot-circle").forEach(el => {
+                el.classList.remove("drop-zone-active");
+            });
+        };
+        
+        // 槽位拖拽悬停
+        const onDragOverSlot = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (!isWin && e.currentTarget) {
+                e.currentTarget.classList.add("drop-zone-active");
+            }
+        };
+        const onDragLeaveSlot = (e) => {
+            if (e.currentTarget) e.currentTarget.classList.remove("drop-zone-active");
+        };
+        
+        // 放置数字到指定槽位
+        const onDropToSlot = (e, slotIndex) => {
+            e.preventDefault();
+            const targetSlot = e.currentTarget;
+            if (targetSlot) targetSlot.classList.remove("drop-zone-active");
+            if (isWin) {
+                setMessage("🎉 已经胜利啦！点换一题试试新挑战吧");
+                return;
+            }
+            const draggedNumRaw = e.dataTransfer.getData("text/plain");
+            if (!draggedNumRaw) return;
+            const draggedNum = parseInt(draggedNumRaw, 10);
+            if (isNaN(draggedNum)) return;
+            
+            // 当前目标槽位的原有数字
+            const oldValue = slots[slotIndex];
+            
+            // 如果要放置的数字正好是未使用的数字 或者 是从其他槽位拖拽过来? 
+            // 我们允许拖拽替换：如果新数字与旧数字相同不做改变；若不同则需要保证新数字目前不在其他槽位中(除被替换的槽位外)
+            // 标准规则：每个数字必须恰好使用一次（1~6各一次）
+            // 获取当前所有槽位已用的数字(除了当前slot)
+            const currentUsed = slots.filter((val, idx) => idx !== slotIndex && val !== null);
+            // 新数字不能已经出现在其他槽位中（除非替换掉当前数值后，当前数值将被释放）
+            if (currentUsed.includes(draggedNum)) {
+                setMessage(`❌ 数字 ${draggedNum} 已经被使用啦！每个数字只能用一次，试试先替换或重置吧。`);
+                return;
+            }
+            
+            // 执行替换逻辑：如果原slot有数字，则原数字被“释放”，新数字填入
+            const newSlots = [...slots];
+            newSlots[slotIndex] = draggedNum;
+            setSlots(newSlots);
+            
+            // 动态调整卡片顺序（释放的数字会重新出现在未使用集合中，但是拖拽端是直接从卡片区拖的，并不需要改变cardOrder，卡片区会根据unused重新渲染）
+            // 但是为了效果，我们可以简单刷新，由于未使用数字的计算基于slots，自动同步；不需要另外操作。
+            setMessage(`✅ 已将数字 ${draggedNum} 放入${getSlotName(slotIndex)}，继续调整让三边和相等吧！`);
+            // 如果胜利状态会触发useEffect
+        };
+        
+        const getSlotName = (idx) => {
+            const names = ['上顶点', '左下顶点', '右下顶点', '左边中点', '右边中点', '底边中点'];
+            return names[idx] || '位置';
+        };
+        
+        // 未使用的数字列表（用于显示可拖拽卡片）
+        const unusedNumbers = getUnusedNumbers();
+        
+        // 渲染三角形图形中的每个圆圈
+        const renderSlots = () => {
+            // 六个位置的绝对坐标（百分比）
+            const positions = [
+                { top: "0%", left: "50%", transform: "translate(-50%, -50%)" },     // 上顶点
+                { top: "75%", left: "15%", transform: "translate(-50%, -50%)" },    // 左下
+                { top: "75%", left: "85%", transform: "translate(-50%, -50%)" },    // 右下
+                { top: "38%", left: "22%", transform: "translate(-50%, -50%)" },     // 左中点
+                { top: "38%", left: "78%", transform: "translate(-50%, -50%)" },     // 右中点
+                { top: "82%", left: "50%", transform: "translate(-50%, -50%)" }      // 底中点
+            ];
+            return slots.map((value, idx) => (
+                <div
+                    key={idx}
+                    draggable={false}
+                    onDragOver={onDragOverSlot}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, idx)}
+                    className="slot-circle absolute w-12 h-12 md:w-16 md:h-16 bg-white rounded-full shadow-lg flex items-center justify-center text-2xl font-bold border-4 border-purple-400 cursor-pointer transition hover:scale-105"
+                    style={{ ...positions[idx], zIndex: 10 }}
+                >
+                    {value !== null ? value : "?"}
+                </div>
+            ));
+        };
+        
+        // 绘制三角形连线（简易svg背景）
+        const TriangleLines = () => (
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 360" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+                <polygon points="200,30 60,300 340,300" fill="none" stroke="#c084fc" strokeWidth="3" strokeDasharray="6 6" />
+                {/* 中线辅助线增强可视化 */}
+                <line x1="200" y1="30" x2="200" y2="300" stroke="#d8b4fe" strokeWidth="2" strokeDasharray="4 4" opacity="0.4" />
+                <line x1="60" y1="300" x2="340" y2="300" stroke="#d8b4fe" strokeWidth="2" strokeDasharray="4 4" opacity="0.4" />
+                <line x1="200" y1="30" x2="60" y2="300" stroke="#e9d5ff" strokeWidth="2" opacity="0.6" />
+                <line x1="200" y1="30" x2="340" y2="300" stroke="#e9d5ff" strokeWidth="2" opacity="0.6" />
+                <line x1="60" y1="300" x2="340" y2="300" stroke="#e9d5ff" strokeWidth="2" opacity="0.6" />
+                {/* 顶点小装饰 */}
+                <circle cx="200" cy="30" r="4" fill="#a855f7" />
+                <circle cx="60" cy="300" r="4" fill="#a855f7" />
+                <circle cx="340" cy="300" r="4" fill="#a855f7" />
+            </svg>
+        );
+        
+        // 计算当前各边和状态预览
+        const edgeSums = getEdgeSums(slots);
+        const allFilled = !slots.some(s => s === null);
+        const isValidPreview = allFilled && edgeSums.every(s => s !== null);
+        const sumsEqual = isValidPreview && (edgeSums[0] === edgeSums[1] && edgeSums[1] === edgeSums[2]);
+        
+        return (
+            <div className="max-w-7xl mx-auto">
+                {/* 主标题 - 字体缩小了一号：原 text-5xl md:text-6xl 改为 text-4xl md:text-5xl */}
+                <div className="text-center mb-6">
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-900 to-fuchsia-700 drop-shadow-md">
+                        🧩 构图布数 · 图形填数大挑战 🧠
+                    </h1>
+                    <p className="text-purple-800 text-lg font-semibold mt-1">数字推理 | 和相等 | 尝试归纳法</p>
+                </div>
+                
+                {/* 左右布局 */}
+                <div className="flex flex-col lg:flex-row gap-7">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 border border-purple-200 custom-scroll overflow-y-auto">
+                        <div className="flex items-center gap-2 border-b-2 border-purple-400 pb-2 mb-4">
+                            <span className="text-3xl">📖</span>
+                            <span className="text-3xl font-bold text-purple-900">核心知识点</span>
+                        </div>
+                        <div className="space-y-4 text-gray-800 text-base md:text-lg">
+                            <div className="bg-purple-50 p-4 rounded-xl">
+                                <p className="font-extrabold text-purple-800 text-xl">🎨 构图布数 · 图形填数</p>
+                                <p className="mt-1">在特定图形（三角形、正方形、点阵）中填入数字，使得每条线、每个区域的和、差、积满足相等或特定规律。</p>
+                            </div>
+                            <div className="bg-indigo-50 p-4 rounded-xl">
+                                <p className="font-bold text-purple-800 flex items-center">✨ 核心思维 ✨</p>
+                                <ul className="list-disc list-inside space-y-1 mt-1">
+                                    <li><strong className="text-fuchsia-700">尝试法</strong>：大胆假设，小心验证，调整数字位置。</li>
+                                    <li><strong>和相等关键</strong>：顶点数字往往被重复计算，灵活运用“公共点”。</li>
+                                    <li><strong>数字不重复</strong>：1~6各用一次，每条边和相等 → 总和加顶点重复 = 三边之和。</li>
+                                </ul>
+                            </div>
+                            <div className="bg-fuchsia-50 p-4 rounded-xl">
+                                <p className="font-bold">🔍 三角形填数挑战</p>
+                                <p>三角形6个圆圈，每条边3个数字，总和要相等。已知所有数字和为21，三边和总和 = 21 + 三个顶点数字重复和。从而可以推断顶点和，再尝试填数。</p>
+                                <p className="text-sm mt-1 text-purple-700">💡 小技巧：先确定三个顶点数字的组合，再调整边中点。</p>
+                            </div>
+                            <div className="bg-amber-50 p-3 rounded-lg text-sm">
+                                📌 玩法说明：把下方数字<strong>拖拽</strong>到三角形空位上，让三个边的数字和相等！每个数字只能用一次。可随时按“重置全部”重新开始。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧互动游戏区 */}
+                    <div className="lg:w-3/5 bg-white/95 rounded-3xl shadow-2xl p-5 border-2 border-purple-300 flex flex-col">
+                        {/* 题目区域与动态状态 */}
+                        <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                            <div className="flex items-center gap-2 bg-purple-100 px-4 py-2 rounded-full">
+                                <span className="text-purple-700 font-bold">🎯 目标：</span>
+                                <span className="text-purple-800 font-mono">三条边数字和相等</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={resetSlots} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full shadow transition text-sm md:text-base">🧹 重置全部</button>
+                                <button onClick={handleNewGame} className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-5 rounded-full shadow flex items-center gap-1 transition text-sm md:text-base">🔄 换一题</button>
+                            </div>
+                        </div>
+                        
+                        {/* 三角形图形容器 拖拽放置区 */}
+                        <div id="triangleContainer" className="triangle-container relative mb-3 bg-gradient-to-br from-purple-50 to-fuchsia-50 rounded-2xl shadow-inner p-4" style={{ minHeight: '320px' }}>
+                            <div className="relative w-full h-full" style={{ paddingBottom: '85%' }}>
+                                <TriangleLines />
+                                {renderSlots()}
+                            </div>
+                            <p className="text-center text-xs text-gray-500 mt-3">✨ 将数字拖拽到 ? 圆圈上 ✨</p>
+                        </div>
+                        
+                        {/* 边和实时预览 */}
+                        <div className="grid grid-cols-3 gap-2 bg-purple-50 rounded-2xl p-3 mb-5 text-center">
+                            {EDGES.map((_, idx) => {
+                                const sumVal = edgeSums[idx];
+                                let color = "text-gray-600";
+                                if (allFilled && sumVal !== null) color = "text-purple-700 font-bold";
+                                if (sumsEqual && allFilled) color = "text-green-600";
+                                return (
+                                    <div key={idx} className="bg-white rounded-xl py-1 shadow-sm">
+                                        <div className="text-sm text-purple-500">{idx === 0 ? "🔺左边" : idx === 1 ? "🔻右边" : "🔽底边"}</div>
+                                        <div className={`text-xl font-black ${color}`}>{sumVal !== null ? sumVal : "?"}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 拖拽数字卡片区 */}
+                        <div className="bg-purple-100 rounded-2xl p-4 shadow-inner">
+                            <p className="font-bold text-center text-purple-800 mb-3 text-lg">🎲 可拖拽数字卡片（每个数字只能用一次）</p>
+                            <div className="flex flex-wrap justify-center gap-3 md:gap-4">
+                                {unusedNumbers.length === 0 && !isWin && (
+                                    <div className="text-center text-amber-700 w-full">所有数字都已填入！检查边和是否相等，或重置继续挑战~</div>
+                                )}
+                                {unusedNumbers.map(num => (
+                                    <div
+                                        key={num}
+                                        draggable={!isWin}
+                                        onDragStart={(e) => onDragStart(e, num)}
+                                        onDragEnd={onDragEnd}
+                                        className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl shadow-lg flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition hover:scale-105 border-2 border-purple-500"
+                                    >
+                                        <span className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{num}</span>
+                                        <span className="text-[10px] font-bold text-purple-900">拖拽我</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-center text-gray-600 mt-3">👉 拖拽数字卡片放到三角形上的问号圆圈中，可覆盖替换。</p>
+                        </div>
+                        
+                        {/* 反馈信息 */}
+                        <div className={`mt-5 text-center py-3 px-4 rounded-full font-medium text-base md:text-lg ${isWin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'} shadow-inner`}>
+                            {isWin ? "🏆 恭喜胜利！完美布数！点击「换一题」继续闯关 🏆" : message}
+                        </div>
+                        
+                        {/* 附加说明 */}
+                        <div className="text-xs text-purple-500 text-center mt-3 border-t pt-3 border-purple-200">
+                            💡 小秘诀：三个顶点数之和 ×2 + 三条边中点之和 = 3×边和，灵活推理。多尝试拖拽，锻炼逻辑思维！
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<GraphFillGame />);
+</script>
+</body>
+</html>

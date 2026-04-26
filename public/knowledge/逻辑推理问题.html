@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>逻辑小侦探 · 真假推理训练营</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM CDN (稳定版) -->
+    <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js"></script>
+    <style>
+        /* 保证页面可见 */
+        body {
+            background: linear-gradient(145deg, #f3e8ff 0%, #e9d5ff 100%);
+            font-family: 'Segoe UI', 'Comic Neue', sans-serif;
+            margin: 0;
+            padding: 1rem;
+            min-height: 100vh;
+        }
+        .drag-card {
+            transition: transform 0.1s ease;
+            user-select: none;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        .drop-zone-highlight {
+            background-color: #e9d5ff;
+            border-color: #9333ea;
+        }
+        [draggable="true"] {
+            user-select: none;
+            -webkit-user-drag: element;
+        }
+        button {
+            cursor: pointer;
+        }
+        /* 确保移动端触摸友好 */
+        .drag-card {
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body>
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script>
+    // 直接使用 React.createElement 避免 Babel 编译问题，确保页面100%渲染
+    // --------------------------------------------------------------
+    // 逻辑推理题库 (真假话、排列、排除法等)
+    // --------------------------------------------------------------
+    const LOGIC_QUESTIONS = [
+        {
+            id: 1,
+            title: "🎭 谁说了真话？",
+            scenario: "三个小朋友：小红、小明、小刚，其中一人打破了窗户。\n小红说：“是小明打破的。”\n小明说：“不是我打破的。”\n小刚说：“不是我打破的。”\n已知只有一人说了真话。请问是谁打破了窗户？",
+            hint: "逐个假设打破者，看谁说真话。",
+            options: ["小红", "小明", "小刚"],
+            correctAnswer: "小刚",
+            explanation: "假设小刚打破：小红假，小明真，小刚假 → 唯一真话，成立。"
+        },
+        {
+            id: 2,
+            title: "🐱 猫狗兔子排座位",
+            scenario: "小猫、小狗、小兔三只动物排成一排。条件：小猫不在最左边，小狗不在最右边，小兔的左边是小狗。问从左到右顺序？",
+            hint: "小兔左边是小狗 => 小狗-小兔相邻，小狗在左。",
+            options: ["狗-兔-猫", "猫-狗-兔", "狗-猫-兔", "兔-狗-猫"],
+            correctAnswer: "狗-兔-猫",
+            explanation: "狗-兔-猫 满足小狗左、猫不在最左、狗不在最右。"
+        },
+        {
+            id: 3,
+            title: "🎂 谁偷吃了蛋糕？",
+            scenario: "A、B、C、D四个孩子，只有一人偷吃。\nA说：是B吃的；B说：是D吃的；C说：我没吃；D说：B说谎。只有一人说真话。谁偷吃？",
+            hint: "假设每个人是偷吃者，检验真话数量。",
+            options: ["A", "B", "C", "D"],
+            correctAnswer: "C",
+            explanation: "假设C偷吃：A假，B假，C假，D真 → 唯一真话成立。"
+        },
+        {
+            id: 4,
+            title: "🏠 谁住在中间？",
+            scenario: "红、蓝、绿三间房排成一排。红不在左，蓝不在右，绿挨着红。问中间房子颜色？",
+            hint: "画位置表，排除法。",
+            options: ["红色", "蓝色", "绿色"],
+            correctAnswer: "绿色",
+            explanation: "红在右 → 绿在中 → 蓝在左，(蓝-绿-红) 中间绿。"
+        },
+        {
+            id: 5,
+            title: "📦 宝石在哪个盒子？",
+            scenario: "金、银、铜、铁四个盒子，只有一颗宝石。四句话只有一句真：\n金：宝石不在这；银：宝石在金盒；铜：宝石不在银盒；铁：宝石在铜或铁盒。宝石在哪？",
+            hint: "逐一假设宝石位置。",
+            options: ["金盒", "银盒", "铜盒", "铁盒"],
+            correctAnswer: "银盒",
+            explanation: "假设宝石在银盒：金真，银假，铜假，铁假 → 唯一真话成立。"
+        }
+    ];
+
+    // 可拖拽卡片组件（原生 drag & drop）
+    function DragCard({ value, disabled }) {
+        const handleDragStart = (e) => {
+            if (disabled) {
+                e.preventDefault();
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", value);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target) e.target.style.opacity = "0.6";
+        };
+        const handleDragEnd = (e) => {
+            if (e.target) e.target.style.opacity = "";
+        };
+        return React.createElement(
+            "div",
+            {
+                draggable: !disabled,
+                onDragStart: handleDragStart,
+                onDragEnd: handleDragEnd,
+                className: `drag-card bg-gradient-to-br from-amber-100 to-yellow-200 border-4 border-purple-500 rounded-2xl w-28 h-28 md:w-32 md:h-28 flex items-center justify-center text-xl md:text-2xl font-black text-purple-800 shadow-xl transition hover:scale-105 text-center p-2 ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-grab active:cursor-grabbing'}`,
+            },
+            value
+        );
+    }
+
+    // 游戏组件
+    function LogicGame({ question, onCorrect, onWrong, resetSignal }) {
+        const [feedback, setFeedback] = React.useState(null);
+        const [hasAnswered, setHasAnswered] = React.useState(false);
+        const [dropHighlight, setDropHighlight] = React.useState(false);
+
+        React.useEffect(() => {
+            setFeedback(null);
+            setHasAnswered(false);
+        }, [question, resetSignal]);
+
+        const handleDrop = (e) => {
+            e.preventDefault();
+            setDropHighlight(false);
+            if (hasAnswered) {
+                setFeedback({ type: 'info', msg: '本题已完成！点击“换一题”继续挑战。' });
+                return;
+            }
+            const droppedValue = e.dataTransfer.getData("text/plain");
+            const expected = question.correctAnswer;
+            if (droppedValue === expected) {
+                setFeedback({ type: 'success', msg: `✅ 推理神准！ ${question.explanation}` });
+                setHasAnswered(true);
+                onCorrect();
+            } else {
+                setFeedback({ type: 'error', msg: `❌ 侦探失误！你选了“${droppedValue}”，正确答案是“${expected}”。💡 ${question.hint}` });
+                onWrong();
+            }
+        };
+
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        const handleDragEnter = (e) => {
+            e.preventDefault();
+            setDropHighlight(true);
+        };
+        const handleDragLeave = (e) => {
+            e.preventDefault();
+            setDropHighlight(false);
+        };
+
+        // 打乱选项顺序增加趣味
+        const shuffledOptions = React.useMemo(() => {
+            const opts = [...question.options];
+            for (let i = opts.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [opts[i], opts[j]] = [opts[j], opts[i]];
+            }
+            return opts;
+        }, [question]);
+
+        return React.createElement(
+            "div",
+            { className: "flex flex-col h-full" },
+            // 题目卡片
+            React.createElement(
+                "div",
+                { className: "bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4 mb-5 shadow-md border-l-[12px] border-purple-600" },
+                React.createElement("div", { className: "flex items-center gap-2 text-purple-900 font-black text-2xl mb-2" },
+                    React.createElement("span", { className: "text-3xl" }, "🔍"),
+                    question.title
+                ),
+                React.createElement("div", { className: "text-base md:text-lg text-gray-800 bg-white/70 p-4 rounded-xl whitespace-pre-line leading-relaxed" }, question.scenario),
+                React.createElement("div", { className: "mt-3 text-sm text-purple-700 bg-purple-100 rounded-xl p-2" }, "💡 线索：", question.hint)
+            ),
+            // 拖拽放置区
+            React.createElement(
+                "div",
+                { className: "mb-6" },
+                React.createElement("div", { className: "flex justify-between items-center mb-2" },
+                    React.createElement("span", { className: "font-black text-purple-800 text-xl flex items-center gap-2" }, "🧩 把推理结论拖到【答案箱】")
+                ),
+                React.createElement(
+                    "div",
+                    {
+                        onDrop: handleDrop,
+                        onDragOver: handleDragOver,
+                        onDragEnter: handleDragEnter,
+                        onDragLeave: handleDragLeave,
+                        className: `drop-zone w-full min-h-[120px] bg-gradient-to-br from-purple-100 to-fuchsia-50 border-4 border-dashed rounded-3xl flex items-center justify-center transition-all shadow-inner ${dropHighlight ? 'bg-purple-200 border-purple-700' : ''} ${feedback?.type === 'success' ? 'border-green-500 bg-green-100' : 'border-purple-400'}`,
+                    },
+                    feedback?.type === 'success'
+                        ? React.createElement("div", { className: "text-center p-4" },
+                            React.createElement("div", { className: "text-6xl mb-2" }, "🏆🔎"),
+                            React.createElement("div", { className: "text-3xl font-black text-green-700" }, question.correctAnswer),
+                            React.createElement("div", { className: "text-sm text-green-600 font-bold mt-1" }, "✓ 真相大白！逻辑满分")
+                          )
+                        : React.createElement("div", { className: "text-center p-4 text-purple-700 font-semibold" },
+                            hasAnswered
+                                ? React.createElement("span", null, "✅ 已完成推理，按「换一题」继续闯关")
+                                : React.createElement("div", { className: "flex flex-col items-center gap-1" },
+                                    React.createElement("span", { className: "text-4xl" }, "🕵️‍♀️📦"),
+                                    React.createElement("span", null, "⬇️ 将正确的卡片拖拽到这里"),
+                                    React.createElement("span", { className: "text-xs bg-white/60 px-2 py-0.5 rounded-full" }, "放手即提交答案")
+                                  )
+                          )
+                ),
+                feedback && feedback.type !== 'success' && feedback.type !== 'info' && React.createElement("div", { className: "mt-3 text-red-800 bg-red-100 p-3 rounded-xl text-sm font-medium" }, feedback.msg),
+                feedback?.type === 'success' && React.createElement("div", { className: "mt-2 text-green-800 bg-green-100 p-2 rounded-xl text-sm" }, "🎉 ", feedback.msg),
+                feedback?.type === 'info' && React.createElement("div", { className: "mt-2 text-blue-700 bg-blue-100 p-2 rounded-xl text-sm" }, "💡 ", feedback.msg)
+            ),
+            // 可拖拽卡片列表
+            React.createElement("div", null,
+                React.createElement("div", { className: "font-extrabold text-purple-800 mb-3 flex items-center gap-2" }, "🃟 逻辑卡片（拖拽正确选项到上方箱子）"),
+                React.createElement("div", { className: "flex flex-wrap justify-center gap-4 p-3 bg-white/60 rounded-2xl min-h-[160px]" },
+                    shuffledOptions.map((opt, idx) => React.createElement(DragCard, { key: idx, value: opt, disabled: hasAnswered }))
+                )
+            ),
+            React.createElement("div", { className: "mt-3 text-xs text-center text-gray-500" }, "💡 小提示：长按或鼠标按住卡片即可拖拽～")
+        );
+    }
+
+    // 主应用组件
+    function App() {
+        const [currentIdx, setCurrentIdx] = React.useState(0);
+        const [score, setScore] = React.useState(0);
+        const [attempts, setAttempts] = React.useState(0);
+        const [resetKey, setResetKey] = React.useState(0);
+        const [animation, setAnimation] = React.useState(false);
+        
+        const currentQuestion = LOGIC_QUESTIONS[currentIdx % LOGIC_QUESTIONS.length];
+        
+        const handleCorrect = () => {
+            setScore(s => s + 1);
+            setAnimation(true);
+            setTimeout(() => setAnimation(false), 1000);
+        };
+        const handleWrong = () => setAttempts(a => a + 1);
+        const nextQuestion = () => {
+            setCurrentIdx(i => (i + 1) % LOGIC_QUESTIONS.length);
+            setResetKey(k => k + 1);
+        };
+        const resetStats = () => {
+            setScore(0);
+            setAttempts(0);
+            setResetKey(k => k + 1);
+        };
+        
+        return React.createElement(
+            "div",
+            { className: "min-h-screen" },
+            React.createElement(
+                "div",
+                { className: "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch" },
+                // 左侧知识点区
+                React.createElement(
+                    "div",
+                    { className: "bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-300 flex flex-col" },
+                    React.createElement(
+                        "div",
+                        { className: "bg-gradient-to-r from-purple-800 to-fuchsia-700 px-6 py-5" },
+                        React.createElement("h1", { className: "text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg tracking-tight" }, "🧠 逻辑推理 · 侦探训练营"),
+                        React.createElement("p", { className: "text-purple-100 text-base mt-1 font-medium" }, "排除法 · 假设法 · 表格推理 · 真假话破案")
+                    ),
+                    React.createElement(
+                        "div",
+                        { className: "p-5 space-y-5 text-gray-800 flex-1" },
+                        React.createElement(
+                            "div",
+                            { className: "bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-2xl border-l-[10px] border-purple-600" },
+                            React.createElement("div", { className: "text-2xl font-black text-purple-900 flex items-center gap-2" }, "🛠️ 逻辑推理四大法宝"),
+                            React.createElement(
+                                "div",
+                                { className: "mt-3 grid gap-3" },
+                                React.createElement("div", { className: "bg-white p-3 rounded-xl shadow-sm" }, React.createElement("span", { className: "font-bold text-purple-700" }, "❶ 排除法"), " — 逐个剔除矛盾选项"),
+                                React.createElement("div", { className: "bg-white p-3 rounded-xl shadow-sm" }, React.createElement("span", { className: "font-bold text-purple-700" }, "❷ 假设法"), " — 假设某结论成立，检验真假"),
+                                React.createElement("div", { className: "bg-white p-3 rounded-xl shadow-sm" }, React.createElement("span", { className: "font-bold text-purple-700" }, "❸ 列表/表格法"), " — 行列清楚，一目了然"),
+                                React.createElement("div", { className: "bg-white p-3 rounded-xl shadow-sm" }, React.createElement("span", { className: "font-bold text-purple-700" }, "❹ 有序分析"), " — 根据条件步步推导")
+                            )
+                        ),
+                        React.createElement(
+                            "div",
+                            { className: "bg-fuchsia-50 p-4 rounded-2xl" },
+                            React.createElement("div", { className: "font-black text-purple-800 text-xl flex items-center gap-2" }, "🎯 破案黄金三步"),
+                            React.createElement("ul", { className: "list-disc list-inside space-y-1.5 mt-2 text-sm md:text-base" },
+                                React.createElement("li", null, "🔎 读题圈出关键条件，梳理人物与事件关系。"),
+                                React.createElement("li", null, "📝 运用假设或列表，寻找矛盾点或唯一可能性。"),
+                                React.createElement("li", null, "✅ 验证结论是否符合所有条件，答案水落石出。")
+                            ),
+                            React.createElement("div", { className: "mt-2 text-xs text-purple-600 italic" }, "✨ 像侦探一样思考，不急不躁！")
+                        ),
+                        React.createElement(
+                            "div",
+                            { className: "flex justify-between items-center bg-purple-100 p-3 rounded-xl" },
+                            React.createElement("div", null, React.createElement("span", { className: "font-bold text-purple-800" }, "🏅 破案成功"), React.createElement("span", { className: "ml-2 text-3xl font-black text-purple-900" }, score)),
+                            React.createElement("div", null, React.createElement("span", { className: "font-bold text-purple-800" }, "📋 推理尝试"), React.createElement("span", { className: "ml-2 text-xl font-bold text-purple-700" }, attempts)),
+                            React.createElement("button", { onClick: resetStats, className: "bg-white text-purple-700 border border-purple-400 px-4 py-1.5 rounded-full text-sm font-semibold shadow-md hover:bg-purple-50 transition" }, "重置战绩")
+                        ),
+                        React.createElement("div", { className: "text-center text-xs text-gray-400 pt-1" }, "🌟 右侧拖拽推理谜题，活学活用！")
+                    )
+                ),
+                // 右侧游戏区
+                React.createElement(
+                    "div",
+                    { className: "bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border-2 border-purple-300 flex flex-col" },
+                    React.createElement(
+                        "div",
+                        { className: "bg-gradient-to-r from-fuchsia-600 to-purple-600 px-5 py-4 rounded-t-3xl flex justify-between items-center flex-wrap gap-3" },
+                        React.createElement("h2", { className: "text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2" }, "🕵️ 侦探拖拽室 · 真假推理"),
+                        React.createElement("button", { onClick: nextQuestion, className: "bg-yellow-300 hover:bg-yellow-400 text-purple-900 font-black py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 text-base" }, "🔁 换一题")
+                    ),
+                    React.createElement(
+                        "div",
+                        { className: "p-5 flex-1" },
+                        React.createElement(LogicGame, {
+                            key: resetKey + currentIdx,
+                            question: currentQuestion,
+                            onCorrect: handleCorrect,
+                            onWrong: handleWrong,
+                            resetSignal: resetKey
+                        }),
+                        React.createElement("div", { className: "mt-4 text-center text-xs text-gray-400 border-t pt-3 flex flex-wrap justify-center gap-3" },
+                            React.createElement("span", null, "✨ 直接拖拽卡片到上方“答案箱”"),
+                            React.createElement("span", null, "🧩 假设+排除，锁定真相！")
+                        )
+                    )
+                )
+            ),
+            React.createElement("div", { className: "mt-8 text-center text-purple-800/70 text-sm flex flex-wrap justify-center gap-5" },
+                React.createElement("span", null, "📌 排除法: 去掉不可能选项"),
+                React.createElement("span", null, "🤔 假设法: 假设成立找矛盾"),
+                React.createElement("span", null, "🧾 列表法让思路清晰")
+            ),
+            animation && React.createElement("div", { className: "fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-amber-500 to-purple-500 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce text-lg font-bold z-50" }, "🕵️‍♂️ 逻辑小天才！ +1分 🎉")
+        );
+    }
+
+    // 渲染根组件
+    ReactDOM.render(React.createElement(App), document.getElementById('root'));
+</script>
+</body>
+</html>

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>三角形三边的关系 · 拼搭小工匠 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .side-badge {
+      background: #fef9e6;
+      border-radius: 1rem;
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 三角形三边的关系 =======================
+  // 知识点：三角形任意两边之和大于第三边。
+  
+  // ---------- 游戏数据：6个边长组合（3个能围成三角形，3个不能）----------
+  const sideGroups = [
+    { id: 1, sides: [3, 4, 5], canForm: true, display: "3cm, 4cm, 5cm" },
+    { id: 2, sides: [2, 2, 5], canForm: false, display: "2cm, 2cm, 5cm" },
+    { id: 3, sides: [6, 6, 6], canForm: true, display: "6cm, 6cm, 6cm" },
+    { id: 4, sides: [1, 2, 3], canForm: false, display: "1cm, 2cm, 3cm" },
+    { id: 5, sides: [5, 7, 9], canForm: true, display: "5cm, 7cm, 9cm" },
+    { id: 6, sides: [4, 4, 8], canForm: false, display: "4cm, 4cm, 8cm" }
+  ];
+  
+  // 生成右侧可拖拽卡片（每组边长一个卡片，打乱顺序）
+  const generateCards = () => {
+    let cards = sideGroups.map(group => ({
+      id: `card-${group.id}`,
+      text: group.display,
+      canForm: group.canForm,
+      matched: false
+    }));
+    // 打乱顺序
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    return cards;
+  };
+  
+  // 游戏组件：拖拽配对（将边长组合卡片拖拽到“能”或“不能”的槽位）
+  const MatchingGame = () => {
+    const [cards, setCards] = React.useState(() => generateCards());
+    // 两个槽位：can（能围成三角形），cannot（不能围成三角形）
+    const [slots, setSlots] = React.useState({
+      can: { filledCards: [], correctLabel: "能围成三角形" },
+      cannot: { filledCards: [], correctLabel: "不能围成三角形" }
+    });
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalCards = cards.length;
+    const matchedCount = cards.filter(c => c.matched).length;
+    
+    const checkVictory = (currentCards) => {
+      const allMatched = currentCards.every(c => c.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有边长组合都判断正确！你已是三角形三边关系小专家！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, canForm) => {
+      const card = cards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, canForm }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, canForm } = dragData;
+      
+      const sourceCard = cards.find(c => c.id === cardId);
+      if (!sourceCard || sourceCard.matched) {
+        setFeedbackMsg("⏳ 这张卡片已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 判断拖拽到的槽位是否正确：slotId为"can"时要求canForm为true，"cannot"时要求canForm为false
+      let isCorrect = false;
+      if (slotId === "can" && canForm === true) isCorrect = true;
+      if (slotId === "cannot" && canForm === false) isCorrect = true;
+      
+      if (!isCorrect) {
+        const targetSlotName = slotId === "can" ? "能围成三角形" : "不能围成三角形";
+        setFeedbackMsg(`❌ 配对错误！“${sourceCard.text}” ${canForm ? "能" : "不能"}围成三角形，不应该放在“${targetSlotName}”区域。再检查一下三角形三边关系吧～`);
+        setTimeout(() => setFeedbackMsg(""), 2000);
+        return;
+      }
+      
+      // 配对成功
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setSlots(prev => ({
+        ...prev,
+        [slotId]: { ...prev[slotId], filledCards: [...prev[slotId].filledCards, sourceCard.text] }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！“${sourceCard.text}” ${canForm ? "能" : "不能"}围成三角形！`);
+      setTimeout(() => setFeedbackMsg(""), 1200);
+      
+      const newCards = cards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+      checkVictory(newCards);
+    };
+    
+    const resetGame = () => {
+      setCards(generateCards());
+      setSlots({
+        can: { filledCards: [], correctLabel: "能围成三角形" },
+        cannot: { filledCards: [], correctLabel: "不能围成三角形" }
+      });
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把边长组合卡片拖拽到正确的区域（能/不能围成三角形）吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">🔺 三边配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalCards}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将下面的<strong>边长组合卡片</strong>拖拽到上方正确的区域（“能围成三角形”或“不能围成三角形”）。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col gap-4 flex-1">
+          {/* 两个槽位区域：能围成三角形 和 不能围成三角形 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 能围成三角形槽位 */}
+            <div 
+              onDragOver={(e) => onDragOverSlot(e, "can")}
+              onDragLeave={onDragLeaveSlot}
+              onDrop={(e) => onDropToSlot(e, "can")}
+              className={`drop-slot rounded-2xl p-3 text-center transition-all ${dragOverSlotId === "can" ? 'drag-over' : ''}`}
+            >
+              <div className="text-xl font-bold text-green-800 mb-2">✅ 能围成三角形</div>
+              <div className="min-h-[120px] bg-white/50 rounded-xl p-2">
+                {slots.can.filledCards.length === 0 ? (
+                  <div className="text-gray-500 text-sm">⬅️ 把能围成三角形的卡片拖拽到这里</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {slots.can.filledCards.map((text, idx) => (
+                      <div key={idx} className="bg-green-100 px-3 py-1 rounded-full text-sm font-mono">{text}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 不能围成三角形槽位 */}
+            <div 
+              onDragOver={(e) => onDragOverSlot(e, "cannot")}
+              onDragLeave={onDragLeaveSlot}
+              onDrop={(e) => onDropToSlot(e, "cannot")}
+              className={`drop-slot rounded-2xl p-3 text-center transition-all ${dragOverSlotId === "cannot" ? 'drag-over' : ''}`}
+            >
+              <div className="text-xl font-bold text-red-700 mb-2">❌ 不能围成三角形</div>
+              <div className="min-h-[120px] bg-white/50 rounded-xl p-2">
+                {slots.cannot.filledCards.length === 0 ? (
+                  <div className="text-gray-500 text-sm">⬅️ 把不能围成三角形的卡片拖拽到这里</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {slots.cannot.filledCards.map((text, idx) => (
+                      <div key={idx} className="bg-red-100 px-3 py-1 rounded-full text-sm font-mono">{text}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* 卡片池区域 */}
+          <div className="bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 边长组合卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[300px] overflow-y-auto">
+              {cards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.canForm)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-44 h-28 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-base px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个卡片只能用一次，根据三角形三边关系判断能否围成三角形。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 拼搭小工匠！你已完全掌握三角形三边的关系！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 三角形三边关系：任意两边之和大于第三边。判断时只要把较短的两边相加，看是否大于最长边即可。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：三角形三边的关系 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📐</span>
+          <h2 className="text-3xl font-extrabold text-green-900">三角形三边的关系</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 重要定理</p>
+            <p><strong>三角形任意两边之和大于第三边</strong>。</p>
+            <p>用字母表示：a + b &gt; c，a + c &gt; b，b + c &gt; a。</p>
+            <div className="mt-2 bg-green-100 p-2 rounded-lg font-mono text-center">较短两边之和 &gt; 最长边 → 能围成三角形</div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 快速判断方法</p>
+            <p>找出最长边，计算另外两边之和，如果大于最长边，就能围成三角形；否则不能。</p>
+            <p className="text-sm mt-1">🌰 3,4,5：3+4=7&gt;5 → 能围成三角形。<br />🌰 2,2,5：2+2=4&lt;5 → 不能围成三角形。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 为什么？</p>
+            <p>如果两边之和小于或等于第三边，那么这两条线段就无法连接起来形成封闭图形。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>判断下面三组线段能否围成三角形：<br />
+            (1) 4cm, 5cm, 6cm &nbsp;&nbsp; (2) 2cm, 3cm, 6cm &nbsp;&nbsp; (3) 7cm, 7cm, 7cm</p>
+            <p className="text-sm text-green-700">（答案：能，不能，能）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“三角形三边关系，两边之和大于三；最短两边加一起，大于最长就能围。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断能否围成三角形 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ sides: [3, 4, 5], answer: "能" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { sides: [3, 4, 5], answer: "能" },
+      { sides: [2, 2, 5], answer: "不能" },
+      { sides: [6, 6, 6], answer: "能" },
+      { sides: [1, 2, 3], answer: "不能" },
+      { sides: [5, 7, 9], answer: "能" },
+      { sides: [4, 4, 8], answer: "不能" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.answer);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！边长 ${question.sides.join(',')}cm ${question.answer}围成三角形。`);
+      } else {
+        setFeedback(`❌ 不对哦，边长 ${question.sides.join(',')}cm ${question.answer === "能" ? "能" : "不能"}围成三角形。再检查一下两边之和与第三边的关系～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 判断挑战</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">边长 {question.sides.join(',')} cm 能围成三角形吗？</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            <button onClick={() => checkAnswer("能")} className={`px-4 py-2 rounded-full font-bold transition ${userChoice === "能" ? (userChoice === question.answer ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-200'}`}>能</button>
+            <button onClick={() => checkAnswer("不能")} className={`px-4 py-2 rounded-full font-bold transition ${userChoice === "不能" ? (userChoice === question.answer ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-200'}`}>不能</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 三角形三边关系是几何中非常重要的基础，它帮助我们判断三条线段能否构成三角形，也为后续学习三角形的稳定性打下基础。
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>解方程·第6课时 | 钓鱼高手·综合挑战</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫主题 */
+    body {
+      font-size: 1.3rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .scroll-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scroll-panel::-webkit-scrollbar-track {
+      background: #f1e4f0;
+      border-radius: 8px;
+    }
+    .scroll-panel::-webkit-scrollbar-thumb {
+      background: #aa7bc0;
+      border-radius: 8px;
+    }
+    .fish-card {
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .fish-card:hover {
+      transform: translateY(-5px);
+    }
+    .caught-fish {
+      opacity: 0.5;
+      filter: grayscale(0.3);
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @keyframes hookSwing {
+      0% { transform: rotate(0deg); }
+      25% { transform: rotate(10deg); }
+      75% { transform: rotate(-10deg); }
+      100% { transform: rotate(0deg); }
+    }
+    .hook-animation {
+      animation: hookSwing 0.4s ease-in-out;
+    }
+    input, button {
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 解方程第6课时 · 综合训练营 =======================
+  // ---------- 辅助函数：浮点比较 ----------
+  const isFloatEqual = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+  
+  // ---------- 随机混合方程题库（未知数在左边/右边，整数小数，两步方程）----------
+  const generateRandomEquation = () => {
+    const types = [
+      // 简单一步：x ± a = b
+      () => {
+        let a = Math.floor(Math.random() * 8) + 2;
+        let b = Math.floor(Math.random() * 20) + 10;
+        let isAdd = Math.random() > 0.5;
+        if (isAdd) {
+          let x = b - a;
+          return { text: `x + ${a} = ${b}`, correct: x, solution: `两边同时减${a}得 x = ${b} - ${a} = ${x}` };
+        } else {
+          let x = b + a;
+          return { text: `x - ${a} = ${b}`, correct: x, solution: `两边同时加${a}得 x = ${b} + ${a} = ${x}` };
+        }
+      },
+      // 形如 ax = b
+      () => {
+        let a = Math.floor(Math.random() * 6) + 2;
+        let b = a * (Math.floor(Math.random() * 8) + 2);
+        let x = b / a;
+        return { text: `${a}x = ${b}`, correct: x, solution: `两边同时除以${a}得 x = ${b} ÷ ${a} = ${x}` };
+      },
+      // 形如 x÷a = b
+      () => {
+        let a = Math.floor(Math.random() * 6) + 2;
+        let b = Math.floor(Math.random() * 8) + 2;
+        let x = a * b;
+        return { text: `x ÷ ${a} = ${b}`, correct: x, solution: `两边同时乘以${a}得 x = ${b} × ${a} = ${x}` };
+      },
+      // 两步方程 ax ± b = c
+      () => {
+        let a = Math.floor(Math.random() * 4) + 2;
+        let b = Math.floor(Math.random() * 6) + 2;
+        let c = a * (Math.floor(Math.random() * 6) + 3) + b;
+        let x = (c - b) / a;
+        return { text: `${a}x + ${b} = ${c}`, correct: x, solution: `先两边减${b}得 ${a}x = ${c-b}，再除以${a}得 x = ${x}` };
+      },
+      () => {
+        let a = Math.floor(Math.random() * 4) + 2;
+        let b = Math.floor(Math.random() * 6) + 2;
+        let c = a * (Math.floor(Math.random() * 6) + 3) - b;
+        let x = (c + b) / a;
+        return { text: `${a}x - ${b} = ${c}`, correct: x, solution: `先两边加${b}得 ${a}x = ${c+b}，再除以${a}得 x = ${x}` };
+      },
+      // 未知数在右边: 形如 b = ax + c
+      () => {
+        let a = Math.floor(Math.random() * 4) + 2;
+        let b = Math.floor(Math.random() * 20) + 10;
+        let c = Math.floor(Math.random() * 5);
+        let x = (b - c) / a;
+        return { text: `${b} = ${a}x + ${c}`, correct: x, solution: `交换左右得 ${a}x + ${c} = ${b}，两边减${c}得 ${a}x = ${b-c}，除以${a}得 x = ${x}` };
+      },
+      // 带括号简单 a(x+b)=c (整体法)
+      () => {
+        let a = Math.floor(Math.random() * 4) + 2;
+        let b = Math.floor(Math.random() * 5) + 1;
+        let c = a * (Math.floor(Math.random() * 6) + 4);
+        let x = c / a - b;
+        return { text: `${a}(x + ${b}) = ${c}`, correct: x, solution: `整体法: 两边除以${a}得 x+${b}=${c/a}，则 x = ${x}` };
+      }
+    ];
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    return randomType();
+  };
+  
+  // 根据文字描述列方程（两步应用题，需要写等量关系）
+  const wordProblems = [
+    {
+      text: "妈妈买了3盒牛奶，又买了2瓶果汁，一共花了20元。已知每瓶果汁4元，求每盒牛奶多少元？",
+      variable: "设每盒牛奶x元",
+      relation: "牛奶总价 + 果汁总价 = 总花费",
+      equation: "3x + 2×4 = 20",
+      equationText: "3x + 8 = 20",
+      correct: 4,
+      solution: "3x + 8 = 20 → 3x = 12 → x = 4"
+    },
+    {
+      text: "小丽买了5本笔记本，付出50元，找回15元。每本笔记本多少元？",
+      variable: "设每本笔记本x元",
+      relation: "付出的钱 - 笔记本总价 = 找回的钱",
+      equation: "50 - 5x = 15",
+      correct: 7,
+      solution: "50 - 5x = 15 → 5x = 35 → x = 7"
+    },
+    {
+      text: "爷爷的年龄是小明的4倍，爷爷比小明大45岁。小明几岁？",
+      variable: "设小明x岁，则爷爷4x岁",
+      relation: "爷爷年龄 - 小明年龄 = 年龄差",
+      equation: "4x - x = 45",
+      equationText: "3x = 45",
+      correct: 15,
+      solution: "3x = 45 → x = 15"
+    },
+    {
+      text: "一个长方形的周长是24厘米，长是宽的2倍。宽是多少厘米？",
+      variable: "设宽x厘米，则长2x厘米",
+      relation: "(长+宽)×2 = 周长",
+      equation: "(2x + x)×2 = 24",
+      equationText: "6x = 24",
+      correct: 4,
+      solution: "6x = 24 → x = 4"
+    }
+  ];
+  
+  // ---------- 左侧主学习区：混合方程随机刷题 + 应用题列方程 ----------
+  const PracticeZone = () => {
+    // 混合方程部分
+    const [currentEq, setCurrentEq] = React.useState(() => generateRandomEquation());
+    const [eqUserAnswer, setEqUserAnswer] = React.useState("");
+    const [eqFeedback, setEqFeedback] = React.useState(null);
+    const [eqIsCorrect, setEqIsCorrect] = React.useState(null);
+    
+    // 应用题部分
+    const [currentProblemIndex, setCurrentProblemIndex] = React.useState(0);
+    const [problemUserX, setProblemUserX] = React.useState("");
+    const [problemFeedback, setProblemFeedback] = React.useState(null);
+    const [problemIsCorrect, setProblemIsCorrect] = React.useState(null);
+    const [showRelation, setShowRelation] = React.useState(false);
+    
+    const currentProblem = wordProblems[currentProblemIndex];
+    
+    const handleNewEquation = () => {
+      setCurrentEq(generateRandomEquation());
+      setEqUserAnswer("");
+      setEqFeedback(null);
+      setEqIsCorrect(null);
+    };
+    
+    const handleCheckEquation = () => {
+      const userVal = parseFloat(eqUserAnswer);
+      if (isNaN(userVal)) {
+        setEqFeedback("🐟 输入数字再检验哟！");
+        setEqIsCorrect(null);
+        return;
+      }
+      const isMatch = isFloatEqual(userVal, currentEq.correct);
+      if (isMatch) {
+        setEqFeedback(`✅ 正确！${currentEq.solution}`);
+        setEqIsCorrect(true);
+      } else {
+        setEqFeedback(`❌ 解错误，正确答案是 ${currentEq.correct}。解题思路：${currentEq.solution}`);
+        setEqIsCorrect(false);
+      }
+    };
+    
+    const handleShowEqAnswer = () => {
+      setEqUserAnswer(currentEq.correct.toString());
+      setEqFeedback(`✨ 正确答案: x = ${currentEq.correct}。思路：${currentEq.solution}`);
+      setEqIsCorrect(true);
+    };
+    
+    const handleCheckProblem = () => {
+      const userVal = parseFloat(problemUserX);
+      if (isNaN(userVal)) {
+        setProblemFeedback("📝 输入求出的数值再检验～");
+        setProblemIsCorrect(null);
+        return;
+      }
+      const isMatch = isFloatEqual(userVal, currentProblem.correct);
+      if (isMatch) {
+        setProblemFeedback(`🎉 完全正确！等量关系: ${currentProblem.relation}。方程: ${currentProblem.equationText || currentProblem.equation}。解: ${currentProblem.solution}`);
+        setProblemIsCorrect(true);
+      } else {
+        setProblemFeedback(`❌ 答案不对，正确答案是 ${currentProblem.correct}。回顾等量关系: ${currentProblem.relation}，方程: ${currentProblem.equationText || currentProblem.equation}`);
+        setProblemIsCorrect(false);
+      }
+    };
+    
+    const handleShowProblemAnswer = () => {
+      setProblemUserX(currentProblem.correct.toString());
+      setProblemFeedback(`📖 正确答案: ${currentProblem.correct}。等量关系: ${currentProblem.relation}，列式 ${currentProblem.equationText || currentProblem.equation}，解法: ${currentProblem.solution}`);
+      setProblemIsCorrect(true);
+    };
+    
+    const nextProblem = () => {
+      const nextIdx = (currentProblemIndex + 1) % wordProblems.length;
+      setCurrentProblemIndex(nextIdx);
+      setProblemUserX("");
+      setProblemFeedback(null);
+      setProblemIsCorrect(null);
+      setShowRelation(false);
+    };
+    
+    return (
+      <div className="space-y-6">
+        {/* 随机混合方程模块 */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb]">
+          <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+            <h3 className="text-2xl font-extrabold text-purple-800">🎲 随机混合方程 · 左右未知数</h3>
+            <button onClick={handleNewEquation} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 换一题</button>
+          </div>
+          <div className="text-center p-4 bg-purple-50 rounded-2xl">
+            <div className="font-mono font-bold text-3xl text-purple-900">{currentEq.text}</div>
+            <div className="mt-2 text-sm text-purple-600">💡 未知数可能在左边或右边，要灵活运用等式性质哦！</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 mt-4">
+            <input 
+              type="number" step="any" value={eqUserAnswer}
+              onChange={(e) => setEqUserAnswer(e.target.value)}
+              placeholder="x = ?"
+              className="flex-1 min-w-[140px] border-2 border-purple-300 rounded-xl px-4 py-2 text-lg bg-white focus:ring-2 focus:ring-purple-400"
+            />
+            <button onClick={handleCheckEquation} className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-5 rounded-xl shadow">🔍 检验</button>
+            <button onClick={handleShowEqAnswer} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-2 px-5 rounded-xl shadow">📖 答案+思路</button>
+          </div>
+          {eqFeedback && (
+            <div className={`mt-3 p-3 rounded-xl text-sm ${eqIsCorrect ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+              {eqFeedback}
+            </div>
+          )}
+        </div>
+        
+        {/* 应用题模块：等量关系+列方程 */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb]">
+          <div className="flex justify-between items-center flex-wrap gap-2 mb-2">
+            <h3 className="text-2xl font-extrabold text-purple-800">📖 应用题工坊 · 写等量关系</h3>
+            <button onClick={nextProblem} className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow">⏩ 下一题</button>
+          </div>
+          <div className="bg-amber-50 rounded-xl p-4 mb-3">
+            <p className="font-bold text-amber-800">📌 题目：</p>
+            <p className="text-base mt-1">{currentProblem.text}</p>
+            <button onClick={() => setShowRelation(!showRelation)} className="text-xs bg-purple-200 px-3 py-1 rounded-full mt-2">💡 提示等量关系</button>
+            {showRelation && (
+              <div className="mt-2 p-2 bg-purple-100 rounded-lg text-sm">
+                <strong>等量关系：</strong> {currentProblem.relation}<br/>
+                <strong>列方程：</strong> {currentProblem.equationText || currentProblem.equation}
+              </div>
+            )}
+          </div>
+          <div className="bg-white p-3 rounded-xl border border-purple-200">
+            <p className="font-mono text-sm">🔧 设未知数: {currentProblem.variable}</p>
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <input 
+                type="number" step="any" value={problemUserX}
+                onChange={(e) => setProblemUserX(e.target.value)}
+                placeholder="求出的 x = ?"
+                className="flex-1 min-w-[140px] border-2 border-purple-300 rounded-xl px-4 py-2 text-lg bg-white"
+              />
+              <button onClick={handleCheckProblem} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-5 rounded-xl shadow">🎣 检验答案</button>
+              <button onClick={handleShowProblemAnswer} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-2 px-5 rounded-xl shadow">📖 显示解答</button>
+            </div>
+          </div>
+          {problemFeedback && (
+            <div className={`mt-3 p-3 rounded-xl text-sm ${problemIsCorrect ? 'bg-green-100 text-green-800' : 'bg-rose-50 text-rose-800'}`}>
+              {problemFeedback}
+            </div>
+          )}
+          <div className="mt-2 text-center text-xs text-purple-600 bg-purple-50 p-2 rounded-full">
+            💡 解应用题关键：找准等量关系 → 列出方程 → 求解并检验。
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 右侧互动游戏：钓鱼高手（钓起正确的方程解）----------
+  // 游戏机制：展示若干条“鱼”，每条鱼身上写着一个方程。钓鱼竿区域显示一个目标解（随机数）。小朋友需要点击（或拖拽鱼钩）选择正确的方程鱼，如果方程的解等于目标解，则钓起得分。配乐效果文字。
+  const FishingGame = () => {
+    // 生成6条不同的方程鱼（随机生成，但确保每条方程的解不同）
+    const generateFishEquations = () => {
+      const fishes = [];
+      const usedSolutions = new Set();
+      while (fishes.length < 6) {
+        let eqObj = generateRandomEquation();
+        let sol = eqObj.correct;
+        // 保留两位小数显示，但去重使用原始数值
+        let solKey = sol.toFixed(4);
+        if (!usedSolutions.has(solKey) && sol > 0 && Number.isFinite(sol)) {
+          usedSolutions.add(solKey);
+          fishes.push({
+            id: `fish-${Date.now()}-${fishes.length}`,
+            text: eqObj.text,
+            solution: sol,
+            caught: false
+          });
+        }
+      }
+      return fishes;
+    };
+    
+    const [fishList, setFishList] = React.useState(() => generateFishEquations());
+    const [targetSolution, setTargetSolution] = React.useState(null);
+    const [score, setScore] = React.useState(0);
+    const [gameMessage, setGameMessage] = React.useState("");
+    const [hookAnim, setHookAnim] = React.useState(false);
+    
+    // 生成新的目标解（从未被钓起的鱼中随机选一个解，或者从剩余未捕获鱼中选）
+    const refreshTarget = React.useCallback(() => {
+      const remainingFish = fishList.filter(f => !f.caught);
+      if (remainingFish.length === 0) {
+        setTargetSolution(null);
+        return;
+      }
+      const randomFish = remainingFish[Math.floor(Math.random() * remainingFish.length)];
+      setTargetSolution(randomFish.solution);
+      setGameMessage(`🎯 目标解是 x = ${randomFish.solution}，快钓起对应的方程鱼！`);
+    }, [fishList]);
+    
+    React.useEffect(() => {
+      refreshTarget();
+    }, [fishList, refreshTarget]);
+    
+    // 钓起鱼（点击鱼）
+    const catchFish = (fishId, fishSolution, fishText) => {
+      const fish = fishList.find(f => f.id === fishId);
+      if (fish.caught) {
+        setGameMessage("🐟 这条鱼已经被钓起来啦！");
+        return;
+      }
+      if (targetSolution === null) {
+        setGameMessage("🎣 目标生成中，稍等～");
+        return;
+      }
+      setHookAnim(true);
+      setTimeout(() => setHookAnim(false), 400);
+      if (isFloatEqual(fishSolution, targetSolution)) {
+        // 正确钓起
+        setFishList(prev => prev.map(f => f.id === fishId ? { ...f, caught: true } : f));
+        setScore(prev => prev + 1);
+        setGameMessage(`🎣 哇！钓到正确的鱼！方程 ${fishText} 的解是 ${fishSolution}，和宝藏目标一致！ +1分`);
+        // 刷新目标
+        setTimeout(() => {
+          const newRemaining = fishList.filter(f => f.id !== fishId || !f.caught);
+          const stillRemaining = newRemaining.filter(f => !f.caught);
+          if (stillRemaining.length === 0) {
+            setGameMessage("🏆 太厉害了！你钓起了所有宝藏鱼！点击「新鱼群」继续挑战～");
+            setTargetSolution(null);
+          } else {
+            refreshTarget();
+          }
+        }, 200);
+      } else {
+        setGameMessage(`❌ 哎呀！方程 ${fishText} 的解是 ${fishSolution}，不等于目标解 ${targetSolution}。再试试别的鱼！`);
+      }
+    };
+    
+    const resetGame = () => {
+      const newFishes = generateFishEquations();
+      setFishList(newFishes);
+      setScore(0);
+      setGameMessage("🔄 鱼群已更新！开始钓鱼吧～");
+      // 目标会通过 useEffect 刷新
+    };
+    
+    const remainingCount = fishList.filter(f => !f.caught).length;
+    const totalCount = fishList.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎣 钓鱼高手 · 解方程挑战</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🐟 得分 {score}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新鱼群</button>
+          </div>
+        </div>
+        <div className="bg-cyan-50 rounded-xl p-2 text-center mb-3">
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-3xl">{hookAnim ? "🎣⚡" : "🎣"}</span>
+            <span className="font-bold text-cyan-800 text-lg">宝藏目标解: </span>
+            <span className="bg-white px-3 py-1 rounded-full font-mono font-bold text-2xl text-cyan-700">
+              {targetSolution !== null ? `x = ${targetSolution % 1 === 0 ? targetSolution : targetSolution.toFixed(2)}` : "✨ 准备就绪"}
+            </span>
+          </div>
+          <p className="text-xs text-cyan-700 mt-1">点击正确的方程鱼，让它的解等于宝藏目标！</p>
+        </div>
+        
+        {/* 鱼塘区域 */}
+        <div className="flex-1 bg-gradient-to-b from-sky-100 to-teal-100 rounded-2xl p-3 min-h-[320px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {fishList.map(fish => (
+              <div 
+                key={fish.id}
+                onClick={() => catchFish(fish.id, fish.solution, fish.text)}
+                className={`fish-card bg-gradient-to-r from-amber-300 to-yellow-400 rounded-xl p-3 flex items-center justify-between shadow-md ${fish.caught ? 'caught-fish' : 'cursor-pointer hover:scale-105'}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl">{fish.caught ? "🐟💤" : "🐠"}</span>
+                  <div>
+                    <div className="font-mono font-bold text-purple-900 text-base">{fish.text}</div>
+                    {fish.caught && <div className="text-xs text-green-700">✓ 已钓起</div>}
+                  </div>
+                </div>
+                {!fish.caught && <span className="text-xs bg-white/50 px-2 py-1 rounded-full">🎣 点击钓起</span>}
+              </div>
+            ))}
+          </div>
+          {remainingCount === 0 && (
+            <div className="text-center mt-4 bg-emerald-200 p-3 rounded-xl font-bold text-emerald-800 celebration">
+              🎉 全鱼钓获！你是钓鱼解方程冠军！ 🎉
+            </div>
+          )}
+        </div>
+        
+        {gameMessage && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {gameMessage}
+          </div>
+        )}
+        <div className="mt-2 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 游戏玩法：上方显示“宝藏目标解”，点击下方方程鱼，如果方程的解等于目标解，就能钓起得分！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 知识点总结卡片：未知数在右边 / 列方程要点 ----------
+  const KnowledgeTips = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-4xl">🧠</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">第6课时 · 综合进阶</h2>
+        </div>
+        <div className="space-y-3 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">✨ 新技能：未知数在右边</p>
+            <p>例如 <span className="font-mono">12 = 3x + 6</span>，可以交换左右变成 <span className="font-mono">3x+6=12</span> 再解，或者两边同时运算。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📖 列方程解应用题三步骤：</p>
+            <p>1️⃣ 找等量关系（关键句）<br/>2️⃣ 设未知数，根据等量关系列方程<br/>3️⃣ 解方程并检验作答</p>
+          </div>
+          <div className="bg-amber-50 p-2 rounded-xl text-center text-sm">
+            🌟 小口诀：“未知数在哪都不怕，等式性质来帮忙；应用题先找等量，列出方程解明朗。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局：左侧知识点+练习，右侧钓鱼游戏 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 练习模块 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeTips />
+          <PracticeZone />
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <FishingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

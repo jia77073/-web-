@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>六年级税率利率·理财小管家 | 拖拽排序 + 应用题闯关</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (移动端完美支持) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 6px 0 #c29b4a;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #ffe0a3;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 税率与利率问题 (本金、利息、利率、税率、应纳税额)
+        const financeQuestions = [
+            {
+                text: "🏦 小明的妈妈在银行存入5000元，年利率为2.25%，存期2年，到期时可得利息多少元？（不计利息税）",
+                answer: 225,
+                solution: "🎯 利息 = 本金 × 年利率 × 存期 = 5000 × 2.25% × 2 = 5000 × 0.0225 × 2 = 225 (元)。"
+            },
+            {
+                text: "📄 某公司上个月营业额为80万元，按营业额的5%缴纳营业税，应缴纳营业税多少万元？",
+                answer: 4,
+                solution: "🎯 应纳税额 = 营业额 × 税率 = 80 × 5% = 80 × 0.05 = 4 (万元)。"
+            },
+            {
+                text: "💰 李叔叔把10000元存入银行，定期三年，年利率为2.75%，到期后他可以取回本金和利息一共多少元？",
+                answer: 10825,
+                solution: "🎯 利息 = 10000 × 2.75% × 3 = 10000 × 0.0275 × 3 = 825元；本息和 = 10000 + 825 = 10825元。"
+            },
+            {
+                text: "🧾 王老师月工资6200元，超过5000元的部分需要按3%缴纳个人所得税，王老师每月应缴税多少元？",
+                answer: 36,
+                solution: "🎯 应纳税所得额 = 6200 - 5000 = 1200元；应纳税额 = 1200 × 3% = 1200 × 0.03 = 36元。"
+            },
+            {
+                text: "📈 小华将一笔钱存入银行，年利率为1.75%，一年后获得利息105元，他存入的本金是多少元？",
+                answer: 6000,
+                solution: "🎯 本金 = 利息 ÷ (年利率 × 存期) = 105 ÷ (1.75% × 1) = 105 ÷ 0.0175 = 6000 (元)。"
+            },
+            {
+                text: "🏢 某商场十月份营业额为120万元，按5%税率缴纳营业税后，还剩余多少万元？",
+                answer: 114,
+                solution: "🎯 营业税 = 120 × 5% = 6万元；剩余 = 120 - 6 = 114万元。"
+            },
+            {
+                text: "📊 张奶奶将5000元存入银行，定期两年，年利率为2.10%，到期时她能得到本金和利息共多少元？",
+                answer: 5210,
+                solution: "🎯 利息 = 5000 × 2.10% × 2 = 5000 × 0.021 × 2 = 210元；本息和 = 5000 + 210 = 5210元。"
+            },
+            {
+                text: "🏠 李阿姨购买一套住房，总价80万元，需缴纳1.5%的契税，她买房一共要付多少万元？",
+                answer: 81.2,
+                solution: "🎯 契税 = 80 × 1.5% = 1.2万元；总付款 = 80 + 1.2 = 81.2万元。"
+            },
+            {
+                text: "💳 某储户存入银行20000元，定期一年，年利率1.75%，到期后他把利息捐给希望工程，他捐了多少元？",
+                answer: 350,
+                solution: "🎯 利息 = 20000 × 1.75% × 1 = 20000 × 0.0175 = 350 (元)。"
+            }
+        ];
+
+        // 左侧税率利率应用题组件
+        const FinanceApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * financeQuestions.length);
+                const newQ = { ...financeQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (financeQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = parseFloat(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案（整数或小数）哟～");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！税率利率问题掌握得非常扎实！ 💰 理财小管家！");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。看看解题思路吧～`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载理财题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-300 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">🏦</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">税率利率·理财小管家</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-[#F3E8FF] to-[#FDE9F0] rounded-2xl p-4 mb-5 shadow-inner">
+                        <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">利息·纳税·百分数</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>💰 <span className="font-semibold">利息公式</span>：利息 = 本金 × 年利率 × 存期；本息和 = 本金 + 利息。</li>
+                            <li>🧾 <span className="font-semibold">纳税公式</span>：应纳税额 = 应纳税所得额 × 税率；营业额税 = 营业额 × 税率。</li>
+                            <li>📊 <span className="font-semibold">求本金或利率</span>：利用利息公式逆运算，注意存期单位。</li>
+                            <li>🏠 <span className="font-semibold">生活场景</span>：存款、贷款、个人所得税、契税、营业税等。</li>
+                            <li>⚖️ <span className="font-semibold">区分</span>：税率是百分比，利率也是百分比，计算时转化为小数或分数。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目卡片 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-amber-400 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 理财挑战</span>
+                            <button onClick={handleNext} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="number" 
+                                step="any"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入你的答案 (数字)"
+                                className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈区 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 解题思路</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-purple-600 text-sm italic">💡 提示：利息=本金×利率×时间；税额=收入×税率；找准单位“1”。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        💰 利息 = 本金 × 利率 × 存期  |  纳税额 = 应纳税额 × 税率
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏：税率利率解题步骤拖拽排序 (利息计算、纳税计算典型)
+        const stepsChallenges = [
+            {
+                title: "🏦 挑战1：计算利息",
+                description: "将8000元存入银行，年利率2.25%，存期3年，到期可得利息多少元？",
+                correctSteps: [
+                    "① 利息公式：利息 = 本金 × 年利率 × 存期。",
+                    "② 代入数据：本金=8000元，年利率=2.25%=0.0225，存期=3年。",
+                    "③ 计算：利息 = 8000 × 0.0225 × 3 = 8000 × 0.0675 = 540 (元)。",
+                    "④ 答：到期可得利息540元。"
+                ]
+            },
+            {
+                title: "📄 挑战2：计算个人所得税",
+                description: "李叔叔月工资6500元，超过5000元的部分按3%缴纳个税，他每月应缴税多少元？",
+                correctSteps: [
+                    "① 应纳税所得额 = 月工资 - 免征额 = 6500 - 5000 = 1500 (元)。",
+                    "② 税率3%，应纳税额 = 应纳税所得额 × 税率 = 1500 × 3% = 1500 × 0.03 = 45 (元)。",
+                    "③ 答：李叔叔每月应缴税45元。"
+                ]
+            },
+            {
+                title: "🏠 挑战3：求本金",
+                description: "一笔存款，年利率1.75%，一年后获得利息87.5元，本金是多少元？",
+                correctSteps: [
+                    "① 利息公式：本金 = 利息 ÷ (年利率 × 存期)。",
+                    "② 已知利息=87.5元，年利率=1.75%=0.0175，存期=1年。",
+                    "③ 计算：本金 = 87.5 ÷ 0.0175 = 5000 (元)。",
+                    "④ 答：本金是5000元。"
+                ]
+            },
+            {
+                title: "🏢 挑战4：营业税及剩余",
+                description: "某饭店上月营业额15万元，按5%缴纳营业税，纳税后还剩多少万元？",
+                correctSteps: [
+                    "① 应缴营业税 = 营业额 × 税率 = 15 × 5% = 15 × 0.05 = 0.75 (万元)。",
+                    "② 剩余金额 = 营业额 - 营业税 = 15 - 0.75 = 14.25 (万元)。",
+                    "③ 答：纳税后还剩14.25万元。"
+                ]
+            }
+        ];
+
+        // 右侧拖拽排序组件
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            // 随机加载挑战并打乱步骤顺序
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                const stepsCopy = [...newChallenge.correctSteps];
+                // Fisher-Yates 打乱顺序
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确的利息/纳税解题逻辑顺序排列！(从上到下)');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 每当 shuffledSteps 变化，重新初始化 Sortable 实例
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) sortableRef.current.destroy();
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => { /* 无额外动作，用户主动检查 */ }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            // 检查排序顺序是否正确
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美排序！利息与纳税解题逻辑完全正确！成为理财小行家！🏅');
+                    setCheckStyle('success');
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想解题流程：先写公式，再代入数据，计算并作答。重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载趣味排序游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·理财特工队</h2>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-indigo-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下逻辑递进）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[320px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-amber-400 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-purple-500">
+                        💡 拖拽卡片调整顺序，排序正确即掌握税率利率解题逻辑（公式→代入→计算→作答）。
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 拖拽排序小游戏融合理财知识：利息计算·个人所得税·求本金·营业税，在排序中强化金融数学思维！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件：左右布局
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 税率利率应用题训练 */}
+                    <div className="flex-1">
+                        <FinanceApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

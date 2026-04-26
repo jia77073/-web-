@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>⚖️ 等式的性质 · 淡紫代数工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号 (基础字号增大) */
+    body {
+      font-size: 1.1rem;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+      font-size: 1.25rem;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(180, 130, 220, 0.2);
+      border: 2px dashed #b77ce0;
+    }
+    .drop-slot.drag-over {
+      background-color: #c89ef0;
+      border-color: #efd5ff;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #a86fd6;
+      border: 2px solid #e7c6ff;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .lavender-bg {
+      background-image: radial-gradient(circle at 20% 35%, rgba(170, 120, 210, 0.12) 2.2%, transparent 2.6%);
+      background-size: 50px 50px;
+    }
+    .card-value {
+      font-size: 1.3rem;
+      font-weight: bold;
+    }
+    .slot-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#D9C8F0] to-[#C2A8E6] min-h-screen flex items-center justify-center p-4 font-sans lavender-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数 ----------
+  // 比较两个操作描述是否等价（简单字符串匹配）
+  const areEqual = (val1, val2) => {
+    return val1 === val2;
+  };
+
+  // ---------- 题库：等式的性质（填空/选择正确的变形操作）----------
+  // 每个题目给出一个原始等式，以及一个变形后的等式，需要选择正确的操作（左边加/减/乘/除什么数，或者右边对应的操作）
+  const MASTER_TOPICS = [
+    {
+      id: "prop1",
+      description: "如果 a = b，那么 a + 3 = b + ?",
+      correctOp: "3",
+      hint: "等式两边同时加上同一个数，等式仍然成立。",
+      leftSide: "a + 3",
+      rightSide: "b + ?",
+      fullExample: "a = b  ⇒  a + 3 = b + 3"
+    },
+    {
+      id: "prop2",
+      description: "如果 x = y，那么 x − 5 = y − ?",
+      correctOp: "5",
+      hint: "等式两边同时减去同一个数，等式仍然成立。",
+      leftSide: "x − 5",
+      rightSide: "y − ?",
+      fullExample: "x = y  ⇒  x − 5 = y − 5"
+    },
+    {
+      id: "prop3",
+      description: "如果 m = n，那么 m × 4 = n × ?",
+      correctOp: "4",
+      hint: "等式两边同时乘以同一个数（不为0），等式仍然成立。",
+      leftSide: "m × 4",
+      rightSide: "n × ?",
+      fullExample: "m = n  ⇒  m×4 = n×4"
+    },
+    {
+      id: "prop4",
+      description: "如果 p = q (q ≠ 0)，那么 p ÷ 2 = q ÷ ?",
+      correctOp: "2",
+      hint: "等式两边同时除以同一个不为0的数，等式仍然成立。",
+      leftSide: "p ÷ 2",
+      rightSide: "q ÷ ?",
+      fullExample: "p = q  ⇒  p÷2 = q÷2"
+    },
+    {
+      id: "prop5",
+      description: "如果 2a = 2b，那么 a = ? （利用等式性质）",
+      correctOp: "b",
+      hint: "两边同时除以2（或乘以1/2），得到 a = b。",
+      leftSide: "a",
+      rightSide: "?",
+      fullExample: "2a = 2b  ⇒  a = b"
+    },
+    {
+      id: "prop6",
+      description: "如果 3x + 2 = 3y + 2，那么 x = ?",
+      correctOp: "y",
+      hint: "两边同时减去2，再同时除以3，得到 x = y。",
+      leftSide: "x",
+      rightSide: "?",
+      fullExample: "3x+2 = 3y+2  ⇒  x = y"
+    },
+    {
+      id: "prop7",
+      description: "如果 a = b，那么 a + c = b + ?",
+      correctOp: "c",
+      hint: "两边同时加上同一个数 c。",
+      leftSide: "a + c",
+      rightSide: "b + ?",
+      fullExample: "a = b  ⇒  a + c = b + c"
+    },
+    {
+      id: "prop8",
+      description: "如果 a = b，那么 a × c = b × ? (c ≠ 0)",
+      correctOp: "c",
+      hint: "两边同时乘以同一个数 c。",
+      leftSide: "a × c",
+      rightSide: "b × ?",
+      fullExample: "a = b  ⇒  a×c = b×c"
+    },
+    {
+      id: "prop9",
+      description: "如果 5a = 5b，那么 a = ?",
+      correctOp: "b",
+      hint: "两边同时除以5。",
+      leftSide: "a",
+      rightSide: "?",
+      fullExample: "5a = 5b  ⇒  a = b"
+    },
+    {
+      id: "prop10",
+      description: "如果 x − 7 = y − 7，那么 x = ?",
+      correctOp: "y",
+      hint: "两边同时加上7。",
+      leftSide: "x",
+      rightSide: "?",
+      fullExample: "x−7 = y−7  ⇒  x = y"
+    }
+  ];
+
+  // 随机抽取不重复题目（4道）
+  const selectRandomTopics = (count = 4) => {
+    const shuffled = [...MASTER_TOPICS];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, count).map(topic => ({
+      id: `${topic.id}-${Date.now()}-${Math.random()}`,
+      description: topic.description,
+      correctOp: topic.correctOp,
+      hint: topic.hint,
+      leftSide: topic.leftSide,
+      rightSide: topic.rightSide,
+      fullExample: topic.fullExample,
+      matched: false,
+      matchedValue: null
+    }));
+  };
+
+  // 生成答案卡片池（正确操作数/表达式 + 干扰项）
+  const generateAnswerCards = (challenges) => {
+    let correctSet = new Set();
+    challenges.forEach(ch => correctSet.add(ch.correctOp));
+    let correctArray = Array.from(correctSet);
+    
+    let allCardValues = [];
+    let usedDistractors = new Set();
+    
+    // 添加正确值
+    correctArray.forEach(val => {
+      allCardValues.push({ value: val, type: "correct", forChallenge: val });
+    });
+    
+    // 针对每个正确值生成干扰
+    const generateDistractors = (correct) => {
+      let dists = [];
+      if (correct === "3") dists.push("2", "4", "5", "6");
+      else if (correct === "5") dists.push("2", "3", "4", "6", "7");
+      else if (correct === "4") dists.push("2", "3", "5", "6");
+      else if (correct === "2") dists.push("1", "3", "4", "5");
+      else if (correct === "b") dists.push("a", "c", "2b", "b+1");
+      else if (correct === "y") dists.push("x", "z", "y+1", "2y");
+      else if (correct === "c") dists.push("a", "b", "2c", "c+1");
+      else dists.push("1", "0", "相同数", "相反数");
+      return dists.filter(d => d !== correct);
+    };
+    
+    correctArray.forEach(correct => {
+      const dists = generateDistractors(correct);
+      dists.forEach(d => {
+        if (!usedDistractors.has(d) && !allCardValues.some(cv => cv.value === d)) {
+          allCardValues.push({ value: d, type: "distractor", forChallenge: null });
+          usedDistractors.add(d);
+        }
+      });
+    });
+    
+    // 补充通用干扰
+    const commonDistractors = ["1", "2", "3", "4", "5", "6", "7", "8", "0", "a", "b", "c", "x", "y", "2a", "3b"];
+    for (let cd of commonDistractors) {
+      if (!usedDistractors.has(cd) && !allCardValues.some(cv => cv.value === cd)) {
+        allCardValues.push({ value: cd, type: "distractor", forChallenge: null });
+        usedDistractors.add(cd);
+        if (allCardValues.length >= correctArray.length * 2 + 3) break;
+      }
+    }
+    
+    // 洗牌
+    for (let i = allCardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCardValues[i], allCardValues[j]] = [allCardValues[j], allCardValues[i]];
+    }
+    
+    return allCardValues.map((item, idx) => ({
+      id: `card-${Date.now()}-${idx}-${Math.random()}`,
+      value: item.value,
+      used: false,
+      forChallenge: item.forChallenge
+    }));
+  };
+
+  // ---------- 左侧知识点卡片：等式的性质 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#F0E6FF]/95 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#C59BF0] h-full text-[#3C2260]">
+        <div className="flex items-center gap-2 border-b-2 border-[#C59BF0] pb-3 mb-4">
+          <span className="text-5xl">⚖️</span>
+          <h2 className="text-3xl font-extrabold tracking-wide">等式的性质<br/><span className="text-base font-normal text-[#6A3E9A]">天平平衡 · 等式不变</span></h2>
+        </div>
+        <div className="space-y-5">
+          <div className="bg-[#E6D9F7] rounded-2xl p-4 border border-[#D4B0F0]">
+            <p className="font-bold text-[#4A2670] text-lg flex items-center gap-2">✨ 性质1</p>
+            <p className="text-base mt-1">等式两边同时加上（或减去）<strong>同一个数</strong>，等式仍然成立。<br/>
+            <span className="font-mono bg-white/60 px-1 rounded">若 a = b，则 a ± c = b ± c</span></p>
+          </div>
+          <div className="bg-[#E6D9F7] rounded-2xl p-4 border border-[#D4B0F0]">
+            <p className="font-bold text-[#4A2670] text-lg">✨ 性质2</p>
+            <p className="text-base mt-1">等式两边同时乘以（或除以）<strong>同一个不为0的数</strong>，等式仍然成立。<br/>
+            <span className="font-mono bg-white/60 px-1 rounded">若 a = b，则 a×c = b×c ；若 c≠0，a÷c = b÷c</span></p>
+          </div>
+          <div className="bg-[#DCCEF5] rounded-2xl p-4 text-center text-base border border-[#C59BF0]">
+            🧩 挑战规则：每个题目给出了一个等式和变形，请选择正确的数或式子填空（拖拽右侧卡片到问号处）。<br/>
+            📌 熟练运用等式的性质是解方程的核心！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：等式的性质 · 拖拽填空 ----------
+  const EqualityGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => selectRandomTopics(4));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    const initCards = (currentChallenges) => generateAnswerCards(currentChallenges);
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.matched === true);
+      if (allFilled && !isVictory) setIsVictory(true);
+      else if (!allFilled && isVictory) setIsVictory(false);
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    const resetGame = () => {
+      const newChallenges = selectRandomTopics(4);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片逻辑
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      if (e.target) e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到槽位
+    const onDropToSlot = (e, challengeId) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      let draggedCardId, draggedValue;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('📘 这张卡片已经使用过了！每个卡片只能匹配一次。');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      if (targetChallenge.matched) {
+        setErrorMsg('⚖️ 这个等式槽位已经填写过了！');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const isMatch = areEqual(draggedValue, targetChallenge.correctOp);
+      if (!isMatch) {
+        const expected = targetChallenge.correctOp;
+        setErrorMsg(`❌ 不正确！ “${targetChallenge.description}” 的正确填空应该是 “${expected}”，而不是 “${draggedValue}”。再想想等式的性质～`);
+        setTimeout(() => setErrorMsg(''), 2200);
+        return;
+      }
+      
+      // 正确匹配
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].matched = true;
+      newChallenges[challengeIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        matched: false,
+        matchedValue: null
+      }));
+      let resetCards = answerCards.map(card => ({ ...card, used: false }));
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    const totalCount = challenges.length;
+    const filledCount = challenges.filter(ch => ch.matched).length;
+    const progressPercent = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-[#C69DF0] to-[#AE7AE0] rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#E9D2FF]">
+        <div className="text-2xl font-bold text-white">🎉 等式大师！全部正确 🎉</div>
+        <div className="text-base text-[#F7F0FF] font-semibold">你已掌握等式的两条重要性质，为解方程做好充分准备！点击「全新挑战」继续巩固～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#EDE0FA]/80 backdrop-blur-sm rounded-2xl px-5 py-3 shadow-md border border-[#C59BF0]">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl">⚖️</span>
+            <span className="font-bold text-[#4A2670] text-lg">学习进度</span>
+            <span className="text-xl font-black text-[#7D44B5]">{filledCount} / {totalCount}</span>
+          </div>
+          <div className="w-40 bg-[#DCCEF5] rounded-full h-3">
+            <div className="bg-[#B47DE0] h-3 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-sm bg-[#E6D9F7] px-3 py-1 rounded-full text-[#4A2670] border border-[#C59BF0]">📎 拖拽填空 放入槽位</div>
+        </div>
+        
+        {/* 挑战区域 */}
+        <div className="bg-[#F9F2FF]/80 rounded-2xl p-4 backdrop-blur-sm border border-[#C59BF0]">
+          <div className="text-center text-base font-semibold text-[#5A2D82] mb-3">✏️ 根据等式的性质，选择正确的数或式子填入问号处</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-white/90 rounded-xl p-4 border border-[#DCCEF5] shadow-sm hover:shadow-md transition">
+                <div className="mb-2">
+                  <div className="text-base font-bold text-[#5F2E8A] bg-[#F0E4FA] inline-block px-2 py-0.5 rounded-full">📐 等式填空</div>
+                  <div className="text-lg font-mono font-bold text-gray-800 mt-3 bg-[#FCF7FF] p-3 rounded-lg text-center">
+                    {challenge.description.replace("?", "______")}
+                  </div>
+                  {!challenge.matched && (
+                    <div className="text-sm text-[#885FB0] mt-2 italic">💡 提示：{challenge.hint}</div>
+                  )}
+                  {challenge.fullExample && (
+                    <div className="text-xs text-[#A076C9] mt-1">📖 示例：{challenge.fullExample}</div>
+                  )}
+                </div>
+                <div className="mt-3">
+                  <div
+                    className={`drop-slot rounded-xl p-3 text-center transition-all ${challenge.matched ? 'filled-slot' : ''}`}
+                    onDragOver={onDragOverSlot}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, challenge.id)}
+                  >
+                    <div className="text-sm font-semibold text-[#5A2D82]">📥 填空槽位</div>
+                    {challenge.matched ? (
+                      <div className="slot-value text-white mt-1">{challenge.matchedValue}</div>
+                    ) : (
+                      <div className="text-base text-[#7D4BAA] mt-1 border-t border-dashed border-[#C09BDF] pt-1">⬅️ 拖拽正确选项至此</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-[#F9F2FF]/80 rounded-2xl p-4 border border-[#C59BF0]">
+          <div className="text-center text-base font-semibold text-[#5A2D82] mb-2">🎴 选项卡片库（拖拽到上方填空槽位）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-28 h-24 rounded-xl shadow-md flex items-center justify-center font-mono transition-all ${
+                  card.used 
+                    ? 'bg-gray-400/60 cursor-default border-2 border-gray-300 text-gray-200' 
+                    : 'bg-gradient-to-br from-[#D2ABF0] to-[#B888E0] cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-[#F0DFFF] text-white'
+                }`}
+              >
+                <span className="card-value">{card.used ? '✓ 已用' : card.value}</span>
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-[#7D3EAC] text-base">加载卡片中...</div>}
+          </div>
+          <div className="text-sm text-center text-[#694D8A] mt-2">💡 每个卡片只能用一次，根据等式的性质（同加减、同乘除）选择正确的填空。</div>
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FEEBC8]/90 text-[#A45A1A] font-bold p-2.5 rounded-xl border-l-8 border-[#F6AD55] backdrop-blur-sm animate-pulse shadow text-base">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-1">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#C29AF0] hover:bg-[#B07CDE] text-white font-bold py-3 rounded-full transition shadow-md text-lg active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#9B6AD4] hover:bg-[#8657B8] text-white font-bold py-3 rounded-full transition shadow-md text-lg active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批题目）
+          </button>
+        </div>
+        <div className="text-sm text-center text-[#5D3E82] bg-[#EADCF9]/70 rounded-full py-2 px-3 backdrop-blur-sm">
+          💡 性质1：两边同加/减同一个数；性质2：两边同乘/除以同一个不为0的数。灵活运用，方程轻松解！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用入口 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#F9F2FF]/90 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#C59BF0]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-2xl font-bold text-[#4A2368] flex items-center gap-2">
+                <span className="text-4xl">⚖️</span>
+                等式的性质 · 填空工坊
+              </h3>
+              <span className="text-base bg-[#E6D9F7] px-3 py-1 rounded-full text-[#4A2368] border border-[#C59BF0]">🎯 拖拽选项 完成等式</span>
+            </div>
+            <EqualityGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

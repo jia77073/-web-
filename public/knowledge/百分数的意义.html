@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>百分数的意义 · 配对百分百 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体大4号 (基础2.5rem 确保超大) */
+    body {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    /* 小号辅助文字相对缩小 */
+    .text-sm-custom {
+      font-size: 0.6rem;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    /* 移动端适配，字体适当缩小避免溢出 */
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.6rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 百分数的意义 =======================
+  // 知识点：百分数表示一个数是另一个数的百分之几，也叫百分率或百分比。
+  
+  // ---------- 游戏数据：配对（百分数 ↔ 分数/小数）----------
+  const matchPairs = [
+    { id: 1, percent: "50%", value: "1/2 (0.5)", matchKey: "50" },
+    { id: 2, percent: "25%", value: "1/4 (0.25)", matchKey: "25" },
+    { id: 3, percent: "75%", value: "3/4 (0.75)", matchKey: "75" },
+    { id: 4, percent: "20%", value: "1/5 (0.2)", matchKey: "20" },
+    { id: 5, percent: "40%", value: "2/5 (0.4)", matchKey: "40" },
+    { id: 6, percent: "100%", value: "1 (1)", matchKey: "100" },
+    { id: 7, percent: "10%", value: "1/10 (0.1)", matchKey: "10" }
+  ];
+  
+  // 游戏组件：拖拽配对（百分数 → 对应的分数/小数）
+  const MatchingGame = () => {
+    // 左侧百分数卡片（未配对）
+    const [percentCards, setPercentCards] = React.useState(() => 
+      matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.percent,
+        matchKey: pair.matchKey,
+        matched: false
+      }))
+    );
+    
+    // 右侧数值槽位（打乱顺序）
+    const [valueSlots, setValueSlots] = React.useState(() => {
+      let slots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.value,
+        matchKey: pair.matchKey,
+        matched: false
+      }));
+      // 打乱顺序增加挑战
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有百分数都找到了自己的伙伴！你已掌握百分数的意义！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧百分数卡片
+    const onDragStart = (e, cardId, matchKey) => {
+      const card = percentCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "percent", cardId, matchKey }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "percent") return;
+      const { cardId, matchKey } = dragData;
+      
+      const targetSlot = valueSlots.find(s => s.id === slotId);
+      const sourceCard = percentCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个百分数或数值槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配（matchKey 相等）
+      if (matchKey === targetSlot.matchKey) {
+        // 配对成功
+        setPercentCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setValueSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.text} = ${targetSlot.text}，百分数表示一个数是另一个数的百分之几。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = percentCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = valueSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 不等于 ${targetSlot.text}，再试试看～ 想一想百分数和分数、小数的关系。`);
+        setTimeout(() => setFeedbackMsg(""), 1600);
+      }
+    };
+    
+    const resetGame = () => {
+      const newPercent = matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.percent,
+        matchKey: pair.matchKey,
+        matched: false
+      }));
+      let newSlots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.value,
+        matchKey: pair.matchKey,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setPercentCards(newPercent);
+      setValueSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的百分数拖拽到右边正确的数值上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = percentCards.every(c => c.matched) && valueSlots.every(s => s.matched);
+    const totalPairs = matchPairs.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎯 百分数配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>百分数</strong>拖拽到右边<strong>相等的分数/小数</strong>上，配对正确会消除！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧百分数卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 百分数卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {percentCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchKey)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl font-mono">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧数值槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎁 分数 / 小数 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto">
+              {valueSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把百分数拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 配对百分百！你理解了百分数的意义，成为百分数小达人！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 百分数表示一个数是另一个数的百分之几，也叫百分率或百分比。例如 50% = 1/2 = 0.5。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：百分数的意义 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📊</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">百分数的意义</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是百分数？</p>
+            <p><strong className="bg-purple-200 px-1 rounded">表示一个数是另一个数的百分之几</strong>的数，叫做百分数。百分数也叫百分率或百分比。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              例如：50% 读作“百分之五十”，表示50/100。
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 百分数的读写</p>
+            <p>写法：在分子后面加上“%”。读法：先读“百分之”，再读分子。</p>
+            <p className="text-sm">🌰 35% 读作：百分之三十五</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 百分数与分数、小数的关系</p>
+            <p>百分数可以化成分母是100的分数，也可以化成小数。</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
+              <li>75% = 75/100 = 3/4 = 0.75</li>
+              <li>20% = 20/100 = 1/5 = 0.2</li>
+            </ul>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">⚠️ 注意</p>
+            <p>百分数后面不能带单位，它表示两个数的倍比关系。分数既可以表示具体数量也可以表示倍数关系。</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“百分数，百分率，分母一百要牢记；与分小数互化，意义关系心中挂。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：百分数与分数互化（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ percent: "50%", answer: "1/2" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { percent: "50%", answer: "1/2" },
+      { percent: "25%", answer: "1/4" },
+      { percent: "75%", answer: "3/4" },
+      { percent: "20%", answer: "1/5" },
+      { percent: "40%", answer: "2/5" },
+      { percent: "100%", answer: "1" },
+      { percent: "10%", answer: "1/10" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const normalized = userAnswer.trim().replace(/\s/g, '');
+      const correctNorm = question.answer.replace(/\s/g, '');
+      if (normalized === correctNorm) {
+        setFeedback("✅ 完全正确！百分数和分数互化很棒！");
+      } else {
+        setFeedback(`❌ 不对哦，${question.percent} 化成分数是 ${question.answer}，再试试看～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 百分数化分数</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-mono font-bold text-2xl">{question.percent} = ?</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="text" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-purple-300 rounded-lg px-3 py-1 w-32 text-center"
+              placeholder="如 1/2"
+            />
+            <button onClick={checkAnswer} className="bg-purple-400 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 百分数在生活中无处不在：饮料浓度、折扣、考试得分率…… 理解百分数，看懂世界数据！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学乐园：方向小探险家 | 认识东南西北</title>
+    <!-- Tailwind CSS CDN + 基础样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义 Tailwind 主题配置：淡紫色调 + 大字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lavender-light': '#CBAACB',
+                        'lavender-soft': '#D9C2E6',
+                        'lavender-deep': '#B38CB8',
+                    },
+                    fontSize: {
+                        '6xl': '3.75rem',     // 大号基础，但实际我们针对不同元素采用相对尺寸
+                        '7xl': '4.5rem',
+                    },
+                    fontFamily: {
+                        'rounded': ['"Comic Neue"', '"Comic Sans MS"', 'Chalkboard SE', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 额外自定义圆润风格与拖拽体验优化 */
+        * {
+            user-select: none; /* 避免拖拽时选中文字，提升触屏拖拽感 (可选) */
+        }
+        .drag-card {
+            cursor: grab;
+            transition: transform 0.1s ease, box-shadow 0.2s;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        /* 移动端触摸优化 */
+        @media (max-width: 640px) {
+            .drag-card {
+                cursor: pointer; /* 移动端提示可拖动 */
+            }
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #f0e6ff;
+            border-color: #9b59b6;
+            transform: scale(1.02);
+        }
+        /* 网格方向卡片风格 */
+        .direction-cell {
+            transition: background 0.2s;
+        }
+        /* 动画提示 */
+        @keyframes bounceHappy {
+            0% { transform: scale(1); }
+            80% { transform: scale(1.2); background-color: #c8e6c9; }
+            100% { transform: scale(1); }
+        }
+        .feedback-correct {
+            animation: bounceHappy 0.4s ease;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-lavender-light to-lavender-soft min-h-screen p-4 md:p-6 font-rounded">
+
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // 定义八个方向常量 (按照顺时针顺序)
+    const DIRECTIONS = [
+        "北", "东北", "东", "东南", "南", "西南", "西", "西北"
+    ];
+    
+    // 方向对应的3x3网格位置映射 (行列索引, 中心除外)
+    // 行0: 西北,北,东北 ; 行1: 西,中心,东 ; 行2: 西南,南,东南
+    const directionToCoords = {
+        "西北": { row: 0, col: 0 },
+        "北": { row: 0, col: 1 },
+        "东北": { row: 0, col: 2 },
+        "西": { row: 1, col: 0 },
+        "东": { row: 1, col: 2 },
+        "西南": { row: 2, col: 0 },
+        "南": { row: 2, col: 1 },
+        "东南": { row: 2, col: 2 }
+    };
+    
+    // 所有方向对应的格子(用于显示方向文本)
+    const allGridDirections = [
+        { row: 0, col: 0, dir: "西北" }, { row: 0, col: 1, dir: "北" }, { row: 0, col: 2, dir: "东北" },
+        { row: 1, col: 0, dir: "西" }, { row: 1, col: 1, dir: "★中心" }, { row: 1, col: 2, dir: "东" },
+        { row: 2, col: 0, dir: "西南" }, { row: 2, col: 1, dir: "南" }, { row: 2, col: 2, dir: "东南" }
+    ];
+    
+    // 随机获取一个方向 (不包括中心)
+    const getRandomDirection = () => {
+        const dirs = [...DIRECTIONS];
+        return dirs[Math.floor(Math.random() * dirs.length)];
+    };
+    
+    // 主游戏组件
+    const DirectionGame = () => {
+        // 当前题目中动物所在的方向 (物体相对于观测点的方向)
+        const [currentAnimalDir, setCurrentAnimalDir] = React.useState(getRandomDirection());
+        // 反馈信息 (正确/错误)
+        const [feedback, setFeedback] = React.useState({ message: "", isCorrect: false, show: false });
+        // 得分计数（鼓励小星星模式）
+        const [score, setScore] = React.useState(0);
+        // 已经答对这一题标记 (换题重置)
+        const [answeredCorrect, setAnsweredCorrect] = React.useState(false);
+        
+        // 获取当前动物图标 emoji (可爱风格)
+        const animalEmojis = ["🐨", "🐼", "🦊", "🐰", "🐱", "🐶", "🦁", "🐧"];
+        const currentAnimalEmoji = React.useMemo(() => {
+            // 根据方向确定一个固定但可爱的图标，也可以随机但趣味
+            const index = DIRECTIONS.indexOf(currentAnimalDir);
+            return animalEmojis[Math.abs(index) % animalEmojis.length];
+        }, [currentAnimalDir]);
+        
+        // 换一题逻辑: 重置题目，随机生成新的动物方向，清空反馈，重置已回答标记
+        const handleNextQuestion = () => {
+            let newDir = getRandomDirection();
+            // 避免和当前一样? 无所谓，可以一样但增加随机性也行
+            setCurrentAnimalDir(newDir);
+            setFeedback({ message: "", isCorrect: false, show: false });
+            setAnsweredCorrect(false);
+        };
+        
+        // 处理拖拽放置: 判定拖拽来的方向是否正确
+        const handleDrop = (e) => {
+            e.preventDefault();
+            // 移除拖拽悬停样式
+            const dropZone = document.getElementById('dropZone');
+            if (dropZone) dropZone.classList.remove('drag-over');
+            
+            // 获取拖拽数据 (方向文本)
+            const draggedDir = e.dataTransfer.getData("text/plain");
+            if (!draggedDir) return;
+            
+            // 如果此题已经答对了, 不允许重复拖拽覆盖，但可以提示已经答对过，鼓励换题
+            if (answeredCorrect) {
+                setFeedback({ message: "🎉 这题你已经答对啦！点'换一题'继续挑战吧～", isCorrect: false, show: true });
+                return;
+            }
+            
+            // 判定方向是否匹配
+            if (draggedDir === currentAnimalDir) {
+                // 正确！
+                setFeedback({ message: "✅ 完全正确！ 太棒啦！ 🌟", isCorrect: true, show: true });
+                setAnsweredCorrect(true);
+                setScore(prev => prev + 1);
+                // 正确时播放一个小动画 (通过CSS类)
+                const feedbackDiv = document.getElementById('feedbackMsg');
+                if (feedbackDiv) {
+                    feedbackDiv.classList.add('feedback-correct');
+                    setTimeout(() => {
+                        if(feedbackDiv) feedbackDiv.classList.remove('feedback-correct');
+                    }, 400);
+                }
+            } else {
+                // 错误
+                setFeedback({ message: `❌ 噢不，再试试看！ “${draggedDir}”不对哦，小动物在${currentAnimalDir}方向~`, isCorrect: false, show: true });
+            }
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            // 添加视觉反馈
+            const dropZone = document.getElementById('dropZone');
+            if (dropZone && !answeredCorrect) dropZone.classList.add('drag-over');
+        };
+        
+        const handleDragLeave = (e) => {
+            const dropZone = document.getElementById('dropZone');
+            if (dropZone) dropZone.classList.remove('drag-over');
+        };
+        
+        // 方向卡片拖拽开始: 存储方向文本
+        const handleDragStart = (e, directionName) => {
+            e.dataTransfer.setData("text/plain", directionName);
+            e.dataTransfer.effectAllowed = "copy";
+            // 设置拖拽时的光标样式
+            if (e.target.style) e.target.style.opacity = "0.6";
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target.style) e.target.style.opacity = "";
+        };
+        
+        // 渲染方向网格 (3x3平面图，带方向标)
+        const renderDirectionGrid = () => {
+            return (
+                <div className="grid grid-cols-3 gap-1.5 md:gap-3 bg-white/40 p-3 rounded-3xl shadow-inner">
+                    {allGridDirections.map((cell, idx) => {
+                        const isCenter = cell.dir === "★中心";
+                        // 判断当前格子是否显示小动物
+                        const showAnimal = (!isCenter && directionToCoords[currentAnimalDir] && 
+                                            directionToCoords[currentAnimalDir].row === cell.row && 
+                                            directionToCoords[currentAnimalDir].col === cell.col);
+                        return (
+                            <div key={idx} 
+                                 className={`direction-cell relative flex flex-col items-center justify-center rounded-2xl p-2 md:p-4 shadow-md transition-all
+                                            ${isCenter ? 'bg-amber-100 border-4 border-amber-300' : 'bg-white/80 border border-purple-200'}
+                                            min-h-[70px] md:min-h-[90px]`}>
+                                {!isCenter && (
+                                    <span className="text-xs md:text-sm font-bold text-purple-700 bg-purple-50 px-1 rounded-full absolute top-1 left-1">
+                                        {cell.dir}
+                                    </span>
+                                )}
+                                <div className="text-center">
+                                    {isCenter ? (
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-3xl md:text-4xl">📍</span>
+                                            <span className="text-xs md:text-sm font-bold mt-1">观测点</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {showAnimal ? (
+                                                <div className="flex flex-col items-center animate-bounceIn">
+                                                    <span className="text-4xl md:text-5xl">{currentAnimalEmoji}</span>
+                                                    <span className="text-[10px] md:text-xs bg-yellow-200 rounded-full px-1 mt-1">小动物</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-2xl md:text-3xl opacity-30">⬚</span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        };
+        
+        // 可拖拽的方向卡片列表
+        const renderDragCards = () => {
+            return (
+                <div className="grid grid-cols-4 gap-2 mt-4">
+                    {DIRECTIONS.map(dir => (
+                        <div key={dir}
+                             draggable={!answeredCorrect}  // 如果题目答对了,卡片不可拖拽,避免混淆 (但仍可展示)
+                             onDragStart={(e) => !answeredCorrect && handleDragStart(e, dir)}
+                             onDragEnd={handleDragEnd}
+                             className={`drag-card text-center py-2 md:py-3 rounded-2xl font-bold text-base md:text-xl shadow-md 
+                                        ${answeredCorrect ? 'bg-gray-300 cursor-default opacity-60' : 'bg-gradient-to-br from-indigo-100 to-purple-200 hover:shadow-lg active:shadow-inner cursor-grab'}
+                                        border-2 border-white transition-all`}
+                             style={{ touchAction: 'none' }}
+                        >
+                            {dir}
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+        
+        return (
+            <div className="flex flex-col lg:flex-row gap-6 p-4 md:p-6 bg-white/40 rounded-3xl shadow-2xl backdrop-blur-sm">
+                {/* ========= 左侧：知识点讲解 ========= */}
+                <div className="lg:w-1/2 bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white">
+                    <div className="flex items-center gap-2 mb-4 border-b-4 border-lavender-deep pb-2">
+                        <span className="text-4xl">🧭</span>
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">方向小课堂</h2>
+                    </div>
+                    <div className="space-y-4 text-lg md:text-2xl leading-relaxed text-gray-800">
+                        <p className="bg-purple-50 p-3 rounded-xl">✨ <strong>八个方向好朋友</strong>：除了东、南、西、北，还有<span className="bg-yellow-200 px-2 rounded-full">东北、东南、西南、西北</span>！</p>
+                        <div className="grid grid-cols-2 gap-3 text-center text-xl font-bold">
+                            <div className="bg-white rounded-xl p-2 shadow">⬆️ 北 (N)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">↗️ 东北 (NE)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">➡️ 东 (E)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">↘️ 东南 (SE)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">⬇️ 南 (S)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">↙️ 西南 (SW)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">⬅️ 西 (W)</div>
+                            <div className="bg-white rounded-xl p-2 shadow">↖️ 西北 (NW)</div>
+                        </div>
+                        <p className="mt-3 text-base md:text-xl">🧸 <strong>记忆小窍门</strong>：复合方向是两个方向的中间，比如“东北”=北+东中间。</p>
+                        <div className="bg-indigo-50 p-3 rounded-xl mt-2">
+                            <p className="font-semibold">🔍 观察小技巧：</p>
+                            <ul className="list-disc pl-5 text-base md:text-lg space-y-1">
+                                <li>以<span className="font-bold text-purple-700">观测点</span>为中心，用“上北下南，左西右东”确定基准。</li>
+                                <li>比如：东北方向就是既在北边又在东边！</li>
+                                <li>平面图上通常会有<span className="font-bold">方向标↑北</span>，先找到北再判断其他方向。</li>
+                            </ul>
+                        </div>
+                        <div className="text-sm md:text-base text-purple-700 bg-white/60 p-2 rounded-lg mt-2">
+                            💡 右图游戏：观察<span className="font-bold">小动物在中心点的哪个方向</span>，把正确方向卡片拖拽到虚线框里！
+                        </div>
+                    </div>
+                </div>
+                
+                {/* ========= 右侧：互动小游戏（拖拽配对 + 方位平面图） ========= */}
+                <div className="lg:w-1/2 bg-white/70 rounded-2xl p-5 md:p-6 shadow-lg border border-white flex flex-col">
+                    <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                        <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                            🎮 方向小侦探 <span className="text-base bg-yellow-200 px-2 py-1 rounded-full">拖拽配对</span>
+                        </h3>
+                        <div className="flex items-center gap-2 bg-lavender-soft px-3 py-1 rounded-full">
+                            <span className="text-xl">⭐️ 得分</span>
+                            <span className="text-3xl font-black text-purple-800">{score}</span>
+                        </div>
+                    </div>
+                    
+                    {/* 平面方位图 (3x3网格) 展示方向标 */}
+                    <div className="relative mb-2">
+                        <div className="absolute -top-2 left-2 bg-white rounded-full px-2 py-0.5 shadow text-xs md:text-sm font-bold z-10">
+                            🧭 方向标 ↑ 北
+                        </div>
+                        {renderDirectionGrid()}
+                        <p className="text-xs text-center text-gray-500 mt-1">⭐ 中心是观测点，小动物出现在某个方向格子内</p>
+                    </div>
+                    
+                    {/* 问题描述 */}
+                    <div className="mt-3 bg-purple-100 rounded-xl p-3 text-center">
+                        <p className="text-xl md:text-2xl font-bold">
+                            🤔 小动物在观测点的 <span className="text-purple-700 underline decoration-wavy">什么方向</span> ？
+                        </p>
+                        <p className="text-base md:text-lg text-gray-700 mt-1">将下方的方向卡片，拖拽到 <strong>虚线放置区</strong> 即可答题！</p>
+                    </div>
+                    
+                    {/* 放置区域 (拖拽目标) */}
+                    <div id="dropZone"
+                         onDrop={handleDrop}
+                         onDragOver={handleDragOver}
+                         onDragLeave={handleDragLeave}
+                         className={`drop-zone mt-4 p-4 rounded-2xl border-4 border-dashed transition-all min-h-[90px] flex flex-col items-center justify-center
+                                    ${answeredCorrect ? 'bg-green-100 border-green-400' : 'bg-purple-50 border-purple-300'}`}
+                    >
+                        <div className="text-center">
+                            {!answeredCorrect ? (
+                                <>
+                                    <span className="text-3xl">📦</span>
+                                    <p className="text-sm md:text-base text-gray-600">把正确的方向卡片拖到这里 ➕</p>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-3xl">🏆 答对啦！</span>
+                                    <p className="text-sm md:text-base font-bold text-green-600">你真是一个方向小专家！</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* 反馈消息区域 */}
+                    {feedback.show && (
+                        <div id="feedbackMsg" className={`mt-3 text-center p-2 rounded-xl text-lg md:text-xl font-bold transition-all
+                                    ${feedback.isCorrect ? 'bg-green-200 text-green-800' : 'bg-rose-100 text-rose-700'}`}>
+                            {feedback.message}
+                        </div>
+                    )}
+                    
+                    {/* 可拖拽方向卡片 */}
+                    <div className="mt-4">
+                        <p className="text-sm font-semibold text-gray-600 mb-1">👇 拖动下面卡片到虚线框 (共八个方向)</p>
+                        {renderDragCards()}
+                    </div>
+                    
+                    {/* 换一题 按钮 */}
+                    <button onClick={handleNextQuestion}
+                            className="mt-5 w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-xl transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3">
+                        🔄 换一题
+                        <span className="text-xl">✨</span>
+                    </button>
+                    
+                    {/* 额外小提示：游戏规则说明 */}
+                    <div className="mt-3 text-xs md:text-sm text-gray-500 text-center bg-white/40 p-2 rounded-xl">
+                        💡 小技巧：观察格子里的方向文字 + 中心点，找出动物所在方位 → 拖拽上方卡片到放置区。答对得分，换一题继续挑战！
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
+    // 主应用组件（整体外壳 + 标题）
+    const App = () => {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-3">
+                <div className="w-full max-w-6xl mb-4 text-center">
+                    <h1 className="text-5xl md:text-7xl font-extrabold text-white drop-shadow-lg bg-purple-800/30 inline-block px-6 py-2 rounded-full backdrop-blur-sm">
+                        🧸 方向探险岛 🌈
+                    </h1>
+                    <p className="text-white/90 text-lg md:text-2xl mt-2 font-semibold">认识东南、东北、西南、西北 · 八个方向小英雄</p>
+                </div>
+                <DirectionGame />
+                <footer className="mt-6 text-center text-purple-800 text-sm md:text-base bg-white/30 rounded-full px-4 py-1">
+                    🌟 把方向卡片拖到虚线区，帮小动物找到家！ 🌟
+                </footer>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

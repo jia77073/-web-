@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小达人：时、分、秒换算 | 拖拖乐时间工厂</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 超大字体（大5号） -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',     // 大5号字体
+                        '6xl': '3.75rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 拖拽优化 & 移动端适配 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        /* 卡片配对成功动画 */
+        @keyframes matchSuccess {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-animation {
+            animation: matchSuccess 0.4s ease-out;
+        }
+        /* 答案卡片消失动画 */
+        .card-removed {
+            transition: all 0.2s;
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 时、分、秒换算 —— 拖拽配对游戏
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 辅助函数：随机生成换算题目 (整数，适合小学生) ----------
+        // 题目类型:
+        // 1: "秒 → 分"    (例如 120秒 = ? 分)
+        // 2: "分 → 秒"    (例如 3分 = ? 秒)
+        // 3: "时 → 分"    (例如 2时 = ? 分)
+        // 4: "分 → 时"    (例如 180分 = ? 时)
+        // 5: "时 → 秒"    (例如 1时 = ? 秒)
+        // 6: "秒 → 时"    (例如 3600秒 = ? 时) 范围控制
+        const generateQuestion = () => {
+            const types = [1, 2, 3, 4, 5, 6];
+            const type = types[Math.floor(Math.random() * types.length)];
+            let value = 0;      // 输入数值
+            let answer = 0;     // 答案数值
+            let text = "";
+            
+            switch(type) {
+                case 1: // 秒 → 分
+                    value = (Math.floor(Math.random() * 10) + 1) * 30; // 30,60,...,300秒，尽量整除60
+                    while(value % 60 !== 0) value += 30;
+                    if(value > 600) value = 120; // 上限
+                    answer = value / 60;
+                    text = `${value} 秒 = ? 分`;
+                    break;
+                case 2: // 分 → 秒
+                    value = Math.floor(Math.random() * 8) + 1; // 1~8分
+                    answer = value * 60;
+                    text = `${value} 分 = ? 秒`;
+                    break;
+                case 3: // 时 → 分
+                    value = Math.floor(Math.random() * 4) + 1; // 1~4时
+                    answer = value * 60;
+                    text = `${value} 时 = ? 分`;
+                    break;
+                case 4: // 分 → 时
+                    value = (Math.floor(Math.random() * 4) + 1) * 60; // 60,120,180,240分
+                    answer = value / 60;
+                    text = `${value} 分 = ? 时`;
+                    break;
+                case 5: // 时 → 秒
+                    value = Math.floor(Math.random() * 3) + 1; // 1~3时
+                    answer = value * 3600;
+                    text = `${value} 时 = ? 秒`;
+                    break;
+                case 6: // 秒 → 时
+                    value = (Math.floor(Math.random() * 3) + 1) * 3600; // 3600,7200,10800秒
+                    answer = value / 3600;
+                    text = `${value} 秒 = ? 时`;
+                    break;
+                default: break;
+            }
+            // 确保答案为正整数，且显示友好
+            return {
+                id: `q_${Date.now()}_${Math.random()}`,
+                text: text,
+                answer: answer,
+                unit: getUnitByType(type),
+                matched: false,
+                displayAnswer: answer.toString()
+            };
+        };
+        
+        const getUnitByType = (type) => {
+            if (type === 1) return "分";
+            if (type === 2) return "秒";
+            if (type === 3) return "分";
+            if (type === 4) return "时";
+            if (type === 5) return "秒";
+            if (type === 6) return "时";
+            return "";
+        };
+        
+        // 生成一组题目 (默认3题) 和对应的答案卡片 (混排)
+        const generateQuizSet = (count = 3) => {
+            let questions = [];
+            for (let i = 0; i < count; i++) {
+                questions.push(generateQuestion());
+            }
+            // 避免答案重复造成混淆，但允许相同答案不同题目也可以（比如两个题目答案都是60，但卡片只有一个？我们生成卡片每个题目单独生成卡片，确保每个题目都有对应的答案卡片）
+            // 但配对时需保证每个卡片只能匹配自己的题目。所以我们生成卡片时，每个题目生成唯一答案卡片。
+            let answerCards = questions.map((q, idx) => ({
+                id: `card_${idx}_${Date.now()}_${Math.random()}`,
+                value: q.answer,
+                display: q.answer.toString(),
+                belongsToQuestionId: q.id,
+                matched: false,
+            }));
+            // 打乱卡片顺序
+            for (let i = answerCards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [answerCards[i], answerCards[j]] = [answerCards[j], answerCards[i]];
+            }
+            return { questions, answerCards };
+        };
+        
+        // ---------- 主游戏组件: 拖拽配对换算 ----------
+        const TimeConversionGame = () => {
+            const [questions, setQuestions] = useState([]);
+            const [answerCards, setAnswerCards] = useState([]);
+            const [message, setMessage] = useState("🐣 把右边的答案卡片拖到左边正确的题目下方，完成时间换算！");
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            const [highlightQuestionId, setHighlightQuestionId] = useState(null);
+            
+            const totalQuestions = questions.length;
+            const matchedCount = questions.filter(q => q.matched).length;
+            const allMatched = totalQuestions > 0 && matchedCount === totalQuestions;
+            
+            // 重置/换一题
+            const resetGame = () => {
+                const { questions: newQuestions, answerCards: newCards } = generateQuizSet(3);
+                setQuestions(newQuestions);
+                setAnswerCards(newCards);
+                setMessage("✨ 新的一轮换算挑战！把答案拖拽到对应题目的方框里吧 ✨");
+                setEffectTrigger(prev => prev+1);
+                setHighlightQuestionId(null);
+            };
+            
+            useEffect(() => {
+                resetGame();
+            }, []);
+            
+            // 处理配对: 当卡片拖拽到某个题目放置区
+            const handleMatch = (questionId, draggedCardId) => {
+                // 找到目标题目
+                const targetQuestion = questions.find(q => q.id === questionId);
+                if (!targetQuestion) return false;
+                if (targetQuestion.matched) {
+                    setMessage(`⏰ 这道题已经配对成功了！不能重复配对，试试其他题目吧。`);
+                    return false;
+                }
+                // 找到拖拽的卡片
+                const draggedCard = answerCards.find(c => c.id === draggedCardId);
+                if (!draggedCard || draggedCard.matched) {
+                    setMessage(`🔁 这张答案卡片已经用过了！请拖拽其他卡片。`);
+                    return false;
+                }
+                // 验证答案是否匹配
+                if (draggedCard.value === targetQuestion.answer) {
+                    // 配对正确
+                    // 更新题目为已配对
+                    setQuestions(prevQuestions => 
+                        prevQuestions.map(q => 
+                            q.id === questionId ? { ...q, matched: true } : q
+                        )
+                    );
+                    // 更新卡片为已配对（从卡片列表中移除或标记不可用）
+                    setAnswerCards(prevCards => prevCards.filter(c => c.id !== draggedCardId));
+                    setMessage(`🎉 配对成功！ ${targetQuestion.text} 答案是 ${targetQuestion.answer} ${targetQuestion.unit} ！ 你真棒 🎉`);
+                    setEffectTrigger(prev => prev+1);
+                    // 播放动画
+                    const questionElem = document.getElementById(`question-${questionId}`);
+                    if (questionElem) {
+                        questionElem.classList.add('match-animation');
+                        setTimeout(() => questionElem.classList.remove('match-animation'), 400);
+                    }
+                    return true;
+                } else {
+                    // 配对错误
+                    setMessage(`❌ 配对错误！ ${targetQuestion.text} 的答案不是 ${draggedCard.display}，再想一想换算进率吧～`);
+                    return false;
+                }
+            };
+            
+            // ----- 拖拽事件: 答案卡片 draggable -----
+            const onCardDragStart = (e, card) => {
+                // 检查卡片是否还存在（未被配对移除）
+                if (!answerCards.some(c => c.id === card.id)) {
+                    e.preventDefault();
+                    setMessage("这张卡片已经配对过了，不能再拖拽啦！");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, value: card.value }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.5";
+            };
+            const onCardDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            // 题目放置区域事件
+            const onDropOnQuestion = (e, question) => {
+                e.preventDefault();
+                setHighlightQuestionId(null);
+                let dragData;
+                try {
+                    const raw = e.dataTransfer.getData("text/plain");
+                    if (!raw) return;
+                    dragData = JSON.parse(raw);
+                } catch(err) {
+                    setMessage("请从右侧答案卡片区域拖拽哦～");
+                    return;
+                }
+                if (dragData && dragData.cardId) {
+                    handleMatch(question.id, dragData.cardId);
+                } else {
+                    setMessage("拖拽无效，请使用右侧的答案卡片～");
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            
+            const onDragEnterQuestion = (questionId) => setHighlightQuestionId(questionId);
+            const onDragLeaveQuestion = () => setHighlightQuestionId(null);
+            
+            // 换一题按钮
+            const handleChangeQuestion = () => {
+                resetGame();
+            };
+            
+            // 进度百分比
+            const progressPercent = totalQuestions > 0 ? (matchedCount / totalQuestions) * 100 : 0;
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区 ========= */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-4xl md:text-5xl font-extrabold text-purple-800 flex items-center gap-2">
+                                ⏳ 时间换算小课堂
+                                <span className="text-xl bg-amber-200 px-3 py-1 rounded-full">时·分·秒</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-lg md:text-xl text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">⏰</span>
+                                <span><strong className="text-purple-700">时间单位换算公式：</strong></span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-2">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 魔法三公式</p>
+                                <div className="grid grid-cols-1 gap-2 text-center">
+                                    <div className="bg-white/60 rounded-xl p-2 text-xl">⭐ 1 时 = 60 分</div>
+                                    <div className="bg-white/60 rounded-xl p-2 text-xl">⭐ 1 分 = 60 秒</div>
+                                    <div className="bg-white/60 rounded-xl p-2 text-xl">⭐ 1 时 = 3600 秒</div>
+                                </div>
+                                <p className="text-sm mt-2">大化小：乘进率；小化大：除以进率。</p>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧠 换算小技巧：</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>时 → 分： ×60</li>
+                                    <li>分 → 秒： ×60</li>
+                                    <li>分 → 时： ÷60</li>
+                                    <li>秒 → 分： ÷60</li>
+                                    <li>时 → 秒： ×3600</li>
+                                </ul>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 右侧每个“答案卡片”可以拖拽，把它放到左边正确的题目方框内，配对正确就会消除卡片并标记题目完成！全部配对即通关～
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* ========= 右侧游戏互动区 (拖拽配对换算) ========= */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-3xl md:text-4xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 拖拖乐·时间换算工厂
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽配对</span>
+                            </h3>
+                            <button 
+                                onClick={handleChangeQuestion}
+                                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 text-xl"
+                            >
+                                🔄 换一题
+                            </button>
+                        </div>
+                        
+                        {/* 进度条和计数 */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-sm md:text-base font-semibold text-purple-800">
+                                <span>⭐ 换算进度: {matchedCount} / {totalQuestions}</span>
+                                <span>🎯 学习目标: 时、分、秒换算</span>
+                            </div>
+                            <div className="bg-gray-200 rounded-full h-5 overflow-hidden">
+                                <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-500" style={{width: `${progressPercent}%`}}></div>
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-purple-100/80 rounded-xl p-3 text-center text-purple-800 font-medium text-base shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 题目展示区域 (可放置区) */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-3 flex items-center gap-2">📋 换算挑战 (拖拽答案到这里)</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                                {questions.map(question => (
+                                    <div 
+                                        key={question.id}
+                                        id={`question-${question.id}`}
+                                        onDragOver={onDragOver}
+                                        onDrop={(e) => onDropOnQuestion(e, question)}
+                                        onDragEnter={() => onDragEnterQuestion(question.id)}
+                                        onDragLeave={onDragLeaveQuestion}
+                                        className={`relative p-4 rounded-2xl transition-all duration-200 border-2 border-dashed ${
+                                            highlightQuestionId === question.id ? 'drop-zone-active border-yellow-500 bg-yellow-50' : 'border-purple-300 bg-white/40'
+                                        } ${question.matched ? 'bg-green-50/70 border-green-400' : 'hover:shadow-md'}`}
+                                    >
+                                        <div className="flex justify-between items-center flex-wrap gap-2">
+                                            <div className="text-2xl md:text-3xl font-bold text-purple-800">
+                                                {question.text}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {question.matched ? (
+                                                    <span className="bg-green-500 text-white text-sm rounded-full px-3 py-1 flex items-center gap-1">
+                                                        ✅ 已配对 {question.answer} {question.unit}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-sm text-purple-500 bg-purple-100 px-3 py-1 rounded-full">等待配对</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {question.matched && (
+                                            <div className="absolute top-2 right-2 text-green-600 text-xl">✓</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        {/* 可拖拽答案卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🎴 答案卡片 (拖拽到左边题目)</h4>
+                            <div className="flex flex-wrap gap-3 justify-start items-center min-h-[130px] bg-white/40 rounded-2xl p-3 custom-scroll overflow-x-auto">
+                                {answerCards.length === 0 ? (
+                                    <div className="w-full text-center py-6 text-green-700 font-bold text-2xl">🎉 太厉害了！所有换算都配对成功！ 🎉</div>
+                                ) : (
+                                    answerCards.map(card => (
+                                        <div 
+                                            key={card.id}
+                                            draggable="true"
+                                            onDragStart={(e) => onCardDragStart(e, card)}
+                                            onDragEnd={onCardDragEnd}
+                                            className="bg-gradient-to-br from-amber-200 to-orange-300 w-32 h-28 rounded-2xl flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                                        >
+                                            <span className="text-5xl mb-1">🃏</span>
+                                            <span className="text-3xl font-black text-purple-900">{card.display}</span>
+                                            <span className="text-xs text-gray-700 mt-1">拖拽我配对</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 按住或长按卡片，拖到上方对应的题目方框里，松手完成配对！</p>
+                        </div>
+                        
+                        {/* 操作小贴士和额外帮助 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：从卡片拖到题目区域，配对正确会有动画提示。</span>
+                            <button onClick={() => setMessage("📢 记住进率：1时=60分，1分=60秒，1时=3600秒。大单位变小单位乘进率，小单位变大单位除以进率。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {allMatched && totalQuestions > 0 && (
+                            <div className="mt-2 text-center text-2xl font-bold text-green-700 bg-green-100 rounded-2xl p-3 animate-bounce">
+                                🏆 完美通关！ 你已经是时间换算小专家啦！ 🏆
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        // ---------- 根组件 ----------
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-5xl md:text-7xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🕰️ 时间转换站 · 时、分、秒 🧸
+                        </h1>
+                        <p className="text-white/90 text-xl md:text-2xl mt-2 font-medium">拖一拖，配配对，轻松掌握时间换算！</p>
+                    </div>
+                    <TimeConversionGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 把答案卡片拖拽到正确的题目方框里，配对成功就能获得知识勋章～ 点击【换一题】继续挑战新换算 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

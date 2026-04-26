@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小乐园 - 认识整时 | 拖拖乐学时间</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义配置：扩展字体大小和主题色（淡紫） -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',      // 大5号字体基调
+                        '6xl': '3.75rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 优化拖拽体验，移动端支持 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation; /* 优化触屏拖拽 */
+            user-select: none;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transition: all 0.2s;
+            transform: scale(1.02);
+        }
+        /* 时钟卡片内嵌canvas优化 */
+        canvas {
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            border-radius: 999px;
+            background: white;
+        }
+        /* 简单动画 */
+        @keyframes bounceMatch {
+            0% { transform: scale(1); background-color: #c7d2fe; }
+            80% { transform: scale(1.05); background-color: #a5b4fc; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-pop {
+            animation: bounceMatch 0.4s ease-out;
+        }
+        /* 隐藏滚动条但保持功能 */
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 核心逻辑
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // ---------- 时钟绘制组件 (canvas) ----------
+        const ClockFace = ({ hour, matched, isComplete }) => {
+            const canvasRef = useRef(null);
+            // 绘制钟表 (整时，分针指向12)
+            const drawClock = useCallback(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const size = canvas.width = canvas.height = 120; // 实际大小120px
+                const centerX = size/2;
+                const centerY = size/2;
+                const radius = size * 0.42;
+                
+                ctx.clearRect(0, 0, size, size);
+                // 表盘背景
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius + 5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#FFF9F0';
+                ctx.fill();
+                ctx.strokeStyle = '#CBAACB';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                // 刻度
+                for (let i = 1; i <= 12; i++) {
+                    let angle = i * Math.PI * 2 / 12 - Math.PI/2;
+                    let x1 = centerX + (radius - 8) * Math.cos(angle);
+                    let y1 = centerY + (radius - 8) * Math.sin(angle);
+                    let x2 = centerX + (radius - 2) * Math.cos(angle);
+                    let y2 = centerY + (radius - 2) * Math.sin(angle);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#6b21a5';
+                    ctx.stroke();
+                    // 数字
+                    ctx.font = `bold ${radius * 0.18}px "Comic Neue", sans-serif`;
+                    ctx.fillStyle = '#4c1d95';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let numX = centerX + (radius - 18) * Math.cos(angle);
+                    let numY = centerY + (radius - 18) * Math.sin(angle);
+                    ctx.fillText(i.toString(), numX, numY);
+                }
+                // 绘制时针 (整时: 小时*30度)
+                let hourAngle = (hour % 12) * (Math.PI * 2 / 12) - Math.PI/2;
+                let hourLen = radius * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(centerX + hourLen * Math.cos(hourAngle), centerY + hourLen * Math.sin(hourAngle));
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = '#3b0764';
+                ctx.stroke();
+                // 分针 (整时指向12)
+                let minuteAngle = -Math.PI/2;
+                let minuteLen = radius * 0.7;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(centerX + minuteLen * Math.cos(minuteAngle), centerY + minuteLen * Math.sin(minuteAngle));
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#a855f7';
+                ctx.stroke();
+                // 中心圆点
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 4, 0, 2*Math.PI);
+                ctx.fillStyle = '#fbbf24';
+                ctx.fill();
+                ctx.fillStyle = '#3b0764';
+                ctx.arc(centerX, centerY, 2, 0, 2*Math.PI);
+                ctx.fill();
+            }, [hour]);
+            
+            useEffect(() => {
+                drawClock();
+            }, [drawClock, hour]);
+            
+            return (
+                <div className="relative flex flex-col items-center">
+                    <canvas ref={canvasRef} width="120" height="120" className="rounded-full shadow-md bg-white"></canvas>
+                    {matched && (
+                        <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1 shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                    )}
+                    {!matched && (
+                        <div className="text-xs mt-1 text-purple-700 font-medium">✨ 拖拽时间卡</div>
+                    )}
+                </div>
+            );
+        };
+        
+        // ---------- 主游戏组件：时间配对（认识整时）----------
+        const TimeMatchingGame = () => {
+            // 时钟数据: { id, hour, matched }
+            const [clocks, setClocks] = useState([]);
+            // 未配对的时间卡片数组（存储小时数字，例如 [3,9,6,12]）
+            const [unmatchedCards, setUnmatchedCards] = useState([]);
+            // 全局消息反馈
+            const [message, setMessage] = useState("🐣 把时间卡片拖拽到对应的时钟上，认识整时吧！");
+            // 特效key用于刷新动画
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            // 是否全部配对
+            const allMatched = clocks.length > 0 && clocks.every(clock => clock.matched === true);
+            
+            // 生成一组随机不同的整时小时 (1-12) count个, 默认4个
+            const generateRandomHours = (count = 4) => {
+                let hours = [];
+                while(hours.length < count) {
+                    const rand = Math.floor(Math.random() * 12) + 1; // 1~12
+                    if(!hours.includes(rand)) hours.push(rand);
+                }
+                return hours.sort((a,b)=>a-b); // 排序一下视觉整洁
+            };
+            
+            // 重置 / 换一题：重新生成时钟组和卡片组
+            const resetGame = () => {
+                const newHours = generateRandomHours(4);  // 4个不同整时
+                const newClocks = newHours.map((hour, idx) => ({
+                    id: `clock_${idx}_${Date.now()}_${Math.random()}`,
+                    hour: hour,
+                    matched: false,
+                }));
+                // 未配对卡片基于这些小时，并且打乱顺序
+                let cardHours = [...newHours];
+                for (let i = cardHours.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cardHours[i], cardHours[j]] = [cardHours[j], cardHours[i]];
+                }
+                setClocks(newClocks);
+                setUnmatchedCards(cardHours);
+                setMessage("✨ 换了一组新时间！把左边的卡片拖到对应的时钟上吧 ✨");
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 初始化加载第一组题目
+            useEffect(() => {
+                resetGame();
+            }, []);
+            
+            // 配对成功逻辑（时钟未配对，卡片小时匹配）
+            const handleMatchSuccess = (clockId, hourValue) => {
+                // 找到目标时钟并更新matched为true
+                let updatedClocks = clocks.map(clock => {
+                    if (clock.id === clockId && !clock.matched && clock.hour === hourValue) {
+                        return { ...clock, matched: true };
+                    }
+                    return clock;
+                });
+                // 从unmatchedCards中移除这个hour (只移除一项，因为每个小时唯一)
+                const newUnmatched = unmatchedCards.filter(h => h !== hourValue);
+                setClocks(updatedClocks);
+                setUnmatchedCards(newUnmatched);
+                setMessage(`🎉 太棒了！${hourValue} 时 配对成功！分针指向12，时针指向${hourValue} 🎉`);
+                setEffectTrigger(prev => prev+1);
+                // 播放额外动画
+                const targetElement = document.getElementById(`clock-${clockId}`);
+                if(targetElement) {
+                    targetElement.classList.add('match-pop');
+                    setTimeout(() => targetElement.classList.remove('match-pop'), 400);
+                }
+            };
+            
+            // 处理拖拽放置事件 (时钟接收)
+            const handleDropOnClock = (e, clock) => {
+                e.preventDefault();
+                // 高亮清除（由外部处理）
+                let draggedHour = null;
+                try {
+                    const dragData = e.dataTransfer.getData("text/plain");
+                    if(dragData) {
+                        draggedHour = parseInt(dragData, 10);
+                    }
+                } catch(err) { console.warn(err); }
+                if(draggedHour === null || isNaN(draggedHour)) {
+                    setMessage("💡 请从左侧的时间卡片上拖拽喔～");
+                    return;
+                }
+                // 验证: 时钟未配对 && 卡片小时是否还在未配对列表中 && 小时匹配
+                if(clock.matched) {
+                    setMessage(`⏰ 这个时钟已经配对过了！不能再配对了哟~ 试试其他时钟吧。`);
+                    return;
+                }
+                if(!unmatchedCards.includes(draggedHour)) {
+                    setMessage(`🔁 这张时间卡片已经配对过了！不能再重复使用啦，试试别的卡片~`);
+                    return;
+                }
+                if(clock.hour === draggedHour) {
+                    // 正确配对
+                    handleMatchSuccess(clock.id, draggedHour);
+                } else {
+                    setMessage(`❌ 配对错误！ ${draggedHour} 时 和这个时钟时间不一样。再仔细观察时针指向哪里？分针指向12才是整时哦！`);
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            
+            // 拖拽开始：保存卡片的小时数值
+            const onCardDragStart = (e, hourVal) => {
+                if(!unmatchedCards.includes(hourVal)) {
+                    e.preventDefault();
+                    setMessage("这张卡片已经配对过了，不能拖拽啦～");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", hourVal.toString());
+                e.dataTransfer.effectAllowed = "copy";
+                // 让拖拽时有半透明效果
+                if(e.target) e.target.style.opacity = "0.5";
+            };
+            const onCardDragEnd = (e) => {
+                if(e.target) e.target.style.opacity = "";
+            };
+            
+            // 高亮放置区效果
+            const [highlightClockId, setHighlightClockId] = useState(null);
+            const onDragEnterClock = (clockId) => setHighlightClockId(clockId);
+            const onDragLeaveClock = () => setHighlightClockId(null);
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                resetGame();
+            };
+            
+            // 全部配对完成时的特效
+            useEffect(() => {
+                if(allMatched && clocks.length > 0) {
+                    setMessage("🏆 哇！全部配对成功！你已经是时间小专家啦！🏆 点击『换一题』继续挑战～");
+                }
+            }, [allMatched, clocks]);
+            
+            // 统计进度
+            const totalClocks = clocks.length;
+            const matchedCount = clocks.filter(c => c.matched).length;
+            const progressPercent = totalClocks > 0 ? (matchedCount / totalClocks) * 100 : 0;
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* 左侧：知识点区域 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                ⏰ 时间小课堂
+                                <span className="text-lg bg-yellow-200 px-3 py-1 rounded-full">认识整时</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-lg md:text-xl text-gray-800 leading-relaxed">
+                            <p className="flex gap-2 items-start">
+                                <span className="text-3xl">🕛</span>
+                                <span><strong className="text-purple-700">整时</strong>：分针指向数字<strong className="bg-pink-100 px-1">12</strong>，时针指向几，就是几时！</span>
+                            </p>
+                            <div className="bg-purple-50 p-4 rounded-2xl shadow-inner">
+                                <p className="font-bold text-purple-800 text-xl">📖 小口诀：</p>
+                                <p className="mt-1">分针长长指12，时针短短指数字，数字几就是几时。</p>
+                                <p className="mt-2 text-sm">例如：时针指向3，分针指向12 → 3时。</p>
+                                <div className="flex justify-around mt-3 text-center">
+                                    <div>🕒 3时</div>
+                                    <div>🕕 6时</div>
+                                    <div>🕘 9时</div>
+                                </div>
+                            </div>
+                            <div className="bg-gradient-to-r from-green-50 to-teal-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧸 排列组合小拓展：</p>
+                                <p>一天有24小时，整时出现12种（1时~12时）。解决问题时先看分针位置，再看时针！</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/50 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 左侧每个“时间卡片”可以拖拽，把它放到右边正确的时钟上，配对成功卡片就会消失！把所有时钟都配对就通关啦~
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧：游戏互动区 */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 拖拖乐 · 整时配对
+                                <span className="text-sm bg-amber-200 px-2 py-0.5 rounded-full">拖拽挑战</span>
+                            </h3>
+                            <button 
+                                onClick={handleChangeQuestion}
+                                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-lg"
+                            >
+                                🔄 换一题
+                            </button>
+                        </div>
+                        
+                        {/* 进度条和计数 */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-sm font-semibold text-purple-800">
+                                <span>配对进度: {matchedCount}/{totalClocks}</span>
+                                <span>🏅 成就</span>
+                            </div>
+                            <div className="bg-gray-200 rounded-full h-4 overflow-hidden">
+                                <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-500" style={{width: `${progressPercent}%`}}></div>
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息栏 */}
+                        <div className="bg-purple-100/80 rounded-xl p-3 text-center text-purple-800 font-medium text-base shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 可拖拽卡片区（时间卡片） */}
+                        <div>
+                            <h4 className="font-bold text-xl text-purple-700 mb-2 flex items-center gap-1">🎴 待配对时间卡片 <span className="text-sm">(拖拽到对应时钟)</span></h4>
+                            <div className="flex flex-wrap gap-3 justify-start items-center min-h-[110px] bg-white/40 rounded-2xl p-3">
+                                {unmatchedCards.length === 0 ? (
+                                    <div className="w-full text-center py-4 text-green-700 font-bold text-xl">✨ 所有时间都配对成功啦！好厉害 ✨</div>
+                                ) : (
+                                    unmatchedCards.map((hour, idx) => (
+                                        <div 
+                                            key={`card_${hour}_${idx}`}
+                                            draggable="true"
+                                            onDragStart={(e) => onCardDragStart(e, hour)}
+                                            onDragEnd={onCardDragEnd}
+                                            className="bg-gradient-to-br from-amber-200 to-yellow-300 w-28 h-28 rounded-2xl flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                                        >
+                                            <span className="text-4xl">🃏</span>
+                                            <span className="text-2xl font-black text-purple-900">{hour} 时</span>
+                                            <span className="text-[10px] text-gray-700">拖拽我</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 用手指或鼠标按住卡片，拖到下方正确的时钟区域</p>
+                        </div>
+                        
+                        {/* 时钟展示区 可放置区域 */}
+                        <div>
+                            <h4 className="font-bold text-xl text-purple-700 mb-3 flex items-center gap-2">⏲️ 时钟农场（把卡片拖到这里）</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 justify-items-center">
+                                {clocks.map(clock => (
+                                    <div 
+                                        key={clock.id}
+                                        id={`clock-${clock.id}`}
+                                        onDragOver={onDragOver}
+                                        onDrop={(e) => handleDropOnClock(e, clock)}
+                                        onDragEnter={() => onDragEnterClock(clock.id)}
+                                        onDragLeave={onDragLeaveClock}
+                                        className={`relative w-36 p-2 rounded-2xl transition-all duration-150 flex flex-col items-center ${
+                                            highlightClockId === clock.id ? 'drop-zone-active bg-yellow-50' : 'bg-white/40'
+                                        } ${clock.matched ? 'opacity-80 bg-green-50/50' : 'hover:shadow-md'}`}
+                                    >
+                                        <ClockFace hour={clock.hour} matched={clock.matched} isComplete={allMatched} />
+                                        <div className="mt-2 text-center">
+                                            {!clock.matched && (
+                                                <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">等待配对</span>
+                                            )}
+                                            {clock.matched && (
+                                                <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">已配对✓</span>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-1">目标：{clock.hour}时</div>
+                                    </div>
+                                ))}
+                            </div>
+                            {allMatched && (
+                                <div className="mt-4 text-center text-2xl font-bold text-green-600 bg-green-100 rounded-2xl p-2 animate-bounce">
+                                    🎉 完美通关！ 你已经学会认识整时啦 🎉
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* 操作小贴士 + 重置帮助 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：长按卡片拖到时钟上，松手即可配对。</span>
+                            <button onClick={() => setMessage("📢 拖拽左侧时间卡片，放到正确的时钟上方！注意看时针分针~")} className="underline">❓ 再试一次提示</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // 根组件: 整体包装
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-5xl md:text-6xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🕰️ 时间王国·整时探险家 🧸
+                        </h1>
+                        <p className="text-white/90 text-xl md:text-2xl mt-2 font-medium">拖一拖，配配对，整时轻松学！</p>
+                    </div>
+                    <TimeMatchingGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 把左边的时间卡片拽到右边正确的时钟上！配对成功就能获得知识勋章～ 点击【换一题】继续挑战新时间 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>六年级百分数·生活应用特训 | 折扣·税率·利率 | 拖拽排序闯关</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (完美支持移动端) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 6px 0 #c29b4a;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #ffe0a3;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 百分数应用题 (折扣、税率、利率、增减幅度、百分率)
+        const percentQuestions = [
+            {
+                text: "🛍️ 一件衣服原价 200 元，商场打八五折出售，现价是多少元？",
+                answer: 170,
+                solution: "🎯 折扣公式：现价 = 原价 × 折扣率。八五折 = 85% = 0.85，现价 = 200 × 0.85 = 170 (元)。"
+            },
+            {
+                text: "🏦 妈妈将 5000 元存入银行，年利率为 2.25%，存期两年，到期后可得利息多少元？（不计利息税）",
+                answer: 225,
+                solution: "🎯 利息 = 本金 × 年利率 × 存期 = 5000 × 2.25% × 2 = 5000 × 0.0225 × 2 = 225 (元)。"
+            },
+            {
+                text: "📈 某品牌手机原价 2500 元，先涨价 10%，再降价 10%，现价是多少元？",
+                answer: 2475,
+                solution: "🎯 涨价后：2500 × (1+10%) = 2750 元；再降价10%：2750 × (1-10%) = 2750 × 0.9 = 2475 元。注意单位1变化。"
+            },
+            {
+                text: "🍎 果园今年苹果产量为 24 吨，比去年增产二成，去年产量是多少吨？",
+                answer: 20,
+                solution: "🎯 二成 = 20%，今年产量是去年的 (1+20%) = 120%，去年产量 = 24 ÷ 1.2 = 20 (吨)。"
+            },
+            {
+                text: "🧥 一件羽绒服打七折后是 280 元，这件羽绒服的原价是多少元？",
+                answer: 400,
+                solution: "🎯 原价 = 现价 ÷ 折扣率 = 280 ÷ 70% = 280 ÷ 0.7 = 400 (元)。"
+            },
+            {
+                text: "📊 六(1)班有 50 人，今天出勤 48 人，今天的出勤率是多少？",
+                answer: 96,
+                solution: "🎯 出勤率 = (出勤人数 ÷ 总人数) × 100% = 48 ÷ 50 × 100% = 96%。"
+            },
+            {
+                text: "🏠 王叔叔购买一套住房，总价 120 万元，需要缴纳 1.5% 的契税，王叔叔应缴契税多少万元？",
+                answer: 1.8,
+                solution: "🎯 契税 = 总价 × 税率 = 120 × 1.5% = 120 × 0.015 = 1.8 (万元)。"
+            },
+            {
+                text: "📉 某商品原价 80 元，现价 68 元，降价了百分之几？",
+                answer: 15,
+                solution: "🎯 降价百分比 = (原价 - 现价) ÷ 原价 × 100% = (80-68) ÷ 80 × 100% = 12 ÷ 80 × 100% = 15%。"
+            },
+            {
+                text: "📱 一种笔记本电脑，先提价 5%，又降价 5%，现价与原价相比是提高了还是降低了？变化幅度是多少？(填降低百分比)",
+                answer: 0.25,
+                solution: "🎯 假设原价 100 元，提价5%后 105 元，再降价5%：105×0.95=99.75 元，降低了 (100-99.75)=0.25元，降低幅度 0.25%。"
+            },
+            {
+                text: "🍬 一袋糖果，第一天吃了总数的 20%，第二天吃了剩下的 25%，还剩 18 颗，这袋糖果原来有多少颗？",
+                answer: 30,
+                solution: "🎯 第一天剩 80%，第二天吃了剩下的 25% 即总数的 80%×25%=20%，共吃40%，剩60%对应18颗，原来=18÷60%=30颗。"
+            }
+        ];
+
+        // 左侧百分数应用题组件
+        const PercentApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * percentQuestions.length);
+                const newQ = { ...percentQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (percentQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = parseFloat(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案（整数或小数）哟～");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！百分数应用掌握得非常棒！ 🏆");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。看看解题思路吧～`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载百分数题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-300 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">💰</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">百分数·生活大赢家</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-[#F3E8FF] to-[#FDE9F0] rounded-2xl p-4 mb-5 shadow-inner">
+                        <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">折扣·税率·利率·增减</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>🏷️ <span className="font-semibold">折扣</span>：现价 = 原价 × 折扣（几折即百分之几十）；原价 = 现价 ÷ 折扣。</li>
+                            <li>🏦 <span className="font-semibold">利率</span>：利息 = 本金 × 利率 × 存期；本息和 = 本金 + 利息。</li>
+                            <li>📊 <span className="font-semibold">百分率</span>：出勤率、成活率等 = (部分 ÷ 总量) × 100%。</li>
+                            <li>📈 <span className="font-semibold">增减幅度</span>：增加(减少)百分之几 = (变化量 ÷ 单位“1”) × 100%。</li>
+                            <li>🧮 <span className="font-semibold">单位“1”辨析</span>：已知单位“1”用乘法，求单位“1”用除法。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目卡片 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-amber-400 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 百分数挑战</span>
+                            <button onClick={handleNext} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="number" 
+                                step="any"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入你的答案 (数字)"
+                                className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈区 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 解题思路</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-purple-600 text-sm italic">💡 提示：分清单位“1”，折扣/税率/利率都是百分数的实际应用。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        🛒 折扣 · 🏦 利率 · 📈 涨幅 · 📊 百分率 —— 生活中的数学
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏：百分数解题步骤拖拽排序 (折扣/税率/利率典型题)
+        const stepsChallenges = [
+            {
+                title: "🏷️ 挑战1：折扣求原价",
+                description: "一件商品打七五折后是 150 元，这件商品的原价是多少元？ (排序解题步骤)",
+                correctSteps: [
+                    "① 分析：七五折 = 75% = 0.75，现价是原价的75%。",
+                    "② 数量关系：原价 × 75% = 现价 (150元)。",
+                    "③ 算术法求原价：原价 = 150 ÷ 75% = 150 ÷ 0.75 = 200 (元)。",
+                    "④ 答：这件商品的原价是 200 元。"
+                ]
+            },
+            {
+                title: "🏦 挑战2：利息计算",
+                description: "小明把 2000 元压岁钱存入银行，年利率 2.75%，存期 3 年，到期可得利息多少元？",
+                correctSteps: [
+                    "① 利率公式：利息 = 本金 × 年利率 × 存期。",
+                    "② 代入数据：本金 2000 元，年利率 2.75% = 0.0275，存期 3 年。",
+                    "③ 利息 = 2000 × 0.0275 × 3 = 2000 × 0.0825 = 165 (元)。",
+                    "④ 答：到期可得利息 165 元。"
+                ]
+            },
+            {
+                title: "📈 挑战3：涨幅问题",
+                description: "某品牌空调原价 3000 元，涨价 20% 后，又降价 20%，现价与原价相比变化了多少？",
+                correctSteps: [
+                    "① 涨价后价格：3000 × (1+20%) = 3000 × 1.2 = 3600 元。",
+                    "② 再降价20%：降价后的价格 = 3600 × (1-20%) = 3600 × 0.8 = 2880 元。",
+                    "③ 与原价比较：2880 < 3000，降低了 120 元，幅度为 120÷3000=4%。",
+                    "④ 答：现价比原价降低了 4% (或降低120元)。"
+                ]
+            },
+            {
+                title: "📊 挑战4：百分率应用题",
+                description: "植树节种树 250 棵，成活 230 棵，成活率是多少？",
+                correctSteps: [
+                    "① 成活率公式：成活率 = (成活棵数 ÷ 总棵数) × 100%。",
+                    "② 成活棵数 230，总棵数 250。",
+                    "③ 成活率 = 230 ÷ 250 × 100% = 0.92 × 100% = 92%。",
+                    "④ 答：这批树的成活率是 92%。"
+                ]
+            }
+        ];
+
+        // 右侧拖拽排序组件
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            // 随机加载挑战并打乱步骤顺序
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                const stepsCopy = [...newChallenge.correctSteps];
+                // Fisher-Yates 打乱顺序
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确的解题逻辑顺序排列！(从上到下)');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 每当 shuffledSteps 变化，重新初始化 Sortable 实例
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) sortableRef.current.destroy();
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => { /* 无额外动作，用户主动检查 */ }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            // 检查排序顺序是否正确
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美排序！百分数解题逻辑完全正确！成为生活数学高手！🏅');
+                    setCheckStyle('success');
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想百分数应用题的解题流程：理解题意→找单位1→列式→计算作答。重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载趣味排序游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·百分数大师</h2>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-indigo-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下逻辑递进）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[320px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-amber-400 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-purple-500">
+                        💡 拖拽卡片调整顺序，排序正确即掌握百分数解题逻辑（分析→关系→列式→解答）。
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 拖拽排序小游戏融合百分数知识点：折扣·利率·涨幅·百分率，在排序中强化生活数学思维！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件：左右布局
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 百分数应用题训练 */}
+                    <div className="flex-1">
+                        <PercentApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

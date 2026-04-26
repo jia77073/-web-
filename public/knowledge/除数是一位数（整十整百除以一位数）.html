@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>萌享数学：几百几十、几千几十除以一位数 | 竖式小英雄</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React, ReactDOM, Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 毛玻璃 & 动画 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            border-radius: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        .glass-tab-active {
+            background: rgba(255, 255, 255, 0.9);
+            color: #f97316;
+            border-bottom: 3px solid #f97316;
+            font-weight: bold;
+        }
+        .popup-animation {
+            animation: bouncePop 0.4s ease forwards;
+        }
+        @keyframes bouncePop {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        /* 竖式严格对齐样式 - 居中大字体 */
+        .vertical-box {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+            font-weight: 700;
+            background: #fffbf3;
+            padding: 1.5rem 1.8rem;
+            border-radius: 2rem;
+            box-shadow: inset 0 2px 6px #efe0d3, 0 8px 0 #dbbc9b;
+            border: 1px solid #e6cfbc;
+            margin: 0 auto;
+        }
+        .v-row {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            margin: 2px 0;
+        }
+        .divisor-space {
+            width: 5rem;
+            flex-shrink: 0;
+        }
+        .divisor-num {
+            width: 5rem;
+            flex-shrink: 0;
+            font-size: 2.6rem;
+            text-align: right;
+            padding-right: 0.8rem;
+            color: #bc6c25;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .digits-flex {
+            display: flex;
+        }
+        .digit-slot {
+            width: 4.2rem;
+            text-align: center;
+            font-size: 2.4rem;
+            line-height: 1.3;
+            font-weight: 700;
+            color: #3f2e1f;
+        }
+        .quotient-inp {
+            width: 3.6rem;
+            height: 3.6rem;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            background-color: #fef9e3;
+            border-radius: 1rem;
+            border: 2px solid #fbbf24;
+            transition: all 0.2s;
+            font-family: monospace;
+            margin: 0 auto;
+            display: block;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .quotient-inp:focus {
+            outline: none;
+            border-color: #f97316;
+            box-shadow: 0 0 0 4px rgba(249,115,22,0.3);
+            background-color: #fff7e6;
+        }
+        .bracket-box {
+            display: inline-flex;
+            flex-direction: column;
+            border-left: 4px solid #a77b58;
+        }
+        .bracket-top {
+            width: 100%;
+            height: 4px;
+            background: #a77b58;
+            margin-bottom: 6px;
+        }
+        .dividend-digit {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: #3f2e1f;
+        }
+        @media (max-width: 768px) {
+            .divisor-space, .divisor-num { width: 3.8rem; }
+            .divisor-num { font-size: 2rem; padding-right: 0.4rem; }
+            .digit-slot { width: 3rem; font-size: 1.8rem; }
+            .quotient-inp { width: 2.6rem; height: 2.6rem; font-size: 1.6rem; }
+            .dividend-digit { font-size: 1.8rem; }
+        }
+        @media (max-width: 480px) {
+            .divisor-space, .divisor-num { width: 3rem; }
+            .divisor-num { font-size: 1.6rem; }
+            .digit-slot { width: 2.5rem; font-size: 1.5rem; }
+            .quotient-inp { width: 2.2rem; height: 2.2rem; font-size: 1.3rem; }
+            .dividend-digit { font-size: 1.5rem; }
+            .vertical-box { padding: 1rem; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-amber-100 via-orange-100 to-rose-100 min-h-screen font-sans antialiased p-4 md:p-6">
+
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // ---------- 内联 SVG 图标 ----------
+    const BookIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+    );
+    const CartIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6M17 13l1.5 6M9 21h6M12 18v3" />
+            <circle cx="9" cy="21" r="1.5" />
+            <circle cx="15" cy="21" r="1.5" />
+        </svg>
+    );
+    const RefreshIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+    );
+
+    // ---------- 题目生成：几百几十 / 几千几十 整除 ----------
+    function generateValidQuestion() {
+        const isThousand = Math.random() < 0.5;
+        let divisor, dividend, correctQuotient;
+        for (let attempt = 0; attempt < 40; attempt++) {
+            divisor = Math.floor(Math.random() * 8) + 2; // 2~9
+            if (isThousand) {
+                const quotient = Math.floor(Math.random() * 900) + 100; // 100~999
+                const candidate = divisor * quotient;
+                if (candidate >= 1000 && candidate <= 9990 && candidate % 10 === 0) {
+                    return { dividend: candidate, divisor, correctQuotient: quotient };
+                }
+                const q2 = Math.floor(Math.random() * 90) + 10;
+                const cand2 = divisor * q2;
+                if (cand2 >= 1000 && cand2 <= 9990 && cand2 % 10 === 0) {
+                    return { dividend: cand2, divisor, correctQuotient: q2 };
+                }
+            } else {
+                const quotient = Math.floor(Math.random() * 90) + 10; // 10~99
+                const candidate = divisor * quotient;
+                if (candidate >= 100 && candidate <= 990 && candidate % 10 === 0) {
+                    return { dividend: candidate, divisor, correctQuotient: quotient };
+                }
+            }
+        }
+        return { dividend: 240, divisor: 6, correctQuotient: 40 };
+    }
+
+    // 拆分数字为数组
+    const splitNumber = (num) => num.toString().split('').map(ch => parseInt(ch, 10));
+
+    // ---------- 左侧知识小课堂 ----------
+    const KnowledgeTabs = () => {
+        const [activeTab, setActiveTab] = React.useState("tips");
+        return (
+            <div className="glass-card p-5 h-full">
+                <div className="flex border-b border-orange-200/60 mb-4">
+                    <button onClick={() => setActiveTab("tips")} className={`flex items-center gap-1 px-4 py-2 text-lg font-semibold rounded-t-2xl transition-all mr-2 ${activeTab === "tips" ? "glass-tab-active bg-white/80 text-orange-600" : "text-stone-600 hover:bg-white/40"}`}>
+                        <BookIcon /> 口算巧解
+                    </button>
+                    <button onClick={() => setActiveTab("vertical")} className={`flex items-center gap-1 px-4 py-2 text-lg font-semibold rounded-t-2xl transition-all ${activeTab === "vertical" ? "glass-tab-active bg-white/80 text-orange-600" : "text-stone-600 hover:bg-white/40"}`}>
+                        📐 竖式学堂
+                    </button>
+                </div>
+                <div className="text-stone-700 space-y-3 text-base leading-relaxed">
+                    {activeTab === "tips" && (
+                        <div>
+                            <div className="bg-orange-50/60 p-4 rounded-2xl mb-3">
+                                <p className="font-bold text-orange-700 text-xl mb-2">✨ 拆分魔法 ✨</p>
+                                <p className="mb-2">“几百几十看作几十个十，除以一位数得到几个十”</p>
+                                <p className="text-amber-800 font-mono">例：<span className="bg-white px-2 py-1 rounded-lg">120 ÷ 3 = ?</span></p>
+                                <p className="mt-2">👉 12个十 ÷ 3 = 4个十，所以答案是<span className="font-bold text-orange-600 text-lg"> 40</span>！</p>
+                            </div>
+                            <div className="bg-white/40 p-4 rounded-2xl">
+                                <p className="font-semibold">🎯 几千几十同样：</p>
+                                <ul className="list-disc pl-5 mt-1 space-y-1">
+                                    <li>1200 ÷ 3 = 12个百 ÷ 3 = 4个百 = <strong>400</strong></li>
+                                    <li>2400 ÷ 6 = 24个百 ÷ 6 = 4个百 = <strong>400</strong></li>
+                                </ul>
+                                <p className="text-sm text-stone-500 mt-2">💡 核心：先忽略末尾的0，除完再补上同样个数的0！</p>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === "vertical" && (
+                        <div className="space-y-4">
+                            <div className="bg-amber-50/70 p-4 rounded-2xl shadow-inner">
+                                <p className="font-bold text-orange-700 text-xl mb-2 flex items-center gap-1">📏 除法竖式小口诀</p>
+                                <div className="grid grid-cols-1 gap-2 font-mono text-amber-800 bg-white/50 p-3 rounded-xl">
+                                    <p>🔹 <strong>从高位除起</strong> → 先看被除数的最高位，够除就商。</p>
+                                    <p>🔹 <strong>商写在哪一位</strong> → 除到被除数哪一位，商就写在那一位上面。</p>
+                                    <p>🔹 <strong>余数要比除数小</strong> → 每次除后余数必须比除数小。</p>
+                                    <p>🔹 除数一位看一位，一位不够看两位，除到哪位商哪位。</p>
+                                </div>
+                                <p className="mt-3 text-sm text-stone-700 bg-orange-100 p-2 rounded-lg">⭐ 商要对齐：商的每一位必须对准被除数的对应数位！</p>
+                            </div>
+                            <div className="bg-white/60 p-3 rounded-xl">
+                                <p className="font-semibold text-center">📌 竖式范例：120 ÷ 3 = 40（商对齐十位和个位）</p>
+                                <div className="flex justify-center mt-2">
+                                    <div className="inline-block">
+                                        <div className="flex mb-1">
+                                            <div className="w-12 text-center"></div>
+                                            <div className="flex">
+                                                <div className="w-12 text-center text-orange-600 font-bold text-2xl">4</div>
+                                                <div className="w-12 text-center text-orange-600 font-bold text-2xl">0</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <span className="text-2xl mr-1">3</span>
+                                            <span className="border-l-4 border-t-4 border-black pl-1 pt-1 leading-7">
+                                                <div className="flex">
+                                                    <div className="w-12 text-center text-2xl">1</div>
+                                                    <div className="w-12 text-center text-2xl">2</div>
+                                                    <div className="w-12 text-center text-2xl">0</div>
+                                                </div>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-center text-sm bg-orange-100 p-2 rounded-lg mt-2">
+                                    ✅ 从高位百位1不够除，看前两位12，12÷3=4，商4写在十位上（对齐2）；余0落个位0，0÷3=0，商0写在个位（对齐0）。
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ---------- 主应用组件 ----------
+    const App = () => {
+        const [question, setQuestion] = React.useState(() => generateValidQuestion());
+        const [mode, setMode] = React.useState("horizontal"); // "horizontal" or "vertical"
+        
+        // 横式
+        const [horizontalAnswer, setHorizontalAnswer] = React.useState("");
+        
+        // 竖式：商的位数
+        const quotientDigitsCount = React.useMemo(() => question.correctQuotient.toString().length, [question.correctQuotient]);
+        const [verticalDigits, setVerticalDigits] = React.useState(() => Array(quotientDigitsCount).fill(""));
+        
+        // 提示消息
+        const [toastMsg, setToastMsg] = React.useState(null);
+        let toastTimeout = React.useRef(null);
+        const isProcessing = React.useRef(false);
+        
+        // refs 数组
+        const digitRefs = React.useRef([]);
+        
+        // 被除数数字数组
+        const dividendDigits = splitNumber(question.dividend);
+        const dividendLength = dividendDigits.length;
+        
+        // 关键：商的起始偏移列 (商的第一位对齐被除数的第几位)
+        const shiftIndex = dividendLength - quotientDigitsCount;
+        
+        // 换题
+        const refreshQuestion = () => {
+            if (isProcessing.current) return;
+            isProcessing.current = true;
+            const newQ = generateValidQuestion();
+            setQuestion(newQ);
+            setHorizontalAnswer("");
+            const newLen = newQ.correctQuotient.toString().length;
+            setVerticalDigits(Array(newLen).fill(""));
+            clearToastTimer();
+            setToastMsg(null);
+            setTimeout(() => {
+                isProcessing.current = false;
+                if (mode === "horizontal" && horizontalInputRef.current) {
+                    horizontalInputRef.current.focus();
+                } else if (mode === "vertical" && digitRefs.current[0]) {
+                    digitRefs.current[0].focus();
+                }
+            }, 50);
+        };
+        
+        const clearToastTimer = () => {
+            if (toastTimeout.current) clearTimeout(toastTimeout.current);
+        };
+        const showToast = (text, type = "success") => {
+            clearToastTimer();
+            setToastMsg({ text, type });
+            toastTimeout.current = setTimeout(() => setToastMsg(null), 1300);
+        };
+        
+        const handleCorrect = () => {
+            if (isProcessing.current) return;
+            isProcessing.current = true;
+            showToast("🎉 太棒了！ 🎉", "success");
+            setTimeout(() => {
+                const newQ = generateValidQuestion();
+                setQuestion(newQ);
+                setHorizontalAnswer("");
+                const newLen = newQ.correctQuotient.toString().length;
+                setVerticalDigits(Array(newLen).fill(""));
+                clearToastTimer();
+                setToastMsg(null);
+                setTimeout(() => {
+                    isProcessing.current = false;
+                    if (mode === "horizontal" && horizontalInputRef.current) {
+                        horizontalInputRef.current.focus();
+                    } else if (mode === "vertical" && digitRefs.current[0]) {
+                        digitRefs.current[0].focus();
+                    }
+                }, 50);
+            }, 500);
+        };
+        const handleWrong = () => {
+            if (isProcessing.current) return;
+            showToast("🤔 再试一次～", "error");
+        };
+        
+        // 横式校验
+        const horizontalInputRef = React.useRef(null);
+        React.useEffect(() => {
+            if (mode !== "horizontal") return;
+            if (horizontalAnswer.trim() === "") return;
+            const num = Number(horizontalAnswer);
+            if (isNaN(num)) return;
+            if (num === question.correctQuotient) {
+                handleCorrect();
+            } else {
+                handleWrong();
+            }
+        }, [horizontalAnswer, mode, question.correctQuotient]);
+        
+        // 竖式校验：所有位填满即判断
+        React.useEffect(() => {
+            if (mode !== "vertical") return;
+            const allFilled = verticalDigits.every(d => d !== "" && /^\d$/.test(d));
+            if (allFilled) {
+                const userQuotient = parseInt(verticalDigits.join(''), 10);
+                if (userQuotient === question.correctQuotient) {
+                    handleCorrect();
+                } else {
+                    handleWrong();
+                }
+            }
+        }, [verticalDigits, mode, question.correctQuotient]);
+        
+        // 竖式输入处理 & 自动聚焦下一个
+        const handleDigitChange = (idx, value) => {
+            if (!/^\d?$/.test(value)) return;
+            const newDigits = [...verticalDigits];
+            newDigits[idx] = value;
+            setVerticalDigits(newDigits);
+            if (value !== "" && idx + 1 < quotientDigitsCount) {
+                if (digitRefs.current[idx + 1]) {
+                    digitRefs.current[idx + 1].focus();
+                }
+            }
+        };
+        const handleKeyDown = (idx, e) => {
+            if (e.key === 'Backspace' && verticalDigits[idx] === '' && idx > 0) {
+                if (digitRefs.current[idx - 1]) {
+                    digitRefs.current[idx - 1].focus();
+                }
+            }
+        };
+        
+        // 切换模式
+        const toggleMode = () => {
+            if (isProcessing.current) return;
+            const newMode = mode === "horizontal" ? "vertical" : "horizontal";
+            setMode(newMode);
+            setHorizontalAnswer("");
+            const newLen = question.correctQuotient.toString().length;
+            setVerticalDigits(Array(newLen).fill(""));
+            clearToastTimer();
+            setToastMsg(null);
+            setTimeout(() => {
+                if (newMode === "horizontal" && horizontalInputRef.current) {
+                    horizontalInputRef.current.focus();
+                } else if (newMode === "vertical" && digitRefs.current[0]) {
+                    digitRefs.current[0].focus();
+                }
+            }, 50);
+        };
+        
+        // 题目变化时重置竖式位数
+        React.useEffect(() => {
+            if (mode === "vertical") {
+                const newLen = question.correctQuotient.toString().length;
+                setVerticalDigits(Array(newLen).fill(""));
+                digitRefs.current = digitRefs.current.slice(0, newLen);
+            }
+        }, [question, mode]);
+        
+        // ---------- 竖式组件 (严格对齐，居中) ----------
+        const VerticalDivision = () => {
+            // 商输入框数组 (长度 = 被除数位数，根据偏移量填充)
+            const quotientCells = [];
+            for (let i = 0; i < dividendLength; i++) {
+                const digitIndex = i - shiftIndex;
+                if (digitIndex >= 0 && digitIndex < quotientDigitsCount) {
+                    quotientCells.push(
+                        <div key={`q-${i}`} className="digit-slot flex items-center justify-center">
+                            <input
+                                ref={el => digitRefs.current[digitIndex] = el}
+                                type="text"
+                                maxLength="1"
+                                value={verticalDigits[digitIndex] || ""}
+                                onChange={(e) => handleDigitChange(digitIndex, e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(digitIndex, e)}
+                                className="quotient-inp"
+                                inputMode="numeric"
+                            />
+                        </div>
+                    );
+                } else {
+                    quotientCells.push(<div key={`q-empty-${i}`} className="digit-slot"></div>);
+                }
+            }
+            
+            // 被除数数字格子
+            const dividendCells = dividendDigits.map((digit, idx) => (
+                <div key={`d-${idx}`} className="digit-slot dividend-digit">{digit}</div>
+            ));
+            
+            // 除数 + 厂字框
+            const divisorWithBracket = (
+                <div className="flex items-center">
+                    <span className="divisor-num">{question.divisor}</span>
+                    <div className="bracket-box">
+                        <div className="bracket-top"></div>
+                        <div className="digits-flex">{dividendCells}</div>
+                    </div>
+                </div>
+            );
+            
+            return (
+                <div className="vertical-box">
+                    <div className="v-row">
+                        <div className="divisor-space"></div>
+                        <div className="digits-flex">{quotientCells}</div>
+                    </div>
+                    <div className="v-row mt-1">
+                        {divisorWithBracket}
+                    </div>
+                    <div className="text-sm text-stone-600 mt-5 text-center w-full">
+                        <p className="bg-white/60 rounded-full px-3 py-1 inline-block">✨ 从高位除起，商要对齐对应数位 ✨</p>
+                        <p className="text-xs mt-2">💡 先看被除数最高位，够除商写该位上方；不够除看前两位，商写在第二位上方。</p>
+                    </div>
+                </div>
+            );
+        };
+        
+        return (
+            <div className="flex flex-col lg:flex-row gap-6 relative">
+                {/* 左侧知识小课堂 */}
+                <div className="lg:w-5/12 w-full">
+                    <KnowledgeTabs />
+                </div>
+                
+                {/* 右侧萌宝超市游戏区 */}
+                <div className="lg:w-7/12 w-full">
+                    <div className="glass-card p-5 md:p-6 relative overflow-hidden">
+                        <div className="absolute -top-4 -right-4 opacity-20 text-6xl">🛒</div>
+                        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-orange-200/60 pb-3 mb-5">
+                            <div className="flex items-center">
+                                <CartIcon />
+                                <h2 className="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">萌宝超市</h2>
+                                <span className="ml-2 text-sm bg-amber-200/60 px-2 py-0.5 rounded-full">除法小掌柜</span>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={toggleMode} className="bg-white/60 backdrop-blur-sm px-4 py-2 rounded-2xl shadow-md text-orange-700 font-semibold hover:bg-orange-100 transition flex items-center gap-1">
+                                    {mode === "horizontal" ? "📐 切换竖式模式" : "✖️ 切换横式模式"}
+                                </button>
+                                <button onClick={refreshQuestion} className="bg-orange-500 text-white px-4 py-2 rounded-2xl shadow-md hover:bg-orange-600 transition flex items-center gap-1 font-bold">
+                                    <RefreshIcon /> 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 题目展示区 */}
+                        <div className="bg-white/40 rounded-2xl p-4 mb-6 text-center backdrop-blur-sm">
+                            <div className="text-2xl md:text-4xl font-mono font-bold text-stone-800">
+                                {question.dividend} ÷ {question.divisor}
+                            </div>
+                            <div className="text-sm text-stone-500 mt-1">
+                                {mode === "horizontal" ? "✍️ 横式模式：直接输入答案" : "🏆 竖式模式：从高位到低位填商，自动对齐"}
+                            </div>
+                        </div>
+                        
+                        {/* 答题核心区域 - 居中 */}
+                        <div className="flex justify-center items-center w-full min-h-[300px]">
+                            {mode === "horizontal" ? (
+                                <div className="w-full max-w-md">
+                                    <label className="block text-orange-800 font-semibold mb-3 text-center text-xl">🔢 输入商：</label>
+                                    <input
+                                        ref={horizontalInputRef}
+                                        type="number"
+                                        value={horizontalAnswer}
+                                        onChange={(e) => setHorizontalAnswer(e.target.value)}
+                                        className="w-full text-center text-4xl py-4 rounded-2xl border-3 border-amber-300 focus:border-orange-500 focus:ring-4 focus:ring-orange-200 bg-white/80 shadow-inner"
+                                        placeholder="?"
+                                        inputMode="numeric"
+                                    />
+                                    <p className="text-sm text-stone-500 text-center mt-3">输入数字后自动判断对错 ✔️</p>
+                                </div>
+                            ) : (
+                                <VerticalDivision />
+                            )}
+                        </div>
+                        
+                        {/* 提示浮层 */}
+                        {toastMsg && (
+                            <div className="fixed left-1/2 transform -translate-x-1/2 bottom-1/3 md:bottom-1/4 z-50 pointer-events-none">
+                                <div className={`popup-animation text-center px-6 py-3 rounded-2xl shadow-2xl text-white font-bold text-xl ${toastMsg.type === 'success' ? 'bg-green-500' : 'bg-rose-500'} backdrop-blur-md`}>
+                                    {toastMsg.text}
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="flex justify-end mt-4 text-amber-400/40 text-xs">
+                            <span>🐣 答对自动换题，商要对齐数位哟！</span>
+                        </div>
+                    </div>
+                    <div className="mt-4 text-center text-sm text-stone-600 bg-white/40 rounded-full py-2 px-3 backdrop-blur-sm inline-block w-auto mx-auto">
+                        🧸 口诀：从高位除起，商写对应位，余数要比除数小～
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

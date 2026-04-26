@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>按比分配 · 糖果分配大作战 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫色主题背景 */
+    body {
+      font-size: 1.5rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+      cursor: default;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      .drag-card, .drop-slot {
+        font-size: 1.1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 按比分配 =======================
+  // 知识点：已知总量和比，求各部分量 -> 总份数，每份数，各部分量 = 每份数 × 对应份数
+  
+  // ---------- 游戏数据：按比分配题目库 ----------
+  const gameQuestions = [
+    { id: 1, text: "把24颗糖果按 3 : 1 分给小明和小红，小明分得多少颗？小红分得多少颗？", total: 24, ratioA: 3, ratioB: 1, answerA: 18, answerB: 6, unit: "颗" },
+    { id: 2, text: "学校买来56本故事书，按 5 : 3 分给六年级和五年级，六年级分得多少本？五年级分得多少本？", total: 56, ratioA: 5, ratioB: 3, answerA: 35, answerB: 21, unit: "本" },
+    { id: 3, text: "用一根长48厘米的铁丝围成一个长方形，长与宽的比是 3 : 1，长和宽各是多少厘米？", total: 48, ratioA: 3, ratioB: 1, answerA: 18, answerB: 6, unit: "厘米", special: "注意：周长48 = 2×(长+宽) => 长+宽=24，按3:1分配" },
+    { id: 4, text: "水果店运来苹果和梨共120千克，苹果与梨的质量比是 7 : 5，苹果和梨各多少千克？", total: 120, ratioA: 7, ratioB: 5, answerA: 70, answerB: 50, unit: "千克" },
+    { id: 5, text: "一块长方形菜地，周长80米，长与宽的比是 5 : 3，长和宽各是多少米？", total: 80, ratioA: 5, ratioB: 3, answerA: 25, answerB: 15, unit: "米", special: "长+宽=40，按5:3分配" }
+  ];
+  
+  // 辅助函数：获取当前题目的实际答案（处理周长情况，题目total是周长，需要先求半周长）
+  const getActualAnswers = (question) => {
+    if (question.special && question.special.includes("周长")) {
+      const half = question.total / 2;
+      const sumRatio = question.ratioA + question.ratioB;
+      const aVal = half * question.ratioA / sumRatio;
+      const bVal = half * question.ratioB / sumRatio;
+      return { answerA: aVal, answerB: bVal };
+    }
+    const sumRatio = question.ratioA + question.ratioB;
+    const aVal = question.total * question.ratioA / sumRatio;
+    const bVal = question.total * question.ratioB / sumRatio;
+    return { answerA: aVal, answerB: bVal };
+  };
+  
+  // ---------- 右侧互动游戏：拖拽分配（把正确数量拖到对应角色）----------
+  const MatchingGame = () => {
+    const [currentQuestion, setCurrentQuestion] = React.useState(gameQuestions[0]);
+    const [score, setScore] = React.useState(0);
+    const [questionIndex, setQuestionIndex] = React.useState(0);
+    const [slotAValue, setSlotAValue] = React.useState(null);   // 已放置的数量
+    const [slotBValue, setSlotBValue] = React.useState(null);
+    const [remainingCards, setRemainingCards] = React.useState([]); // 可拖拽的数字卡片
+    const [dragOverSlot, setDragOverSlot] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameComplete, setGameComplete] = React.useState(false);
+    
+    // 根据当前题目生成数字卡片池 (正确答案 + 两个干扰项)
+    const generateCards = (question) => {
+      const { answerA, answerB } = getActualAnswers(question);
+      const correctNumbers = [answerA, answerB];
+      // 干扰项：基于正确答案附近生成不同的值
+      let distractors = [];
+      if (answerA > 10) {
+        distractors.push(answerA - 5, answerA + 3, answerB + 2);
+      } else {
+        distractors.push(answerA + 2, answerB + 1, answerA + 4);
+      }
+      // 去重且不与正确答案重复，确保都是正数
+      let allNumbers = [...correctNumbers];
+      for (let d of distractors) {
+        if (!allNumbers.includes(d) && d > 0 && Number.isInteger(d)) allNumbers.push(d);
+        if (allNumbers.length >= 5) break;
+      }
+      // 确保至少有4个卡片
+      while (allNumbers.length < 4) allNumbers.push(allNumbers[0] + 1);
+      // 打乱顺序
+      for (let i = allNumbers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allNumbers[i], allNumbers[j]] = [allNumbers[j], allNumbers[i]];
+      }
+      return allNumbers.map((num, idx) => ({
+        id: `card-${question.id}-${idx}`,
+        value: num,
+        used: false
+      }));
+    };
+    
+    // 初始化/刷新题目
+    const initQuestion = (question) => {
+      const cards = generateCards(question);
+      setRemainingCards(cards);
+      setSlotAValue(null);
+      setSlotBValue(null);
+      setDragOverSlot(null);
+      setFeedbackMsg("");
+    };
+    
+    React.useEffect(() => {
+      initQuestion(currentQuestion);
+    }, [currentQuestion]);
+    
+    const handleNextQuestion = () => {
+      if (questionIndex + 1 < gameQuestions.length) {
+        const nextIdx = questionIndex + 1;
+        setQuestionIndex(nextIdx);
+        setCurrentQuestion(gameQuestions[nextIdx]);
+        setGameComplete(false);
+      } else {
+        // 通关完成
+        setGameComplete(true);
+        setFeedbackMsg("🎉 恭喜你完成了所有分配挑战！你已经是按比分配小高手了！ 🎉");
+      }
+    };
+    
+    // 检查是否两个槽位都已正确填满
+    const checkWin = (aVal, bVal, question) => {
+      const { answerA, answerB } = getActualAnswers(question);
+      if (aVal === answerA && bVal === answerB) {
+        // 正确完成此题
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`🎉 完美！${question.text} 分配正确！进入下一题吧～`);
+        // 自动进入下一题，延迟1.5秒
+        setTimeout(() => {
+          handleNextQuestion();
+        }, 1500);
+        return true;
+      }
+      return false;
+    };
+    
+    // 拖拽卡片逻辑
+    const onDragStart = (e, cardId, cardValue) => {
+      const card = remainingCards.find(c => c.id === cardId);
+      if (card?.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardValue }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotName) => {
+      e.preventDefault();
+      setDragOverSlot(slotName);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlot(null);
+    
+    const onDropToSlot = (e, slotName) => {
+      e.preventDefault();
+      setDragOverSlot(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardValue } = dragData;
+      
+      const targetCard = remainingCards.find(c => c.id === cardId);
+      if (!targetCard || targetCard.used) {
+        setFeedbackMsg("⏳ 这张卡片已经使用过了！");
+        setTimeout(() => setFeedbackMsg(""), 1000);
+        return;
+      }
+      
+      // 检查当前槽位是否已填
+      if ((slotName === "A" && slotAValue !== null) || (slotName === "B" && slotBValue !== null)) {
+        setFeedbackMsg("⚠️ 这个位置已经有数字了，不能重复放置。如需重置请点「重置本题」");
+        setTimeout(() => setFeedbackMsg(""), 1200);
+        return;
+      }
+      
+      // 验证数值是否匹配当前题目的正确答案（对应角色）
+      const { answerA, answerB } = getActualAnswers(currentQuestion);
+      let isValid = false;
+      if (slotName === "A" && cardValue === answerA) isValid = true;
+      if (slotName === "B" && cardValue === answerB) isValid = true;
+      
+      if (!isValid) {
+        setFeedbackMsg(`❌ 分配错误！${slotName === "A" ? "第一个角色" : "第二个角色"} 应该得到 ${slotName === "A" ? answerA : answerB} ${currentQuestion.unit}，再试试看～`);
+        setTimeout(() => setFeedbackMsg(""), 1600);
+        return;
+      }
+      
+      // 放置成功，更新槽位并标记卡片已用
+      if (slotName === "A") setSlotAValue(cardValue);
+      else setSlotBValue(cardValue);
+      setRemainingCards(prev => prev.map(c => c.id === cardId ? { ...c, used: true } : c));
+      
+      // 检查两个槽位是否都已正确填充
+      const newA = slotName === "A" ? cardValue : slotAValue;
+      const newB = slotName === "B" ? cardValue : slotBValue;
+      if (newA !== null && newB !== null) {
+        const win = checkWin(newA, newB, currentQuestion);
+        if (!win) {
+          setFeedbackMsg("两个槽位已填，但好像不太对？再检查一下分配比例吧～");
+        }
+      } else {
+        setFeedbackMsg(`✅ 正确！${slotName === "A" ? "第一个角色" : "第二个角色"} 分配正确！再拖拽另一个数量吧。`);
+        setTimeout(() => setFeedbackMsg(""), 1000);
+      }
+    };
+    
+    const resetCurrentLevel = () => {
+      initQuestion(currentQuestion);
+      setFeedbackMsg("🔄 已重置本题，重新分配吧！");
+    };
+    
+    const { answerA, answerB } = getActualAnswers(currentQuestion);
+    const unit = currentQuestion.unit;
+    // 显示角色名称（根据题目动态）
+    let roleAName = "角色A", roleBName = "角色B";
+    if (currentQuestion.text.includes("小明") && currentQuestion.text.includes("小红")) {
+      roleAName = "小明"; roleBName = "小红";
+    } else if (currentQuestion.text.includes("六年级") && currentQuestion.text.includes("五年级")) {
+      roleAName = "六年级"; roleBName = "五年级";
+    } else if (currentQuestion.text.includes("长") && currentQuestion.text.includes("宽")) {
+      roleAName = "长"; roleBName = "宽";
+    } else if (currentQuestion.text.includes("苹果") && currentQuestion.text.includes("梨")) {
+      roleAName = "苹果"; roleBName = "梨";
+    } else {
+      roleAName = "第一部分"; roleBName = "第二部分";
+    }
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🍬 糖果分配器 · 拖拽配比</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 通关 {score}/{gameQuestions.length}</span>
+            <button onClick={resetCurrentLevel} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-1.5 px-3 rounded-full text-sm shadow btn-fun">🔄 重置本题</button>
+          </div>
+        </div>
+        
+        {!gameComplete ? (
+          <>
+            <div className="bg-purple-50 rounded-xl p-3 mb-3">
+              <p className="font-bold text-purple-800 text-lg">📌 当前挑战</p>
+              <p className="text-base">{currentQuestion.text}</p>
+              {currentQuestion.special && <p className="text-xs text-amber-700 mt-1">✨ 提示：{currentQuestion.special}</p>}
+              <p className="text-sm text-purple-700 mt-1">💡 按比分配步骤：① 求总份数；② 求每份数；③ 各部分量 = 每份数 × 对应份数</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* 槽位A */}
+              <div 
+                onDragOver={(e) => onDragOverSlot(e, "A")}
+                onDragLeave={onDragLeaveSlot}
+                onDrop={(e) => onDropToSlot(e, "A")}
+                className={`drop-slot rounded-2xl p-4 text-center transition-all ${dragOverSlot === "A" ? 'drag-over' : ''} ${slotAValue !== null ? 'slot-filled bg-green-100' : ''}`}
+              >
+                <div className="text-2xl font-bold text-purple-800">{roleAName}</div>
+                <div className="text-4xl font-mono font-extrabold my-2">
+                  {slotAValue !== null ? `${slotAValue} ${unit}` : " ? "}
+                </div>
+                <div className="text-xs text-gray-500">⬅️ 将正确的数字卡片拖到这里</div>
+              </div>
+              {/* 槽位B */}
+              <div 
+                onDragOver={(e) => onDragOverSlot(e, "B")}
+                onDragLeave={onDragLeaveSlot}
+                onDrop={(e) => onDropToSlot(e, "B")}
+                className={`drop-slot rounded-2xl p-4 text-center transition-all ${dragOverSlot === "B" ? 'drag-over' : ''} ${slotBValue !== null ? 'slot-filled bg-green-100' : ''}`}
+              >
+                <div className="text-2xl font-bold text-purple-800">{roleBName}</div>
+                <div className="text-4xl font-mono font-extrabold my-2">
+                  {slotBValue !== null ? `${slotBValue} ${unit}` : " ? "}
+                </div>
+                <div className="text-xs text-gray-500">⬅️ 将正确的数字卡片拖到这里</div>
+              </div>
+            </div>
+            
+            {/* 数字卡片区 */}
+            <div className="bg-amber-50/60 rounded-2xl p-3">
+              <div className="font-bold text-amber-800 text-center mb-2">🎴 数字卡片 (拖拽到上方对应角色)</div>
+              <div className="flex flex-wrap justify-center gap-3">
+                {remainingCards.map(card => (
+                  <div 
+                    key={card.id}
+                    draggable={!card.used}
+                    onDragStart={(e) => onDragStart(e, card.id, card.value)}
+                    onDragEnd={onDragEnd}
+                    className={`drag-card w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-3xl font-bold transition ${card.used ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                  >
+                    {card.used ? "✓" : card.value}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {feedbackMsg && (
+              <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+                {feedbackMsg}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-8 celebration">
+            <div className="text-6xl mb-3">🏆🎉</div>
+            <h3 className="text-3xl font-extrabold text-purple-800">挑战完成！</h3>
+            <p className="text-lg mt-2">你已掌握按比分配，所有题目都正确！刷新页面可重新挑战～</p>
+            <button onClick={() => window.location.reload()} className="mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-full text-lg shadow">✨ 重新开始 ✨</button>
+          </div>
+        )}
+        
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 游戏玩法：把正确的数字卡片拖拽到对应的角色槽位，两个都正确自动进入下一题！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：按比分配 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">🍭</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">按比分配</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是按比分配？</p>
+            <p>把一个总量按照一定的比分配给各个部分，叫做<strong className="bg-purple-200 px-1 rounded">按比分配</strong>。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 解题三步法</p>
+            <ul className="list-decimal pl-5 space-y-2 mt-1">
+              <li><strong>求总份数</strong>：把比各项相加。</li>
+              <li><strong>求每份数</strong>：总量 ÷ 总份数 = 一份的数量。</li>
+              <li><strong>求各部分量</strong>：每份数 × 各部分对应的份数。</li>
+            </ul>
+            <div className="mt-3 bg-amber-50 p-2 rounded-lg">
+              <p className="font-bold">🎈 经典例题：</p>
+              <p>把24颗糖果按3:1分给小明和小红。总份数=3+1=4，每份数=24÷4=6颗，小明=3×6=18颗，小红=1×6=6颗。</p>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">⚠️ 特殊提醒：</p>
+            <p>如果题目给出的是周长（长方形），需要先用周长÷2求出长宽和，再按比分配。例如周长48cm，长宽比3:1 → 长+宽=24，总份数4，每份6，长18cm，宽6cm。</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“按比分配三步走，总份先求不能丢；每份等于总量除，对应份数乘到头。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 额外的小练习区（心算挑战）----------
+  const QuickQuiz = () => {
+    const [quiz, setQuiz] = React.useState({ total: 40, ratioA: 3, ratioB: 5, answerA: 15, answerB: 25 });
+    const [userA, setUserA] = React.useState("");
+    const [userB, setUserB] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const quizzes = [
+      { total: 40, ratioA: 3, ratioB: 5, answerA: 15, answerB: 25 },
+      { total: 72, ratioA: 4, ratioB: 5, answerA: 32, answerB: 40 },
+      { total: 56, ratioA: 3, ratioB: 4, answerA: 24, answerB: 32 },
+      { total: 90, ratioA: 2, ratioB: 3, answerA: 36, answerB: 54 }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const nextQuiz = () => {
+      const newIdx = (idx + 1) % quizzes.length;
+      setIdx(newIdx);
+      setQuiz(quizzes[newIdx]);
+      setUserA("");
+      setUserB("");
+      setFeedback("");
+    };
+    
+    const checkQuiz = () => {
+      const aNum = parseFloat(userA);
+      const bNum = parseFloat(userB);
+      if (isNaN(aNum) || isNaN(bNum)) {
+        setFeedback("请输入两个部分的数值～");
+        return;
+      }
+      if (aNum === quiz.answerA && bNum === quiz.answerB) {
+        setFeedback("✅ 完全正确！按比分配掌握得很棒！");
+      } else {
+        setFeedback(`❌ 不对哦，总量${quiz.total}按${quiz.ratioA}:${quiz.ratioB}分配，结果应该是 ${quiz.answerA} 和 ${quiz.answerB}。`);
+      }
+    };
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 心算挑战</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3">
+          <p className="font-mono font-bold">总量 {quiz.total}，按 {quiz.ratioA} : {quiz.ratioB} 分配，两部分各是多少？</p>
+          <div className="flex gap-3 mt-2 justify-center">
+            <input type="number" value={userA} onChange={(e) => setUserA(e.target.value)} placeholder="第一部分" className="border border-purple-300 rounded-lg px-2 py-1 w-24 text-center" />
+            <span>和</span>
+            <input type="number" value={userB} onChange={(e) => setUserB(e.target.value)} placeholder="第二部分" className="border border-purple-300 rounded-lg px-2 py-1 w-24 text-center" />
+            <button onClick={checkQuiz} className="bg-purple-400 hover:bg-purple-500 text-white px-3 py-1 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 心算小练习 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌟 按比分配在生活中随处可见：调配饮料、分配奖金、混凝土配比…… 掌握它，成为分配小管家！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

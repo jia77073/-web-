@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小奇兵 · 圆锥的认识大冒险</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 拖拽优化 + 移动端友好 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drag-card {
+            transition: all 0.2s ease;
+            cursor: grab;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+            opacity: 0.7;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #f1e2ff;
+            border-color: #a855f7;
+            transform: scale(1.02);
+            box-shadow: 0 6px 14px rgba(168, 85, 247, 0.25);
+        }
+        /* 大字体 (6号 ≈ 18px 以上) */
+        .big-text {
+            font-size: 1.25rem;
+            line-height: 1.45;
+        }
+        @media (min-width: 768px) {
+            .big-text {
+                font-size: 1.5rem;
+            }
+        }
+        .knowledge-text {
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        @media (min-width: 768px) {
+            .knowledge-text {
+                font-size: 1.2rem;
+            }
+        }
+        [draggable="true"] {
+            -webkit-user-drag: element;
+        }
+        /* 圆锥小装饰 */
+        .cone-badge {
+            background: linear-gradient(145deg, #fde68a, #fcd34d);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#CBAACB] to-[#D9C2E6] min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // 圆锥的认识互动课程 (知识点 + 拖拽配对游戏)
+    const ConeRecognitionGame = () => {
+        // ---------- 圆锥知识点 (左侧) ----------
+        const coneKnowledge = {
+            title: "🎩 圆锥的认识",
+            definition: "圆锥是由一个底面（圆形）和一个侧面（曲面）围成的立体图形，有一个尖尖的顶点。",
+            features: [
+                { icon: "🔴", name: "底面", desc: "一个圆形底面" },
+                { icon: "🌀", name: "侧面", desc: "曲面，展开后是扇形" },
+                { icon: "📏", name: "高", desc: "顶点到底面圆心的垂直距离，圆锥只有一条高" },
+                { icon: "⭐", name: "顶点", desc: "圆锥最上方的尖点" }
+            ],
+            formulas: "体积公式：V = 1/3 × 底面积 × 高 = 1/3 × πr²h",
+            lifeExamples: "🍦 冰淇淋甜筒、🎄 圣诞帽、⚽ 交通锥",
+            tip: "💡 圆锥的侧面展开是一个扇形，扇形的弧长等于底面周长。"
+        };
+        
+        // ---------- 游戏配置: 拖拽配对 (特征匹配) ----------
+        // 定义四个目标区域 (需要配对的特征槽)
+        const targetZones = [
+            { id: "base", name: "底面", icon: "🔴", description: "圆锥的底面是什么形状？", correctFeature: "圆形底面" },
+            { id: "side", name: "侧面", icon: "🌀", description: "圆锥的侧面是什么面？", correctFeature: "曲面/扇形" },
+            { id: "height", name: "高", icon: "📏", description: "圆锥有几条高？", correctFeature: "只有一条高" },
+            { id: "vertex", name: "顶点", icon: "⭐", description: "圆锥的顶部叫做？", correctFeature: "一个顶点" }
+        ];
+        
+        // 可拖拽卡片池 (正确卡片 + 一个干扰卡片)
+        const initialCards = [
+            { id: "card_base", text: "圆形底面", description: "圆锥只有一个圆形的底面", emoji: "🔴", correctFor: "base", isCorrect: true },
+            { id: "card_side", text: "曲面 / 扇形", description: "侧面是曲面，展开是扇形", emoji: "🌀", correctFor: "side", isCorrect: true },
+            { id: "card_height", text: "只有一条高", description: "顶点到底面圆心的距离，唯一的高", emoji: "📏", correctFor: "height", isCorrect: true },
+            { id: "card_vertex", text: "一个顶点", description: "圆锥的尖尖顶端", emoji: "⭐", correctFor: "vertex", isCorrect: true },
+            { id: "card_distractor", text: "无数条高", description: "这是圆柱的特征哦！圆锥只有一条高", emoji: "⚠️", correctFor: null, isCorrect: false }
+        ];
+        
+        // 游戏状态
+        const [availableCards, setAvailableCards] = React.useState(initialCards);
+        const [matchedZones, setMatchedZones] = React.useState({
+            base: null,
+            side: null,
+            height: null,
+            vertex: null
+        });
+        const [message, setMessage] = React.useState({ text: "🐣 把特征卡片拖拽到对应的圆锥宝箱里！长按卡片并拖动～", type: "info" });
+        const [gameWin, setGameWin] = React.useState(false);
+        
+        const draggingCardIdRef = React.useRef(null);
+        
+        // 检查是否胜利 (四个区域全部配对)
+        React.useEffect(() => {
+            const allMatched = targetZones.every(zone => matchedZones[zone.id] !== null);
+            if (allMatched && !gameWin) {
+                setGameWin(true);
+                setMessage({ text: "🎉 太厉害了！你完全掌握了圆锥的特征！成为几何小行家！ 🎉", type: "success" });
+            } else if (!allMatched && gameWin) {
+                setGameWin(false);
+            }
+        }, [matchedZones, gameWin]);
+        
+        // 显示临时消息 (自动恢复)
+        const showMessage = (msg, msgType = "error", duration = 2000) => {
+            setMessage({ text: msg, type: msgType });
+            setTimeout(() => {
+                setMessage(prev => prev.text === msg ? { text: "✨ 继续挑战！把正确卡片拖到对应的圆锥特征区域吧～", type: "info" } : prev);
+            }, duration);
+        };
+        
+        // 拖拽开始
+        const handleDragStart = (e, cardId) => {
+            const card = availableCards.find(c => c.id === cardId);
+            if (!card) {
+                e.preventDefault();
+                showMessage("⛔ 这张卡片已经配对过啦！试试重置游戏吧", "error");
+                return false;
+            }
+            draggingCardIdRef.current = cardId;
+            e.dataTransfer.setData("text/plain", cardId);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target) e.target.style.opacity = "0.6";
+            return true;
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target) e.target.style.opacity = "";
+            draggingCardIdRef.current = null;
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        
+        // 高亮效果
+        const handleDragEnter = (e, zoneId) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${zoneId}`);
+            if (zoneElem) zoneElem.classList.add("drag-over");
+        };
+        
+        const handleDragLeave = (e, zoneId) => {
+            const zoneElem = document.getElementById(`dropzone-${zoneId}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+        };
+        
+        // 核心放置逻辑: 验证卡片是否匹配该圆锥特征区域
+        const handleDrop = (e, targetZone) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${targetZone.id}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+            
+            let draggedId = draggingCardIdRef.current;
+            if (!draggedId) draggedId = e.dataTransfer.getData("text/plain");
+            if (!draggedId) return;
+            
+            const draggedCard = availableCards.find(card => card.id === draggedId);
+            if (!draggedCard) {
+                showMessage("这张卡片已经配对过了，重置后可重新挑战", "error");
+                return;
+            }
+            
+            // 检查目标区域是否已配对
+            if (matchedZones[targetZone.id] !== null) {
+                showMessage(`❌ ${targetZone.name} 特征已经配对成功！不能重复放置。重置后可再次挑战~`, "error");
+                return;
+            }
+            
+            // 验证是否匹配
+            const isMatching = (draggedCard.correctFor === targetZone.id);
+            if (isMatching) {
+                // 配对正确: 从 availableCards 移除，更新 matchedZones
+                setAvailableCards(prev => prev.filter(card => card.id !== draggedId));
+                setMatchedZones(prev => ({
+                    ...prev,
+                    [targetZone.id]: draggedCard
+                }));
+                showMessage(`✅ 正确！“${draggedCard.text}” 正是圆锥的${targetZone.name}特征！超棒！`, "success", 1500);
+            } else {
+                // 配对错误
+                if (draggedCard.correctFor === null) {
+                    showMessage(`❌ 哎呀！“${draggedCard.text}” 不是圆锥的特征哦！再试试正确的卡片吧～`, "error", 1800);
+                } else {
+                    showMessage(`❌ 配对错误！“${draggedCard.text}” 不属于圆锥的${targetZone.name}，仔细观察再拖拽吧！`, "error", 1800);
+                }
+            }
+            draggingCardIdRef.current = null;
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            setAvailableCards(initialCards);
+            setMatchedZones({ base: null, side: null, height: null, vertex: null });
+            setGameWin(false);
+            setMessage({ text: "🔄 游戏已重置！所有卡片重新出现，再挑战一次吧！", type: "info" });
+            draggingCardIdRef.current = null;
+            document.querySelectorAll('.drop-zone').forEach(el => el.classList.remove('drag-over'));
+        };
+        
+        const matchedCount = Object.values(matchedZones).filter(v => v !== null).length;
+        const totalNeeded = targetZones.length;
+        
+        return (
+            <div className="w-full">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ================= 左侧：圆锥知识星球 ================= */}
+                    <div className="lg:w-5/12 bg-white/85 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-white/40 transition-all">
+                        <div className="flex items-center gap-2 border-b-4 border-purple-300 pb-3 mb-4">
+                            <span className="text-4xl">📐</span>
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">圆锥小讲堂</h2>
+                            <span className="text-sm bg-purple-200 px-3 py-1 rounded-full ml-2">特征 · 体积</span>
+                        </div>
+                        
+                        {/* 圆锥插图 & 核心介绍 */}
+                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-2xl shadow-md mb-5">
+                            <div className="flex justify-center items-center gap-4 mb-3">
+                                <div className="text-center">
+                                    <div className="text-6xl cone-badge rounded-full w-20 h-20 flex items-center justify-center shadow-md">🎩</div>
+                                    <div className="text-sm text-gray-500 mt-1">圆锥</div>
+                                </div>
+                                <div className="border-l-2 border-purple-300 h-12"></div>
+                                <div>
+                                    <p className="text-base font-bold text-purple-700">r = 半径 &nbsp; | &nbsp; h = 高</p>
+                                </div>
+                            </div>
+                            <div className="knowledge-text text-gray-800 space-y-3">
+                                <p className="font-bold text-xl text-amber-700">{coneKnowledge.title}</p>
+                                <p className="bg-white/60 p-2 rounded-lg">✨ {coneKnowledge.definition}</p>
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                    {coneKnowledge.features.map((feat, idx) => (
+                                        <div key={idx} className="bg-purple-50 rounded-lg p-2 flex items-center gap-2">
+                                            <span className="text-2xl">{feat.icon}</span>
+                                            <div>
+                                                <p className="font-bold text-indigo-700">{feat.name}</p>
+                                                <p className="text-xs text-gray-600">{feat.desc}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="bg-cyan-50 p-3 rounded-xl text-cyan-700 text-sm md:text-base">
+                                    📐 体积公式：{coneKnowledge.formulas}
+                                </div>
+                                <div className="bg-green-50 p-2 rounded-lg text-green-700 text-sm">
+                                    🎨 生活中的圆锥：{coneKnowledge.lifeExamples}
+                                </div>
+                                <div className="bg-yellow-50 p-2 rounded-lg text-yellow-800 text-sm italic">
+                                    {coneKnowledge.tip}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-2 text-center text-purple-600 bg-purple-100/60 rounded-xl p-2 text-sm md:text-base">
+                            🌟 记住圆锥的特征，玩配对游戏，轻松成为几何高手！
+                        </div>
+                    </div>
+                    
+                    {/* ================= 右侧：互动配对游戏（拖拽连连看） ================= */}
+                    <div className="lg:w-7/12 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 flex flex-col border border-purple-200">
+                        <div className="flex flex-wrap justify-between items-center gap-3 border-b-2 border-purple-300 pb-3 mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-3xl">🎮</span>
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">特征配对工坊</h2>
+                                <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-purple-100 rounded-full px-4 py-1 text-purple-700 font-bold text-lg">
+                                    配对进度 {matchedCount}/{totalNeeded}
+                                </div>
+                                <button 
+                                    onClick={resetGame}
+                                    className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold py-2 px-4 rounded-full shadow-md transition transform hover:scale-105 text-base md:text-lg flex items-center gap-1"
+                                >
+                                    🔄 重置游戏
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 全局提示 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-medium transition-all big-text ${message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' : message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                            {message.text}
+                        </div>
+                        
+                        {/* 四个放置区 (底面/侧面/高/顶点) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+                            {targetZones.map(zone => {
+                                const matchedCard = matchedZones[zone.id];
+                                return (
+                                    <div 
+                                        key={zone.id}
+                                        className="bg-gradient-to-b from-purple-50 to-white rounded-2xl shadow-lg overflow-hidden border-2 border-purple-200 transition-all hover:shadow-xl"
+                                    >
+                                        <div className="bg-purple-200/70 p-3 text-center">
+                                            <div className="text-3xl">{zone.icon}</div>
+                                            <h3 className="text-xl font-black text-purple-800">{zone.name}</h3>
+                                            <p className="text-xs text-purple-600">{zone.description}</p>
+                                        </div>
+                                        <div 
+                                            id={`dropzone-${zone.id}`}
+                                            onDragOver={handleDragOver}
+                                            onDragEnter={(e) => handleDragEnter(e, zone.id)}
+                                            onDragLeave={(e) => handleDragLeave(e, zone.id)}
+                                            onDrop={(e) => handleDrop(e, zone)}
+                                            className={`drop-zone m-3 p-3 min-h-[110px] rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center ${
+                                                matchedCard ? 'bg-green-100 border-green-400 shadow-inner' : 'bg-white/70 border-purple-300'
+                                            }`}
+                                        >
+                                            {matchedCard ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-4xl">🏆</span>
+                                                    <p className="font-bold text-green-700 text-lg">已配对</p>
+                                                    <p className="text-base bg-green-50 px-3 py-1 rounded-full font-mono font-bold text-green-800">
+                                                        {matchedCard.text}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1">{matchedCard.description}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <span className="text-4xl block mb-2">⬇️✨</span>
+                                                    <p className="text-purple-500 font-medium text-base">拖放卡片到这里</p>
+                                                    <p className="text-xs text-gray-400 mt-1">匹配圆锥的{zone.name}特征</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-1 text-center text-xs text-gray-400">
+                                            正确配对点亮✔️
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽卡片池 */}
+                        <div className="mt-2">
+                            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                <h3 className="text-2xl font-bold text-purple-700 flex items-center gap-2">
+                                    🃏 特征卡片池
+                                    <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">长按/鼠标拖拽</span>
+                                </h3>
+                                <span className="text-xs md:text-sm text-purple-500">💡 把卡片拖到上方对应的特征宝箱里</span>
+                            </div>
+                            
+                            {availableCards.length === 0 ? (
+                                <div className="bg-gradient-to-r from-green-100 to-emerald-100 p-6 rounded-2xl text-center text-green-700 text-xl font-bold">
+                                    🎉 完美！所有圆锥特征都配对成功！ 你已经是圆锥小专家啦 🎉
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                                    {availableCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable={true}
+                                            onDragStart={(e) => handleDragStart(e, card.id)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-amber-200 to-orange-200 rounded-2xl p-3 shadow-md flex items-center gap-3 cursor-grab active:cursor-grabbing hover:shadow-xl transition-all transform hover:scale-[1.02]"
+                                        >
+                                            <div className="text-4xl">{card.emoji}</div>
+                                            <div className="flex-1">
+                                                <p className="font-bold text-gray-800 text-lg md:text-xl">{card.text}</p>
+                                                <p className="text-xs text-amber-800 mt-1">{card.description}</p>
+                                                <p className="text-[10px] text-purple-600 mt-0.5">👉 拖拽配对</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 玩法说明 + 拖拽互动提示 */}
+                            <div className="mt-5 bg-purple-100/70 p-3 rounded-xl text-purple-700 text-sm flex flex-wrap gap-2 justify-center items-center">
+                                <span>📌 <strong>拖拉拽玩法：</strong></span>
+                                <span>① 手指/鼠标长按特征卡片</span>
+                                <span>② 拖拽到上方对应的圆锥特征区域（底面/侧面/高/顶点）</span>
+                                <span>③ 匹配正确卡片会飞入宝箱并显示配对成功！</span>
+                                <span>🎯 集齐四个特征卡片赢得胜利 ✨</span>
+                            </div>
+                            
+                            {gameWin && (
+                                <div className="mt-4 bg-gradient-to-r from-green-200 to-teal-200 text-green-800 p-4 rounded-2xl text-center text-xl font-bold animate-pulse flex items-center justify-center gap-3 shadow-lg">
+                                    🏆 恭喜你完成全部配对！🏆 <span className="text-3xl">🎓🎩</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="mt-3 text-center text-xs text-purple-500">
+                            💡 移动端小技巧：长按卡片并轻轻拖拽到目标区上方，松手即可。如果拖拽不顺畅，可以稍微慢一点移动~
+                        </div>
+                    </div>
+                </div>
+                {/* 底部装饰 */}
+                <div className="text-center mt-8 text-purple-800 text-sm bg-white/30 rounded-full py-2 px-4 w-fit mx-auto backdrop-blur-sm">
+                    🌈 圆锥：一个圆形底面 + 曲面侧面 + 一个顶点 + 一条高，记住特征，玩转数学！ 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染到根节点
+    ReactDOM.createRoot(document.getElementById("root")).render(
+        <React.StrictMode>
+            <ConeRecognitionGame />
+        </React.StrictMode>
+    );
+</script>
+</body>
+</html>

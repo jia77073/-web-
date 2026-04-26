@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>观察物体（二）· 小小侦探观察家</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 拖拽优化 + 移动端友好 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drag-card {
+            transition: all 0.2s ease;
+            cursor: grab;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+            opacity: 0.7;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #f1e2ff;
+            border-color: #9333ea;
+            transform: scale(1.02);
+            box-shadow: 0 6px 14px rgba(147, 51, 234, 0.25);
+        }
+        /* 大字体 (6号 ≈ 18px以上) */
+        .big-text {
+            font-size: 1.25rem;
+            line-height: 1.45;
+        }
+        @media (min-width: 768px) {
+            .big-text {
+                font-size: 1.5rem;
+            }
+        }
+        .knowledge-text {
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        @media (min-width: 768px) {
+            .knowledge-text {
+                font-size: 1.2rem;
+            }
+        }
+        [draggable="true"] {
+            -webkit-user-drag: element;
+        }
+        /* 视图图形模拟样式 */
+        .view-shape {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fef9e3;
+            border-radius: 20px;
+            padding: 8px;
+            box-shadow: inset 0 0 0 1px #fde68a, 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .shape-grid {
+            display: inline-grid;
+            gap: 4px;
+            background: #fff0d0;
+            padding: 8px;
+            border-radius: 16px;
+        }
+        .cube-red {
+            background-color: #ef4444;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .cube-blue {
+            background-color: #3b82f6;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .cube-transparent {
+            background-color: #e2e8f0;
+            opacity: 0.6;
+        }
+        .view-label {
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#CBAACB] to-[#D9C2E6] min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root" class="max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+    // 观察物体（二）互动课程：两个物体的组合（前红正方体 + 后蓝长方体）
+    // 学习目标：辨认不同位置的视图，理解遮挡、相对位置、空间推理
+    const ObserveCombinationGame = () => {
+        // ---------- 知识点内容 (左侧) ----------
+        const knowledgePoints = {
+            title: "👥 观察物体（二）",
+            core: "观察两个物体的组合，从不同位置看到的整体形状不同，可能出现遮挡现象。",
+            details: [
+                "🔹 相对位置：前面的物体会挡住后面物体的一部分。",
+                "🔹 前后关系：从前面看，近处的物体较大，可能遮住后方物体。",
+                "🔹 左右/前后：从不同方向看，两个物体的排列顺序会改变。",
+                "🔹 遮挡现象：如果前面的物体完全挡住后面，后面的物体可能看不见。",
+                "🔹 空间推理：根据看到的平面图形，可以推测观察者站在哪一侧。"
+            ],
+            exampleScene: "📦 我们的组合体：前面有一个红色正方体，后面有一个蓝色长方体（更高更宽）。",
+            viewDescriptions: {
+                front: "从前面看：看到红色正方体，以及后面蓝色长方体露出的上半部分（遮挡了下半）。",
+                back: "从后面看：只能看到蓝色长方体，红色正方体被完全挡住。",
+                left: "从左面看：左边是红色正方体，右边是蓝色长方体（一前一后），看到两个矩形。",
+                right: "从右面看：右边是红色正方体，左边是蓝色长方体，看到两个矩形。",
+                top: "从上面看：红色正方体在前，蓝色长方体在后，看到前后两个正方形/长方形。"
+            }
+        };
+        
+        // 定义五个观察方向及其对应的视图图形（用JSX渲染），正确的配对id
+        const directions = [
+            { id: "front", label: "前面", icon: "🔍", hint: "正前方看", correctFor: "front" },
+            { id: "back", label: "后面", icon: "🔎", hint: "后方看", correctFor: "back" },
+            { id: "left", label: "左面", icon: "⬅️", hint: "从左面看", correctFor: "left" },
+            { id: "right", label: "右面", icon: "➡️", hint: "从右面看", correctFor: "right" },
+            { id: "top", label: "上面", icon: "⬇️", hint: "从上往下看", correctFor: "top" }
+        ];
+        
+        // 视图数据：每个视图有唯一id，对应的正确方向id，以及渲染图形的组件
+        const viewsData = [
+            { 
+                id: "view_front", name: "视图A", directionId: "front",
+                render: () => (
+                    <div className="flex flex-col items-center">
+                        <div className="shape-grid" style={{ gridTemplateColumns: "40px 40px", alignItems: "end" }}>
+                            <div className="cube-red w-10 h-10"></div>
+                            <div className="cube-blue w-10 h-12" style={{ marginBottom: "-8px" }}></div>
+                        </div>
+                        <p className="text-xs mt-1 text-gray-600">红色在前，蓝色露出上半</p>
+                    </div>
+                )
+            },
+            { 
+                id: "view_back", name: "视图B", directionId: "back",
+                render: () => (
+                    <div className="flex flex-col items-center">
+                        <div className="shape-grid" style={{ gridTemplateColumns: "40px" }}>
+                            <div className="cube-blue w-10 h-14"></div>
+                        </div>
+                        <p className="text-xs mt-1 text-gray-600">只有蓝色长方体</p>
+                    </div>
+                )
+            },
+            { 
+                id: "view_left", name: "视图C", directionId: "left",
+                render: () => (
+                    <div className="flex flex-col items-center">
+                        <div className="shape-grid" style={{ gridTemplateColumns: "30px 30px", gridTemplateRows: "30px" }}>
+                            <div className="cube-red w-7 h-7"></div>
+                            <div className="cube-blue w-7 h-7"></div>
+                        </div>
+                        <p className="text-xs mt-1 text-gray-600">左红右蓝（前后并排）</p>
+                    </div>
+                )
+            },
+            { 
+                id: "view_right", name: "视图D", directionId: "right",
+                render: () => (
+                    <div className="flex flex-col items-center">
+                        <div className="shape-grid" style={{ gridTemplateColumns: "30px 30px", gridTemplateRows: "30px" }}>
+                            <div className="cube-blue w-7 h-7"></div>
+                            <div className="cube-red w-7 h-7"></div>
+                        </div>
+                        <p className="text-xs mt-1 text-gray-600">左蓝右红（前后并排）</p>
+                    </div>
+                )
+            },
+            { 
+                id: "view_top", name: "视图E", directionId: "top",
+                render: () => (
+                    <div className="flex flex-col items-center">
+                        <div className="shape-grid" style={{ gridTemplateColumns: "30px 30px", gridTemplateRows: "30px" }}>
+                            <div className="cube-red w-7 h-7"></div>
+                            <div className="cube-blue w-7 h-7"></div>
+                        </div>
+                        <p className="text-xs mt-1 text-gray-600">上视图：红前蓝后</p>
+                    </div>
+                )
+            }
+        ];
+        
+        // 可拖拽的方向卡片（与directions相同，用于拖拽匹配）
+        const directionCards = directions.map(dir => ({
+            id: `card_${dir.id}`,
+            label: dir.label,
+            icon: dir.icon,
+            directionId: dir.id
+        }));
+        
+        // 游戏状态
+        // matchedSlots: 记录每个视图匹配到的方向卡片id (如果已匹配)
+        const [matchedViews, setMatchedViews] = React.useState({}); // key: viewId, value: directionId (正确配对的方向id)
+        const [usedCards, setUsedCards] = React.useState(new Set()); // 已配对成功的方向卡片id集合
+        const [message, setMessage] = React.useState({ text: "🐣 把下方的方向卡片（前面/后面/左面/右面/上面）拖拽到对应的视图区域！", type: "info" });
+        const [gameWin, setGameWin] = React.useState(false);
+        
+        const draggingCardRef = React.useRef(null);
+        
+        // 检查胜利（所有视图都匹配正确）
+        React.useEffect(() => {
+            const allMatched = viewsData.every(view => matchedViews[view.id] !== undefined && matchedViews[view.id] === view.directionId);
+            if (allMatched && viewsData.length > 0 && !gameWin) {
+                setGameWin(true);
+                setMessage({ text: "🎉 完美！你已经成为观察物体小专家！所有视图都配对正确，遮挡和位置关系全掌握！ 🎉", type: "success" });
+            } else if (!allMatched && gameWin) {
+                setGameWin(false);
+            }
+        }, [matchedViews, gameWin]);
+        
+        // 显示临时消息
+        const showMessage = (msg, msgType = "error", duration = 2200) => {
+            setMessage({ text: msg, type: msgType });
+            setTimeout(() => {
+                setMessage(prev => prev.text === msg ? { text: "✨ 继续拖拽配对，挑战所有视图！", type: "info" } : prev);
+            }, duration);
+        };
+        
+        // 拖拽开始
+        const handleDragStart = (e, card) => {
+            if (usedCards.has(card.id)) {
+                e.preventDefault();
+                showMessage("⛔ 这张方向卡片已经配对过了！点击重置可以重新挑战", "error");
+                return false;
+            }
+            draggingCardRef.current = card;
+            e.dataTransfer.setData("text/plain", card.id);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target) e.target.style.opacity = "0.6";
+            return true;
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target) e.target.style.opacity = "";
+            draggingCardRef.current = null;
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        
+        // 高亮效果
+        const handleDragEnter = (e, viewId) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${viewId}`);
+            if (zoneElem) zoneElem.classList.add("drag-over");
+        };
+        
+        const handleDragLeave = (e, viewId) => {
+            const zoneElem = document.getElementById(`dropzone-${viewId}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+        };
+        
+        // 放置逻辑：将方向卡片配对到视图
+        const handleDrop = (e, targetView) => {
+            e.preventDefault();
+            const zoneElem = document.getElementById(`dropzone-${targetView.id}`);
+            if (zoneElem) zoneElem.classList.remove("drag-over");
+            
+            let draggedCard = draggingCardRef.current;
+            if (!draggedCard) {
+                const cardId = e.dataTransfer.getData("text/plain");
+                draggedCard = directionCards.find(c => c.id === cardId);
+            }
+            if (!draggedCard) return;
+            
+            // 检查卡片是否已经被使用
+            if (usedCards.has(draggedCard.id)) {
+                showMessage(`❌ 方向“${draggedCard.label}”已经配对过了！不能重复使用。`, "error");
+                return;
+            }
+            
+            // 检查该视图是否已经配对成功
+            if (matchedViews[targetView.id] !== undefined) {
+                showMessage(`❌ 这个视图已经配对过了！不能重复放置。重置后可重新挑战。`, "error");
+                return;
+            }
+            
+            // 验证方向是否正确：视图应有的方向id vs 拖拽卡片的方向id
+            const isCorrect = (draggedCard.directionId === targetView.directionId);
+            
+            if (isCorrect) {
+                // 配对正确
+                setMatchedViews(prev => ({
+                    ...prev,
+                    [targetView.id]: draggedCard.directionId
+                }));
+                setUsedCards(prev => new Set([...prev, draggedCard.id]));
+                // 显示描述语句，增强口头表达
+                const descKey = targetView.directionId;
+                const description = knowledgePoints.viewDescriptions[descKey] || `从${draggedCard.label}看，看到组合形状。`;
+                showMessage(`✅ 正确！从${draggedCard.label}看，视图匹配成功！${description}`, "success", 2000);
+            } else {
+                // 配对错误
+                const expectedDir = directions.find(d => d.id === targetView.directionId)?.label || "未知";
+                showMessage(`❌ 配对错误！这个视图是从${expectedDir}看到的形状，不是${draggedCard.label}。再试试看～`, "error", 2000);
+            }
+            draggingCardRef.current = null;
+        };
+        
+        // 重置整个游戏
+        const resetGame = () => {
+            setMatchedViews({});
+            setUsedCards(new Set());
+            setGameWin(false);
+            setMessage({ text: "🔄 游戏已重置！所有方向卡片重新出现，重新拖拽配对挑战吧！", type: "info" });
+            draggingCardRef.current = null;
+            document.querySelectorAll('.drop-zone').forEach(el => el.classList.remove('drag-over'));
+        };
+        
+        const matchedCount = Object.keys(matchedViews).length;
+        const totalViews = viewsData.length;
+        
+        return (
+            <div className="w-full">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ================= 左侧：知识点讲解 ================= */}
+                    <div className="lg:w-5/12 bg-white/85 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-white/40 transition-all">
+                        <div className="flex items-center gap-2 border-b-4 border-purple-300 pb-3 mb-4">
+                            <span className="text-4xl">👁️</span>
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">观察物体（二）</h2>
+                            <span className="text-sm bg-purple-200 px-3 py-1 rounded-full ml-2">组合体·遮挡</span>
+                        </div>
+                        <div className="knowledge-text text-gray-800 space-y-4">
+                            <p className="text-xl font-bold text-indigo-700">{knowledgePoints.title}</p>
+                            <p className="bg-white/60 p-3 rounded-xl">✨ {knowledgePoints.core}</p>
+                            <ul className="list-disc list-inside space-y-1 bg-purple-50 p-3 rounded-xl">
+                                {knowledgePoints.details.map((item, idx) => <li key={idx}>{item}</li>)}
+                            </ul>
+                            <div className="bg-amber-50 p-3 rounded-xl font-medium">
+                                <p className="font-bold">🎯 {knowledgePoints.exampleScene}</p>
+                                <div className="flex justify-center gap-4 mt-2 flex-wrap">
+                                    <div className="text-center"><span className="text-4xl">🟥</span><br/>红正方体(前)</div>
+                                    <div className="text-center"><span className="text-4xl">🟦</span><br/>蓝长方体(后)</div>
+                                </div>
+                            </div>
+                            <div className="bg-cyan-50 p-3 rounded-xl text-cyan-700 text-sm">
+                                💡 小侦探技巧：想象自己站在那个位置，前面的物体会挡住后面的物体。从左面和右面看到的排列顺序是相反的！
+                            </div>
+                            <div className="bg-green-50 p-2 rounded-lg text-green-700 text-sm italic">
+                                🗣️ 口头描述：“从前面看，看到红色正方体和蓝色长方体露出的部分，红色挡住了蓝色下半部分。”
+                            </div>
+                        </div>
+                        <div className="mt-4 text-center text-purple-600 bg-purple-100/60 rounded-xl p-2 text-sm md:text-base">
+                            🌟 观察两个物体，注意前后左右和遮挡，拖拽配对提升空间推理！
+                        </div>
+                    </div>
+                    
+                    {/* ================= 右侧：拖拽配对游戏（视图配对方向） ================= */}
+                    <div className="lg:w-7/12 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 flex flex-col border border-purple-200">
+                        <div className="flex flex-wrap justify-between items-center gap-3 border-b-2 border-purple-300 pb-3 mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-3xl">🎮</span>
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800">视图配对工坊</h2>
+                                <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">拖拽配对</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-purple-100 rounded-full px-4 py-1 text-purple-700 font-bold text-lg">
+                                    配对进度 {matchedCount}/{totalViews}
+                                </div>
+                                <button 
+                                    onClick={resetGame}
+                                    className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold py-2 px-4 rounded-full shadow-md transition transform hover:scale-105 text-base md:text-lg flex items-center gap-1"
+                                >
+                                    🔄 重置游戏
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 消息提示 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-medium transition-all big-text ${message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' : message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                            {message.text}
+                        </div>
+                        
+                        {/* 场景说明 */}
+                        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-2 mb-4 text-center text-sm">
+                            📦 观察组合：<span className="font-bold">红色正方体（前面）</span> + <span className="font-bold">蓝色长方体（后面）</span>。从不同方向看，形状不同哦！
+                        </div>
+                        
+                        {/* 五个视图区域 + 放置区 */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+                            {viewsData.map(view => {
+                                const isMatched = matchedViews[view.id] !== undefined;
+                                const matchedDirId = matchedViews[view.id];
+                                const matchedDirection = directions.find(d => d.id === matchedDirId);
+                                return (
+                                    <div key={view.id} className="bg-gradient-to-b from-purple-50 to-white rounded-2xl shadow-md overflow-hidden border border-purple-200">
+                                        <div className="bg-purple-100 p-2 text-center font-bold text-purple-800 text-sm">视图</div>
+                                        <div className="view-shape m-2 flex justify-center min-h-[130px] items-center">
+                                            {view.render()}
+                                        </div>
+                                        <div 
+                                            id={`dropzone-${view.id}`}
+                                            onDragOver={handleDragOver}
+                                            onDragEnter={(e) => handleDragEnter(e, view.id)}
+                                            onDragLeave={(e) => handleDragLeave(e, view.id)}
+                                            onDrop={(e) => handleDrop(e, view)}
+                                            className={`drop-zone m-2 p-2 min-h-[70px] rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center ${
+                                                isMatched ? 'bg-green-100 border-green-400' : 'bg-white/70 border-purple-300'
+                                            }`}
+                                        >
+                                            {isMatched ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-2xl">✅</span>
+                                                    <p className="font-bold text-green-700 text-sm">{matchedDirection?.label} 配对</p>
+                                                    <p className="text-xs text-gray-500">正确✓</p>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <span className="text-2xl block">⬇️</span>
+                                                    <p className="text-purple-500 font-medium text-xs">拖放方向卡片</p>
+                                                    <p className="text-xs text-gray-400">匹配观察位置</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-1 text-center text-[10px] text-gray-400">
+                                            将正确方向拖至此
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽方向卡片池 */}
+                        <div className="mt-2">
+                            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                <h3 className="text-2xl font-bold text-purple-700 flex items-center gap-2">
+                                    🃏 方向卡片池
+                                    <span className="text-sm bg-yellow-200 px-2 py-1 rounded-full">长按/鼠标拖拽</span>
+                                </h3>
+                                <span className="text-xs md:text-sm text-purple-500">💡 把方向卡片拖到上方对应的视图区域</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                {directionCards.map(card => {
+                                    const isUsed = usedCards.has(card.id);
+                                    return (
+                                        <div
+                                            key={card.id}
+                                            draggable={!isUsed}
+                                            onDragStart={(e) => !isUsed && handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className={`drag-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-2xl p-3 shadow-md flex flex-col items-center cursor-grab active:cursor-grabbing transition-all hover:scale-105 ${
+                                                isUsed ? 'opacity-50 grayscale cursor-not-allowed' : ''
+                                            }`}
+                                        >
+                                            <span className="text-3xl">{card.icon}</span>
+                                            <p className="font-bold text-gray-800 text-lg">{card.label}</p>
+                                            <p className="text-xs text-amber-800 mt-1">{isUsed ? "已使用" : "👉 拖拽"}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            {/* 玩法说明 + 互动提示 */}
+                            <div className="mt-5 bg-purple-100/70 p-3 rounded-xl text-purple-700 text-sm flex flex-wrap gap-2 justify-center items-center">
+                                <span>📌 <strong>拖拉拽玩法：</strong></span>
+                                <span>① 长按方向卡片（前面/后面/左面/右面/上面）</span>
+                                <span>② 拖拽到上方五个视图区域下方的放置区</span>
+                                <span>③ 匹配正确会显示绿色“配对”，并给出描述语</span>
+                                <span>🎯 全部五个视图配对正确就胜利啦！</span>
+                            </div>
+                            
+                            {gameWin && (
+                                <div className="mt-4 bg-gradient-to-r from-green-200 to-teal-200 text-green-800 p-4 rounded-2xl text-center text-xl font-bold animate-pulse flex items-center justify-center gap-3 shadow-lg">
+                                    🏆 恭喜你完成全部视图配对！🏆 <span className="text-3xl">🎓👁️</span>
+                                </div>
+                            )}
+                            
+                            {/* 额外互动：情境推理小挑战（静态，非游戏但体现推理） */}
+                            <div className="mt-5 bg-indigo-50 p-3 rounded-xl border border-indigo-200">
+                                <p className="font-bold text-indigo-700">🧠 思考小挑战：</p>
+                                <p className="text-sm">如果一个小伙伴站在物体的“左面”，他会看到哪个视图？（答案：左面视图，两个矩形并排）从上面看，两个物体的前后关系是？</p>
+                                <p className="text-xs text-gray-500 mt-1">💡 通过配对游戏，你已经学会根据视图推测观察者位置啦！</p>
+                            </div>
+                        </div>
+                        <div className="mt-3 text-center text-xs text-purple-500">
+                            💡 移动端小技巧：长按卡片并轻轻拖拽到目标区上方，松手即可。试试配对每一个视图！
+                        </div>
+                    </div>
+                </div>
+                {/* 底部装饰 */}
+                <div className="text-center mt-8 text-purple-800 text-sm bg-white/30 rounded-full py-2 px-4 w-fit mx-auto backdrop-blur-sm">
+                    🌈 从不同位置看组合体，形状会变，遮挡会出现！拖拽配对，空间思维大升级！ 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染到根节点
+    ReactDOM.createRoot(document.getElementById("root")).render(
+        <React.StrictMode>
+            <ObserveCombinationGame />
+        </React.StrictMode>
+    );
+</script>
+</body>
+</html>

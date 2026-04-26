@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>角的分类 · 角的家族聚会 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景，内容区淡橙色卡片 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #d49b3a;
+      background-color: #fff8ef;
+    }
+    .drag-over {
+      background-color: #ffe0b5;
+      transform: scale(1.02);
+      border: 2px solid #d49b3a;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #e0c8a0;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .angle-svg {
+      background: white;
+      border-radius: 0.5rem;
+      display: inline-block;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 角的分类 =======================
+  // 知识点：锐角(0°<θ<90°)，直角(90°)，钝角(90°<θ<180°)，平角(180°)，周角(360°)
+  
+  // ---------- 游戏数据：拖拽配对（角度示意图/度数 → 角的分类名称）----------
+  const angleCategories = [
+    { id: 1, name: "锐角", degreeRange: "大于0°且小于90°", exampleDeg: 30, displayName: "锐角", matchKey: "acute" },
+    { id: 2, name: "直角", degreeRange: "等于90°", exampleDeg: 90, displayName: "直角", matchKey: "right" },
+    { id: 3, name: "钝角", degreeRange: "大于90°且小于180°", exampleDeg: 120, displayName: "钝角", matchKey: "obtuse" },
+    { id: 4, name: "平角", degreeRange: "等于180°", exampleDeg: 180, displayName: "平角", matchKey: "straight" },
+    { id: 5, name: "周角", degreeRange: "等于360°", exampleDeg: 360, displayName: "周角", matchKey: "full" }
+  ];
+  
+  // 辅助函数：根据度数绘制标准角（支持锐角、直角、钝角、平角、周角）
+  const AngleIllustration = ({ deg, size = 80 }) => {
+    if (deg === 180) {
+      // 平角：一条直线，顶点在中点
+      return (
+        <svg width={size} height={size/2+10} viewBox="0 0 100 50" className="angle-svg" style={{ background: 'white' }}>
+          <line x1="10" y1="25" x2="90" y2="25" stroke="black" strokeWidth="2.5" />
+          <circle cx="50" cy="25" r="3" fill="black" />
+          <text x="45" y="20" fontSize="10" fill="black">顶点</text>
+          <path d="M 50 25 L 50 15" stroke="black" strokeWidth="1.5" strokeDasharray="2,1" />
+          <text x="55" y="18" fontSize="9" fill="#b45309">180°</text>
+        </svg>
+      );
+    }
+    if (deg === 360) {
+      // 周角：一个圆，顶点在圆心
+      return (
+        <svg width={size} height={size} viewBox="0 0 80 80" className="angle-svg" style={{ background: 'white' }}>
+          <circle cx="40" cy="40" r="30" fill="none" stroke="black" strokeWidth="2" />
+          <circle cx="40" cy="40" r="3" fill="black" />
+          <text x="35" y="35" fontSize="9" fill="black">顶点</text>
+          <text x="52" y="25" fontSize="9" fill="#b45309">360°</text>
+        </svg>
+      );
+    }
+    // 锐角、直角、钝角通用绘制
+    const vertexX = 15;
+    const vertexY = 65;
+    const armLength = 60;
+    const rad = deg * Math.PI / 180;
+    const endX = vertexX + armLength * Math.cos(rad);
+    const endY = vertexY - armLength * Math.sin(rad);
+    const arcR = 25;
+    const arcEndX = vertexX + arcR * Math.cos(rad);
+    const arcEndY = vertexY - arcR * Math.sin(rad);
+    const largeArcFlag = rad > Math.PI ? 1 : 0;
+    const arcPath = `M ${vertexX + arcR} ${vertexY} A ${arcR} ${arcR} 0 ${largeArcFlag} 1 ${arcEndX} ${arcEndY}`;
+    return (
+      <svg width={size} height={size} viewBox="0 0 80 80" className="angle-svg" style={{ background: 'white' }}>
+        <line x1={vertexX} y1={vertexY} x2={vertexX + armLength} y2={vertexY} stroke="black" strokeWidth="2.5" />
+        <line x1={vertexX} y1={vertexY} x2={endX} y2={endY} stroke="black" strokeWidth="2.5" />
+        <circle cx={vertexX} cy={vertexY} r="3" fill="black" />
+        <path d={arcPath} fill="none" stroke="#d97706" strokeWidth="1.5" strokeDasharray="2,1" />
+        <text x={vertexX + arcR * 0.6} y={vertexY - arcR * 0.4} fontSize="9" fill="#b45309">{deg}°</text>
+        <text x={vertexX - 6} y={vertexY + 5} fontSize="8" fill="black">顶点</text>
+      </svg>
+    );
+  };
+  
+  // 游戏组件：拖拽配对（将角度卡片拖拽到正确的分类名称槽位）
+  const MatchingGame = () => {
+    // 左侧角度卡片（每个分类一个示例角度，包括度数和示意图）
+    const [angleCards, setAngleCards] = React.useState(() => 
+      angleCategories.map(cat => ({
+        id: cat.id,
+        deg: cat.exampleDeg,
+        category: cat.name,
+        matchKey: cat.matchKey,
+        matched: false
+      }))
+    );
+    
+    // 右侧分类名称槽位（打乱顺序）
+    const [categorySlots, setCategorySlots] = React.useState(() => {
+      let slots = angleCategories.map(cat => ({
+        id: `slot-${cat.id}`,
+        text: cat.displayName,
+        matchKey: cat.matchKey,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有角都找到了自己的家族！你已是角的分类大师！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧角度卡片
+    const onDragStart = (e, cardId, matchKey) => {
+      const card = angleCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "angle", cardId, matchKey }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "angle") return;
+      const { cardId, matchKey } = dragData;
+      
+      const targetSlot = categorySlots.find(s => s.id === slotId);
+      const sourceCard = angleCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个角或分类槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配（分类key是否一致）
+      if (matchKey === targetSlot.matchKey) {
+        // 配对成功
+        setAngleCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setCategorySlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.deg}° 的角是 ${targetSlot.text}。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = angleCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = categorySlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.deg}° 的角不是 ${targetSlot.text}，再想想角的分类规则～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newAngles = angleCategories.map(cat => ({
+        id: cat.id,
+        deg: cat.exampleDeg,
+        category: cat.name,
+        matchKey: cat.matchKey,
+        matched: false
+      }));
+      let newSlots = angleCategories.map(cat => ({
+        id: `slot-${cat.id}`,
+        text: cat.displayName,
+        matchKey: cat.matchKey,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setAngleCards(newAngles);
+      setCategorySlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的角拖拽到右边正确的分类名称上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = angleCards.every(c => c.matched) && categorySlots.every(s => s.matched);
+    const totalPairs = angleCategories.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#d49b3a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-amber-800">📐 角的家族配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>角（示意图+度数）</strong>拖拽到右边<strong>正确的分类名称</strong>上，配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧角度卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">📦 角卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {angleCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchKey)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-white rounded-xl p-2 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102 cursor-grab'}`}
+                  style={{ background: card.matched ? '#e0c8a0' : 'white' }}
+                >
+                  <div className="flex justify-center">
+                    <AngleIllustration deg={card.deg} size={85} />
+                  </div>
+                  <div className="mt-1 font-mono font-bold">{card.deg}°</div>
+                  {!card.matched && <div className="text-xs text-amber-600 mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs text-green-700 mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧分类槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 角的分类 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto">
+              {categorySlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-3xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把角拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-amber-100 p-2 rounded-xl text-amber-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 角家族大团圆！你已掌握所有角的分类，成为几何小英雄！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-full">
+          💡 角的分类口诀：“锐角小于九十度，直角正好九十度；钝角九十到一百八，平角一百八，周角三百六。”
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：角的分类 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#fff4e6] to-[#ffe0b5] rounded-3xl p-5 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📐</span>
+          <h2 className="text-3xl font-extrabold text-amber-900">角的分类</h2>
+        </div>
+        <div className="space-y-4 text-base text-amber-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 角家族成员</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong className="text-green-700">锐角</strong>：大于0°且小于90°</li>
+              <li><strong className="text-blue-700">直角</strong>：等于90°</li>
+              <li><strong className="text-purple-700">钝角</strong>：大于90°且小于180°</li>
+              <li><strong className="text-red-700">平角</strong>：等于180°（一条直线）</li>
+              <li><strong className="text-orange-700">周角</strong>：等于360°（一条射线绕顶点旋转一周）</li>
+            </ul>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 特殊关系</p>
+            <p>1平角 = 2直角，1周角 = 2平角 = 4直角。</p>
+            <p className="text-sm mt-1">🌰 90° + 90° = 180°，180° + 180° = 360°。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 生活实例</p>
+            <p>锐角：剪刀张开小角度；直角：书本角、墙角；钝角：扇子展开较大；平角：直直的手臂；周角：转一圈回到原位。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>45°是（ ）角； 180°是（ ）角； 360°是（ ）角； 120°是（ ）角。</p>
+            <p className="text-sm text-amber-700">（答案：锐，平，周，钝）</p>
+          </div>
+          <div className="bg-amber-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“锐角尖尖直角方，钝角宽宽平角长，周角一圈回原样，角的分类记心上。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：根据度数选择分类 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ degree: "120°", options: ["锐角", "直角", "钝角", "平角", "周角"], correct: "钝角" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { degree: "30°", options: ["锐角", "直角", "钝角", "平角", "周角"], correct: "锐角" },
+      { degree: "90°", options: ["锐角", "直角", "钝角", "平角", "周角"], correct: "直角" },
+      { degree: "120°", options: ["锐角", "直角", "钝角", "平角", "周角"], correct: "钝角" },
+      { degree: "180°", options: ["锐角", "直角", "钝角", "平角", "周角"], correct: "平角" },
+      { degree: "360°", options: ["锐角", "直角", "钝角", "平角", "周角"], correct: "周角" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.degree} 是 ${question.correct}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.degree} 是 ${question.correct}。再复习一下角的分类范围～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-amber-800">快问快答 · 分类挑战</h3>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.degree} 是什么角？</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-amber-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-amber-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-amber-700 text-sm border border-amber-200">
+            🌈 角的分类帮助我们更精确地描述图形世界。从锐角到周角，每一种角都有独特的模样，快来配对挑战吧！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

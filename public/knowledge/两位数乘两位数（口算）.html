@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>两位数乘两位数 - 口算魔法课堂 | 拖拽扭蛋机</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升拖拽体验 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #E8F5E9 0%, #C8E6C9 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Segoe UI', 'Comic Neue', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, '圆体', 'Segoe UI Emoji', sans-serif;
+        }
+
+        /* 主容器 - 左右布局，响应式 */
+        .course-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(2px);
+            border-radius: 64px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 内部flex布局: 左边知识点 右边游戏区 */
+        .flex-lesson-game {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区 */
+        .knowledge-area {
+            flex: 1.2;
+            min-width: 260px;
+            background: #FFFFFFCC;
+            backdrop-filter: blur(4px);
+            padding: 28px 24px;
+            border-radius: 48px;
+            margin: 16px 12px 16px 20px;
+            box-shadow: 0 8px 20px rgba(163, 217, 165, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        /* 右侧游戏区 */
+        .game-area {
+            flex: 1.8;
+            min-width: 300px;
+            background: #FEF9E6;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F8FFEE 100%);
+            border-radius: 56px;
+            margin: 16px 20px 16px 12px;
+            padding: 20px 20px 28px;
+            box-shadow: 0 12px 28px rgba(100, 120, 80, 0.2);
+            border: 2px solid #A3D9A5;
+        }
+
+        /* 知识点装饰 */
+        .knowledge-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            display: inline-block;
+            background: #A3D9A5;
+            padding: 10px 16px;
+            border-radius: 60px;
+            box-shadow: inset 0 -2px 0 #6b9e6e, 0 4px 8px rgba(0,0,0,0.05);
+        }
+
+        .knowledge-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #2D6A4F;
+            margin: 16px 0 12px 0;
+            border-left: 6px solid #A3D9A5;
+            padding-left: 18px;
+        }
+
+        .knowledge-text {
+            font-size: 1.05rem;
+            line-height: 1.55;
+            color: #2d3e2b;
+            margin: 20px 0;
+            background: #EFF7EC;
+            padding: 16px 18px;
+            border-radius: 32px;
+        }
+
+        .knowledge-text p {
+            margin: 12px 0;
+        }
+
+        .example-box {
+            background: #A3D9A5;
+            padding: 14px 18px;
+            border-radius: 36px;
+            margin-top: 20px;
+            font-weight: 600;
+            color: #1e4620;
+            text-align: center;
+            box-shadow: inset 0 1px 3px #ffffff80, 0 4px 8px rgba(0,0,0,0.05);
+        }
+
+        .tip-badge {
+            background: #FFF2C9;
+            border-radius: 28px;
+            padding: 10px 16px;
+            display: inline-block;
+            font-size: 0.85rem;
+            margin-top: 16px;
+        }
+
+        /* 右侧游戏区 */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border-bottom: 3px dashed #C8E6C9;
+            padding-bottom: 12px;
+        }
+
+        .score-board {
+            background: #A3D9A5;
+            border-radius: 40px;
+            padding: 8px 20px;
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: #1C4E2D;
+            box-shadow: inset 0 -2px 0 #6B9E6E, 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .score-board span {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-left: 8px;
+        }
+
+        .reset-btn {
+            background: #FFD966;
+            border: none;
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 8px 18px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: inherit;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .reset-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* 题目卡片 */
+        .question-card {
+            background: #C8E6C9;
+            border-radius: 48px;
+            padding: 28px 10px;
+            margin: 20px 0;
+            text-align: center;
+            box-shadow: inset 0 1px 4px #ffffffaa, 0 12px 18px rgba(0,0,0,0.08);
+        }
+
+        .big-equation {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            background: white;
+            display: inline-block;
+            padding: 14px 28px;
+            border-radius: 80px;
+            color: #2b5e2f;
+            box-shadow: 0 4px 0 #9ccc9c;
+        }
+
+        .drag-instruction {
+            background: #FFF5E1;
+            margin: 10px 0 20px;
+            padding: 8px 12px;
+            border-radius: 60px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* 扭蛋选项区 (可拖拽卡片) */
+        .options-area {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin: 28px 0 18px;
+        }
+
+        .gacha-egg {
+            background: linear-gradient(145deg, #FFE6B0, #FFD28F);
+            width: 110px;
+            padding: 18px 0;
+            text-align: center;
+            border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
+            box-shadow: 0 12px 0 #b97f3a, 0 10px 20px rgba(0,0,0,0.2);
+            cursor: grab;
+            transition: 0.1s linear;
+            font-size: 1.9rem;
+            font-weight: 800;
+            color: #4a2e1a;
+            position: relative;
+        }
+
+        .gacha-egg:active {
+            cursor: grabbing;
+        }
+
+        .gacha-egg[draggable="true"]:active {
+            cursor: grabbing;
+        }
+
+        .egg-number {
+            font-size: 2rem;
+            font-weight: 800;
+            background: rgba(255,255,200,0.8);
+            display: inline-block;
+            width: 70px;
+            border-radius: 50px;
+            margin-top: 6px;
+        }
+
+        /* 放置区域 (篮筐/扭蛋机入口) */
+        .drop-zone {
+            background: #D9EAD3;
+            border: 4px dashed #A3D9A5;
+            border-radius: 68px;
+            padding: 20px 16px;
+            margin: 20px 0 12px;
+            text-align: center;
+            transition: all 0.2s;
+            box-shadow: inset 0 0 0 2px #FFFFFF80, 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .drop-zone p {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #3c6e3f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .drop-highlight {
+            background: #C8E6C9;
+            border-color: #6C9E6F;
+            box-shadow: 0 0 0 3px #A3D9A5;
+        }
+
+        .feedback {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            min-height: 56px;
+            color: #2c6e2f;
+            background: #F1F9EE;
+            border-radius: 40px;
+            padding: 10px;
+        }
+
+        /* 响应式移动端 */
+        @media (max-width: 780px) {
+            .flex-lesson-game {
+                flex-direction: column;
+            }
+            .knowledge-area {
+                margin: 12px;
+            }
+            .game-area {
+                margin: 12px;
+            }
+            .big-equation {
+                font-size: 1.8rem;
+                padding: 10px 16px;
+            }
+            .gacha-egg {
+                width: 85px;
+                font-size: 1.5rem;
+                padding: 14px 0;
+            }
+            .egg-number {
+                font-size: 1.6rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .gacha-egg {
+                width: 75px;
+            }
+            .score-board {
+                font-size: 1.2rem;
+            }
+        }
+
+        button {
+            background-color: #A3D9A5;
+            border: none;
+            font-weight: bold;
+        }
+
+        .footer-tip {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 16px;
+            color: #6F8F6A;
+        }
+    </style>
+</head>
+<body>
+
+<div class="course-container">
+    <div class="flex-lesson-game">
+        <!-- 左侧：知识点区 -->
+        <div class="knowledge-area">
+            <div class="knowledge-icon">🧮✨</div>
+            <div class="knowledge-title">两位数 × 两位数<br>口算魔法</div>
+            <div class="knowledge-text">
+                <p>📘 <strong>拆数法（最常用）</strong><br>
+                把其中一个两位数拆成「整十数 + 个位数」，分别乘另一个数，再相加。<br>
+                🌰 例如：<strong>23 × 12</strong> = 23×10 + 23×2 = 230 + 46 = <strong>276</strong></p>
+                <p>⚡ <strong>头乘头，尾乘尾（特殊规律）</strong><br>
+                像十几乘十几：14×13 = (14+3)×10 + 4×3 = 170+12=182</p>
+                <p>🎯 小技巧：先估算整十倍数，再调整，心算飞快！</p>
+            </div>
+            <div class="example-box">
+                🌟 试试口算：32 × 13 = ? <br>
+                (32×10=320, 32×3=96 → 320+96=416)
+            </div>
+            <div class="tip-badge">
+                💡 提示：把两位数拆成整十+个位，轻松口算！
+            </div>
+        </div>
+
+        <!-- 右侧：拖拽扭蛋机游戏区 -->
+        <div class="game-area">
+            <div class="game-header">
+                <div class="score-board">🏆 得分 <span id="scoreValue">0</span></div>
+                <button class="reset-btn" id="resetGameBtn">🔄 新的一局</button>
+            </div>
+            <div class="question-card">
+                <div class="big-equation" id="equationDisplay">32 × 14</div>
+            </div>
+            <div class="drag-instruction">
+                <span>🥚 扭蛋机乐园 🥚</span>
+                <span>👇 把【正确答案扭蛋】拖拽到下方篮筐里！👇</span>
+            </div>
+
+            <!-- 可拖拽选项：动态扭蛋 -->
+            <div class="options-area" id="optionsContainer">
+                <!-- 三个扭蛋会通过js动态生成 -->
+            </div>
+
+            <!-- 拖拽目标区 -->
+            <div class="drop-zone" id="dropZone">
+                <p>🧺 🧺 答案篮子 🧺 🧺<br>✨ 将正确的扭蛋拖到这里 ✨</p>
+            </div>
+
+            <div class="feedback" id="feedbackMsg">
+                🌈 拖动扭蛋到篮子里吧！加油～
+            </div>
+            <div class="footer-tip">
+                💡 长按扭蛋并拖拽到绿色篮筐区域 (手机/电脑都支持)
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ----- 两位数乘法游戏核心逻辑 + 原生 Drag & Drop (支持触摸移动端) -----
+    // 全局变量
+    let currentNum1 = 0;
+    let currentNum2 = 0;
+    let correctAnswer = 0;
+    let currentScore = 0;
+    let currentOptions = [];     // 存储当前三个选项值(数字)
+    
+    // DOM 元素
+    const equationDisplay = document.getElementById('equationDisplay');
+    const optionsContainer = document.getElementById('optionsContainer');
+    const dropZone = document.getElementById('dropZone');
+    const feedbackMsg = document.getElementById('feedbackMsg');
+    const scoreSpan = document.getElementById('scoreValue');
+    const resetBtn = document.getElementById('resetGameBtn');
+    
+    // 辅助函数: 随机整数 [min,max]
+    function randomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    
+    // 生成两个随机两位数 (10~99)
+    function generateTwoNumbers() {
+        let a = randomInt(10, 99);
+        let b = randomInt(10, 99);
+        return { num1: a, num2: b };
+    }
+    
+    // 根据正确结果生成两个不同的错误答案 (在合理范围附近, 且不等于正确结果，且互不相同)
+    function generateWrongAnswers(correct, minRange, maxRange) {
+        let wrongSet = new Set();
+        wrongSet.add(correct);
+        // 范围动态: 乘积最小 100 最大 9801, 但为了合理让错误答案在 correct 附近波动 ±(10~35) 且不低于 10 不超 10000
+        let lowerBound = Math.max(10, correct - randomInt(12, 40));
+        let upperBound = Math.min(9999, correct + randomInt(12, 45));
+        // 保证至少两个不同错误答案
+        while(wrongSet.size < 3) {
+            let candidate;
+            // 一半情况在附近随机，一半情况生成显著不同但合乎常理
+            if(Math.random() > 0.3) {
+                candidate = randomInt(lowerBound, upperBound);
+            } else {
+                // 制造一些常见错误：例如忘记进位、十位个位混淆，大概区间
+                candidate = correct + (Math.random() > 0.5 ? randomInt(8, 50) : -randomInt(8, 50));
+                candidate = Math.min(9999, Math.max(10, candidate));
+            }
+            if(candidate !== correct && candidate >= 10 && candidate <= 9999) {
+                wrongSet.add(candidate);
+            }
+            // 防止死循环
+            if(wrongSet.size > 20) break;
+        }
+        let result = Array.from(wrongSet);
+        // 移除正确值, 保留两个错误值
+        let wrongs = result.filter(v => v !== correct);
+        while(wrongs.length < 2) {
+            wrongs.push(correct + (wrongs.length === 0 ? 11 : -7));
+        }
+        // 打乱后取前两个
+        wrongs = wrongs.slice(0,2);
+        return wrongs;
+    }
+    
+    // 生成三个选项 (正确+两个不同错误) 并打乱顺序
+    function generateOptions(correctAns) {
+        let wrongs = generateWrongAnswers(correctAns, 10, 9999);
+        let opts = [correctAns, wrongs[0], wrongs[1]];
+        // Fisher-Yates 打乱
+        for (let i = opts.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [opts[i], opts[j]] = [opts[j], opts[i]];
+        }
+        return opts;
+    }
+    
+    // 刷新题目: 随机两个两位数，更新全局变量，刷新UI，重新渲染扭蛋
+    function refreshQuestion() {
+        const { num1, num2 } = generateTwoNumbers();
+        currentNum1 = num1;
+        currentNum2 = num2;
+        correctAnswer = currentNum1 * currentNum2;
+        // 生成新选项
+        currentOptions = generateOptions(correctAnswer);
+        // 更新等式显示
+        equationDisplay.innerText = `${currentNum1} × ${currentNum2}`;
+        // 重新渲染可拖拽扭蛋区域
+        renderOptions(currentOptions);
+        // 清除反馈（除了普通提示）
+        feedbackMsg.innerHTML = "✨ 新题目！拖拽正确扭蛋到篮子 ✨";
+        // 去除dropZone高亮样式
+        dropZone.classList.remove('drop-highlight');
+    }
+    
+    // 渲染扭蛋选项 (每个扭蛋 draggable=true, 并绑定 dragstart 事件)
+    function renderOptions(optionsArr) {
+        optionsContainer.innerHTML = '';
+        optionsArr.forEach(optValue => {
+            const egg = document.createElement('div');
+            egg.className = 'gacha-egg';
+            egg.setAttribute('draggable', 'true');
+            egg.setAttribute('data-value', optValue);
+            // 内部显示数字+可爱装饰
+            egg.innerHTML = `
+                <div style="font-size:2rem;">🥚</div>
+                <div class="egg-number">${optValue}</div>
+            `;
+            // drag 开始事件: 存入数据
+            egg.addEventListener('dragstart', handleDragStart);
+            // 让拖拽时设置自定义拖拽图片（可选，防止默认半透明）
+            egg.addEventListener('dragstart', function(e) {
+                e.dataTransfer.setData('text/plain', optValue);
+                e.dataTransfer.effectAllowed = 'copy';
+                // 设置拖拽时的图标（可选消除默认难看半透明, 设置一个简单透明）
+                let dragIcon = document.createElement('div');
+                dragIcon.textContent = `${optValue}`;
+                dragIcon.style.position = 'absolute';
+                dragIcon.style.top = '-1000px';
+                document.body.appendChild(dragIcon);
+                e.dataTransfer.setDragImage(dragIcon, 0, 0);
+                setTimeout(() => document.body.removeChild(dragIcon), 0);
+            });
+            // 移动端触摸拖拽辅助：因为 drag-drop 在移动端需要触发特定行为，但现代移动端基本支持drag and drop (需添加touchstart来防止滚动？)
+            // 为了更好的移动端体验，添加 touchstart 时调用 preventDefault 避免滚动（不影响拖拽原生行为，但需要配合）
+            egg.addEventListener('touchstart', function(e) {
+                // 为了兼容移动端 drag 默认行为，让元素可拖动需要设置，无需额外代码，但是需要防止页面滚动时干扰
+                // 但不要干扰拖拽判断，这里简单略过，移动端长按即可拖拽
+                e.stopPropagation();
+            });
+            optionsContainer.appendChild(egg);
+        });
+    }
+    
+    // 处理 dragstart 全局存储值，同时样式
+    let dragDataValue = null;
+    function handleDragStart(e) {
+        const value = e.target.closest('.gacha-egg')?.getAttribute('data-value');
+        if (value !== undefined) {
+            e.dataTransfer.setData('text/plain', value);
+            dragDataValue = value;
+            e.dataTransfer.effectAllowed = 'copy';
+        } else {
+            e.preventDefault();
+        }
+    }
+    
+    // 处理 drop 目标区: 验证答案
+    function setupDropZone() {
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();  // 必须，允许放置
+            e.dataTransfer.dropEffect = 'copy';
+            dropZone.classList.add('drop-highlight');
+        });
+        
+        dropZone.addEventListener('dragleave', function(e) {
+            dropZone.classList.remove('drop-highlight');
+        });
+        
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drop-highlight');
+            let droppedValue = e.dataTransfer.getData('text/plain');
+            if (!droppedValue) {
+                // 尝试从目标属性获取兼容
+                const eggDrag = document.querySelector('.gacha-egg[draggable="true"]:active');
+                if(eggDrag) droppedValue = eggDrag.getAttribute('data-value');
+            }
+            if (droppedValue === null || droppedValue === undefined) {
+                feedbackMsg.innerHTML = "🐣 再试一次，抓住扭蛋拖进来吧！";
+                return;
+            }
+            const answerNum = parseInt(droppedValue, 10);
+            if (isNaN(answerNum)) {
+                feedbackMsg.innerHTML = "🤔 咦？这不是数字扭蛋～ 再试试看！";
+                return;
+            }
+            // 验证答案
+            if (answerNum === correctAnswer) {
+                // 正确加分
+                currentScore += 10;
+                updateScoreUI();
+                feedbackMsg.innerHTML = "🎉 完全正确！ +10分 🎉 新题目来咯！";
+                // 正确后刷新整个题目（新数字 + 新选项）
+                refreshQuestion();
+                // 额外播放一点震动反馈? 无碍
+            } else {
+                // 错误反馈：不扣分，提示再试，保持题目不变
+                feedbackMsg.innerHTML = `😲 不对哦，${currentNum1}×${currentNum2} = ${correctAnswer}，再拖拽正确的扭蛋试试看！💪`;
+                // 闪烁提示错误 (可选但友好)
+                const wrongFeedback = feedbackMsg;
+                wrongFeedback.style.transform = 'scale(1.02)';
+                setTimeout(() => { wrongFeedback.style.transform = ''; }, 200);
+            }
+        });
+    }
+    
+    // 更新得分显示
+    function updateScoreUI() {
+        scoreSpan.innerText = currentScore;
+    }
+    
+    // 重置游戏 (分数归零，刷新全新题目)
+    function resetGame() {
+        currentScore = 0;
+        updateScoreUI();
+        refreshQuestion();  // 全新随机题目
+        feedbackMsg.innerHTML = "🌟 游戏已重置，开始拖拽扭蛋吧！🌟";
+    }
+    
+    // 额外的移动端辅助：为了防止拖拽时页面滚动，给可拖拽元素添加 touch-action: none? 但会破坏滚动体验，不过选项区域不多，加些样式优化
+    // 增强移动端: 在CSS中 .gacha-egg 上 touch-action: manipulation; 让长按不缩放
+    // 另外添加对 drop 区域 touch 设备确保drop事件也能触发，现代iOS支持drag-drop，但要确保setData。
+    // 为了保证touch设备能正常触发drag/drop，在全局增加 touchmove 时部分干预?
+    // 对于特别老机型兜底：提示长按拖拽。但基础功能已OK。
+    
+    // 额外防止页面默认图片拖拽
+    window.addEventListener('dragstart', function(e) {
+        if (!e.target.closest('.gacha-egg')) {
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    // 初始化游戏: 首次题目 & 设置dropZone监听
+    function initGame() {
+        // 生成第一组题目
+        const { num1, num2 } = generateTwoNumbers();
+        currentNum1 = num1;
+        currentNum2 = num2;
+        correctAnswer = currentNum1 * currentNum2;
+        currentOptions = generateOptions(correctAnswer);
+        equationDisplay.innerText = `${currentNum1} × ${currentNum2}`;
+        renderOptions(currentOptions);
+        updateScoreUI();
+        setupDropZone();
+        // 重置按钮事件
+        resetBtn.addEventListener('click', resetGame);
+        feedbackMsg.innerHTML = "🐣 将正确答案的扭蛋拖到篮筐！开始挑战吧～";
+    }
+    
+    // 为了让移动端长按拖拽更加友好，增加说明并轻微处理touch事件不干扰
+    // 由于drag-drop API在移动端要求长按拖拽元素并移动，完全原生支持（安卓/iOS都ok），我们确保了dragstart设置数据。
+    // 解决部分浏览器不会自动触发dragstart: 添加touchstart内preventDefault小量处理，但不影响滚动
+    const style = document.createElement('style');
+    style.textContent = `
+        .gacha-egg {
+            touch-action: pan-y pinch-zoom;  /* 保留垂直滚动，但长按拖拽依然可以 */
+        }
+        .drop-zone {
+            touch-action: manipulation;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // 启动游戏
+    initGame();
+</script>
+</body>
+</html>

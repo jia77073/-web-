@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>相遇问题·思维特训营 | 速度和 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 拖拽辅助样式 */
+        .drag-active {
+            opacity: 0.4;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3;
+            border: 2px dashed #a855f7 !important;
+            transition: all 0.1s;
+        }
+        .question-card {
+            transition: all 0.2s;
+        }
+        .matched-card {
+            background-color: #bbf7d0 !important;
+            border-left: 6px solid #22c55e !important;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+        .answer-card {
+            cursor: grab;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .answer-card:active {
+            cursor: grabbing;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2rem !important;
+            }
+            .question-card, .answer-card {
+                font-size: 0.85rem;
+                padding: 0.5rem;
+            }
+        }
+        /* 绿色背景 + 紫色主题 */
+        body {
+            background: linear-gradient(145deg, #c8e6b5 0%, #a9d48e 100%);
+            font-family: 'Segoe UI', 'Comic Neue', system-ui, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 相遇问题拓展题库 (相向、不同时、多次相遇等) -----------------------------
+        const MEET_PROBLEMS = [
+            { id: 1, text: "🚗 两车从相距360千米的两地同时相向开出，甲车速度50千米/时，乙车速度40千米/时，几小时后相遇？", answer: "4小时", hint: "速度和=90km/h，相遇时间=360÷90=4小时。" },
+            { id: 2, text: "🚲 两地相距400米，小明和小红同时从两端相向而行，小明每分钟走65米，小红每分钟走35米，相遇时小明走了多少米？", answer: "260米", hint: "速度和100米/分，相遇时间4分钟，小明走了65×4=260米。" },
+            { id: 3, text: "🚌 甲、乙两车分别从A、B两地同时相向而行，甲车每小时行55千米，乙车每小时行45千米，相遇时甲车比乙车多行20千米，A、B两地相距多少千米？", answer: "200千米", hint: "速度差10km/h，多行20km需2小时，路程=(55+45)×2=200km。" },
+            { id: 4, text: "🏃 甲乙两人从相距1800米的两地相向而行，甲先出发5分钟后乙出发，甲每分钟走70米，乙每分钟走80米，乙出发几分钟后两人相遇？", answer: "9.67分钟（约9分40秒）", hint: "甲先走350米，剩余路程1450米，速度和150米/分，时间=1450÷150≈9.67分。", numericHint: "9.67" },
+            { id: 5, text: "🚄 甲乙两列火车从相距720千米的两地同时相对开出，6小时后相遇，甲车速度是乙车的1.2倍，求乙车速度？", answer: "54.55千米/时（约54.5）", hint: "速度和=720÷6=120km/h，设乙速x，则1.2x+x=120 → x≈54.55。" },
+            { id: 6, text: "🚴 客车和货车从同一地点相反方向开出，客车每小时行60千米，货车每小时行55千米，3小时后两车相距多少千米？", answer: "345千米", hint: "背向而行，速度和115km/h，3小时相距115×3=345千米。" },
+            { id: 7, text: "🚞 一列快车和一列慢车从相距600千米的两地同时相向而行，快车每小时行80千米，慢车每小时行50千米，几小时后两车相距90千米？（相遇前）", answer: "3.92小时（约3.92）", hint: "需要行驶600-90=510千米，速度和130km/h，用时510÷130≈3.92小时。" },
+            { id: 8, text: "🏞️ 甲乙两人分别从AB两地同时出发相向而行，第一次相遇距A地40千米，相遇后继续前进到达对方出发地后立即返回，第二次相遇距A地20千米，求AB距离。", answer: "70千米", hint: "第一次相遇共走1个全程，甲走40；到第二次相遇共走3个全程，甲共走120，此时距A20km，所以2个全程=120+20=140，全程=70km。" }
+        ];
+        
+        // ----------------------------- 左侧知识讲解组件 (相遇问题核心公式) -----------------------------
+        const KnowledgeBase = () => {
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">🚀</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 main-title">相遇问题·思维特训营</h1>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200">
+                        <h2 className="text-2xl font-bold text-purple-800 flex items-center gap-2">🧠 核心公式·行程三要素</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong className="text-purple-800">路程 = 速度 × 时间</strong></p>
+                            <p>✨ <strong className="text-purple-800">相遇问题：路程和 = 速度和 × 相遇时间</strong></p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 相遇问题四大经典模型：</p>
+                                <p>🔹 <strong>相向而行（同时出发）</strong>：相遇时间 = 总路程 ÷ 速度和</p>
+                                <p>🔹 <strong>不同时出发</strong>：先算出先走者路程，剩余路程再按相遇公式</p>
+                                <p>🔹 <strong>速度比与路程差</strong>：利用速度差求时间，再求总路程</p>
+                                <p>🔹 <strong>多次相遇（两端出发）</strong>：第一次相遇共走1个全程，第二次相遇共走3个全程，第n次共走(2n-1)个全程</p>
+                            </div>
+                            <p>⚡ <strong className="text-purple-800">解题法宝</strong>：①画线段图；②找速度和或速度差；③抓住“路程和”与“时间”的对应关系。</p>
+                            <p>🎯 <strong>拔高题型</strong>：往返多次相遇、中点相遇、环形相遇、变速相遇等。</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">📖 经典技巧·多次相遇规律</h3>
+                        <div className="mt-2 space-y-2 text-gray-700 text-sm md:text-base">
+                            <p>🚩 从两端出发的两次相遇：两人共走3个全程，甲走的路程 = 第一次相遇时甲走的路程 × 3。</p>
+                            <p>⚡ 速度和 = 路程和 ÷ 相遇时间；相遇时间 = 路程和 ÷ 速度和。</p>
+                            <p>📌 遇到“中点相距”问题，通常利用路程差 = 速度差 × 时间 求解。</p>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 右侧小游戏 → 将正确答案拖拽到对应的问题卡片上，配对成功消除！学习相遇问题超有趣。
+                    </div>
+                </div>
+            );
+        };
+        
+        // ----------------------------- 右侧拖拽配对游戏 (相遇问题配对) 使用原生拖拽+React状态 -----------------------------
+        const MeetGame = () => {
+            // 当前题目列表（随机抽取5道）
+            const [questions, setQuestions] = React.useState([]);
+            // 答案卡片列表（正确答案+干扰项）
+            const [answerCards, setAnswerCards] = React.useState([]);
+            // 已配对的问题id集合
+            const [matchedIds, setMatchedIds] = React.useState(new Set());
+            // 反馈消息
+            const [feedback, setFeedback] = React.useState('');
+            // 是否全部完成
+            const [allCompleted, setAllCompleted] = React.useState(false);
+            // 高亮目标问题id
+            const [dropTargetId, setDropTargetId] = React.useState(null);
+            
+            // 随机抽取题目（每次换题从题库选5道不重复）
+            const loadRandomQuestions = () => {
+                const shuffled = [...MEET_PROBLEMS];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                const selected = shuffled.slice(0, 5);
+                setQuestions(selected);
+                
+                // 生成答案卡片：正确答案 + 干扰项（从其他题目答案中取3个）
+                const correctItems = selected.map(q => ({ id: q.id, label: q.answer, type: 'correct' }));
+                const allAnswers = [...new Set(MEET_PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                // 打乱干扰项候选池
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                // 打乱答案顺序
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedback('');
+                setAllCompleted(false);
+                setDropTargetId(null);
+            };
+            
+            React.useEffect(() => {
+                loadRandomQuestions();
+            }, []);
+            
+            // 监听配对完成状态
+            React.useEffect(() => {
+                if (questions.length > 0 && matchedIds.size === questions.length) {
+                    setAllCompleted(true);
+                    setFeedback("🎉 完美！所有相遇问题都配对成功！你已是行程大师！ 🎉");
+                }
+            }, [matchedIds, questions]);
+            
+            // 拖拽开始：记录答案数据
+            const handleDragStart = (e, answerLabel) => {
+                if (allCompleted) {
+                    e.preventDefault();
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", answerLabel);
+                e.dataTransfer.effectAllowed = "copy";
+                e.target.classList.add('drag-active');
+            };
+            
+            const handleDragEnd = (e) => {
+                e.target.classList.remove('drag-active');
+                setDropTargetId(null);
+            };
+            
+            const handleDragOver = (e, questionId) => {
+                e.preventDefault();
+                if (!allCompleted && !matchedIds.has(questionId)) {
+                    setDropTargetId(questionId);
+                }
+            };
+            
+            const handleDragLeave = () => {
+                setDropTargetId(null);
+            };
+            
+            const handleDrop = (e, questionId, correctAnswer, hint) => {
+                e.preventDefault();
+                setDropTargetId(null);
+                if (allCompleted) return;
+                if (matchedIds.has(questionId)) {
+                    setFeedback("这道题已经配对成功啦！");
+                    return;
+                }
+                const draggedAnswer = e.dataTransfer.getData("text/plain");
+                if (!draggedAnswer) return;
+                
+                if (draggedAnswer === correctAnswer) {
+                    // 配对成功
+                    setMatchedIds(prev => new Set(prev).add(questionId));
+                    // 从答案卡片中移除该正确答案（只移除匹配的那一张）
+                    setAnswerCards(prev => prev.filter(card => !(card.type === 'correct' && card.label === draggedAnswer)));
+                    setFeedback(`✅ 正确！答案：${correctAnswer}，好厉害！`);
+                } else {
+                    setFeedback(`❌ 配对错误！正确答案是 “${correctAnswer}”。小提示：${hint}`);
+                }
+            };
+            
+            // 重置当前配对（不清除题目，仅重置配对状态，并恢复答案卡片）
+            const resetMatch = () => {
+                const correctItems = questions.map(q => ({ id: q.id, label: q.answer, type: 'correct' }));
+                const allAnswers = [...new Set(MEET_PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedback("配对已重置，可以重新挑战！");
+                setAllCompleted(false);
+            };
+            
+            // 换一题（完全刷新题库）
+            const handleRefresh = () => {
+                loadRandomQuestions();
+            };
+            
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🚌</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">相遇大挑战·拖拽配对</h2>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={resetMatch} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-2xl shadow-md transition text-sm">🔄 重置配对</button>
+                            <button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base">🔄 换一题</button>
+                        </div>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-3 bg-purple-50 p-2 rounded-xl">
+                        🎮 <strong>玩法：</strong> 将右侧「答案卡片」<strong>拖拽</strong> 到左侧对应的问题卡片上，配对正确两者都会消失！全部配对即获胜。
+                    </p>
+                    <div className="flex flex-col lg:flex-row gap-5 flex-1">
+                        {/* 左侧问题区（接收拖拽） */}
+                        <div className="flex-1 bg-purple-50 rounded-2xl p-3 min-h-[400px]">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg">🚦 相遇问题（拖放答案）</h3>
+                            <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
+                                {questions.map(q => {
+                                    const isMatched = matchedIds.has(q.id);
+                                    const isDropActive = dropTargetId === q.id && !isMatched && !allCompleted;
+                                    return (
+                                        <div
+                                            key={q.id}
+                                            onDragOver={(e) => handleDragOver(e, q.id)}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDrop(e, q.id, q.answer, q.hint)}
+                                            className={`question-card p-3 rounded-xl border-2 transition-all ${isMatched ? 'matched-card bg-green-100 border-green-400' : 'bg-white border-purple-300 hover:shadow-md'} ${isDropActive ? 'drop-zone-active' : ''}`}
+                                        >
+                                            <div className="font-medium text-gray-800">{q.text}</div>
+                                            {!isMatched && <div className="text-xs text-purple-500 mt-1">⬅️ 将正确答案拖拽至此区域</div>}
+                                            {isMatched && <div className="text-green-600 text-sm font-bold mt-1">✓ 已配对 {q.answer}</div>}
+                                        </div>
+                                    );
+                                })}
+                                {questions.length === 0 && <div className="text-center text-gray-400 py-8">加载题目中...</div>}
+                            </div>
+                        </div>
+                        
+                        {/* 右侧答案卡片区（可拖拽） */}
+                        <div className="flex-1 bg-amber-50 rounded-2xl p-3">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg">🎴 答案卡片（可拖拽）</h3>
+                            <div className="flex flex-wrap gap-3 justify-center min-h-[200px]">
+                                {answerCards.map((card, idx) => (
+                                    <div
+                                        key={idx}
+                                        draggable={!allCompleted}
+                                        onDragStart={(e) => handleDragStart(e, card.label)}
+                                        onDragEnd={handleDragEnd}
+                                        className="answer-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-4 py-3 text-center font-bold text-lg cursor-grab select-none hover:scale-105 transition flex items-center justify-center"
+                                    >
+                                        {card.label}
+                                    </div>
+                                ))}
+                                {answerCards.length === 0 && !allCompleted && <div className="text-green-600 font-bold">✨ 完美！所有答案配对完毕 ✨</div>}
+                                {allCompleted && <div className="text-green-700 font-bold text-center">🏆 相遇问题大师！点击「换一题」继续挑战</div>}
+                            </div>
+                            <p className="text-xs text-center text-gray-500 mt-3">💡 提示：只有正确答案能配对成功，干扰项可拖拽但会提示错误~</p>
+                        </div>
+                    </div>
+                    
+                    {/* 反馈消息区域 */}
+                    {feedback && (
+                        <div className={`mt-4 text-center text-base font-medium rounded-xl p-3 ${allCompleted ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-purple-100 text-purple-700 border border-purple-200'}`}>
+                            {feedback}
+                        </div>
+                    )}
+                    
+                    {/* 进度条 */}
+                    <div className="mt-3">
+                        <div className="flex justify-between text-sm text-purple-700 mb-1">
+                            <span>配对进度</span>
+                            <span>{matchedIds.size} / {questions.length}</span>
+                        </div>
+                        <div className="w-full bg-purple-200 rounded-full h-2.5 overflow-hidden">
+                            <div className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(matchedIds.size / questions.length) * 100}%` }}></div>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-3 text-center text-xs text-purple-500 bg-purple-50/80 rounded-xl p-2">
+                        🌟 相遇问题核心：路程和 = 速度和 × 相遇时间。画线段图，巧用速度和/速度差，多次相遇抓全程倍数！
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============================ 主页面 ============================
+        const MainApp = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="flex-1"><KnowledgeBase /></div>
+                    <div className="flex-1"><MeetGame /></div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>

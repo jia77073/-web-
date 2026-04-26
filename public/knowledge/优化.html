@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小智囊：优化问题 | 拖拖乐最优方案</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 标题3号 + 内容5号(较大) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',      // 其他字体5号大小
+                        '3xl': '1.875rem',  // 标题3号
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 拖拽优化 & 移动端适配 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        /* 成功动画 */
+        @keyframes matchSuccess {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-animation {
+            animation: matchSuccess 0.4s ease-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        .no-tap-highlight {
+            -webkit-touch-callout: none;
+        }
+        .answer-dropzone {
+            min-height: 100px;
+            transition: all 0.2s;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 优化问题（沏茶、烙饼、排队）—— 拖拽配对最优方案
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 题库：优化问题（每个问题包含描述、正确答案的文本、干扰项列表）----------
+        const OPTIMIZATION_QUESTIONS = [
+            {
+                id: 1,
+                title: "🍵 沏茶问题",
+                description: "小明要给客人沏茶，需要做这些事：洗水壶（1分钟），烧水（8分钟），洗茶杯（2分钟），找茶叶（1分钟）。怎样安排最节省时间？最少需要多少分钟？",
+                correctAnswer: "先洗水壶，然后烧水，在烧水的同时洗茶杯和找茶叶，总共1+8=9分钟。",
+                correctTime: 9,
+                options: [
+                    "先洗水壶，再烧水，再洗茶杯，再找茶叶，共12分钟。",
+                    "先洗水壶，然后烧水的同时洗茶杯和找茶叶，共9分钟。",
+                    "先烧水，同时洗水壶、洗茶杯、找茶叶，共8分钟。（不可能，因为洗水壶必须在烧水前）",
+                    "先洗茶杯和找茶叶，再洗水壶和烧水，共11分钟。"
+                ],
+                hint: "烧水的同时可以做其他事情，但洗水壶必须在烧水之前完成。"
+            },
+            {
+                id: 2,
+                title: "🥞 烙饼问题",
+                description: "一个平底锅每次最多烙2张饼，每张饼需要烙两面，每面需要3分钟。请问烙3张饼最少需要多少分钟？怎样安排？",
+                correctAnswer: "最少需要9分钟。先烙第一张和第二张的正面（3分钟），然后取出第二张，放入第三张，烙第一张反面和第三张正面（3分钟），最后烙第二张反面和第三张反面（3分钟）。",
+                correctTime: 9,
+                options: [
+                    "先烙两张，再烙一张，共12分钟。",
+                    "交替烙法：先烙1正2正，再烙1反3正，再烙2反3反，共9分钟。",
+                    "每次只烙一张，共18分钟。",
+                    "先烙一张，再烙两张，共15分钟。"
+                ],
+                hint: "要让锅始终不空闲，交替烙饼可以节省时间。"
+            },
+            {
+                id: 3,
+                title: "🚰 排队打水问题",
+                description: "三位同学去打水，甲需要1分钟，乙需要2分钟，丙需要3分钟。只有一个水龙头，怎样安排打水顺序能使三人总等待时间最少？最少总等待时间是多少？",
+                correctAnswer: "按时间从小到大顺序：甲、乙、丙。总等待时间 = 0 + 1 + (1+2) = 4分钟。",
+                correctTime: 4,
+                options: [
+                    "按时间从大到小：丙、乙、甲，总等待时间=0+3+(3+2)=8分钟。",
+                    "随机顺序，总等待时间=5分钟。",
+                    "甲、乙、丙顺序，总等待时间=1+(1+2)=4分钟。",
+                    "乙、甲、丙顺序，总等待时间=2+(2+1)=5分钟。"
+                ],
+                hint: "让用时少的人先打水，总等待时间最短。"
+            },
+            {
+                id: 4,
+                title: "📞 通知问题",
+                description: "一个老师要打电话通知15名同学参加活动，每打一个电话需要1分钟，并且每名同学接到电话后可以继续通知其他同学。请问最少需要几分钟通知完所有人？",
+                correctAnswer: "最少需要4分钟。第一分钟老师通知1人（共2人知道），第二分钟2人分别通知2人（共4人），第三分钟4人通知4人（共8人），第四分钟8人通知8人（共16人，超过15人）。",
+                correctTime: 4,
+                options: [
+                    "需要15分钟，一个一个通知。",
+                    "需要4分钟，利用每分钟人数翻倍的方式。",
+                    "需要5分钟，因为要通知15人。",
+                    "需要3分钟，因为速度很快。"
+                ],
+                hint: "接到电话的人也可以帮忙通知，人数每分钟翻倍。"
+            }
+        ];
+        
+        // 随机抽取题目（不重复，但换一题时可以重新抽）
+        let currentQuestionIndex = 0;
+        
+        // ---------- 主游戏组件: 拖拽配对最优方案 ----------
+        const OptimizationGame = () => {
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            const [answerOptions, setAnswerOptions] = useState([]);   // 选项卡片列表（包含正确与干扰）
+            const [score, setScore] = useState(0);
+            const [answered, setAnswered] = useState(false);          // 当前题目是否已经答对
+            const [message, setMessage] = useState("🐣 仔细读题，把最优方案拖拽到下方答案区吧！");
+            const [highlightDrop, setHighlightDrop] = useState(false);
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            
+            // 随机选择题目并打乱选项顺序
+            const loadRandomQuestion = () => {
+                const randomIndex = Math.floor(Math.random() * OPTIMIZATION_QUESTIONS.length);
+                const question = { ...OPTIMIZATION_QUESTIONS[randomIndex] };
+                // 构建选项列表：包含正确答案和其他干扰项
+                let opts = [question.correctAnswer, ...question.options.filter(opt => opt !== question.correctAnswer)];
+                // 打乱顺序
+                for (let i = opts.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [opts[i], opts[j]] = [opts[j], opts[i]];
+                }
+                setCurrentQuestion(question);
+                setAnswerOptions(opts);
+                setAnswered(false);
+                setMessage(`✨ 新问题：${question.title} ✨ 找出最优策略，拖拽答案到下方区域。`);
+                setHighlightDrop(false);
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                loadRandomQuestion();
+            };
+            
+            // 初始化
+            useEffect(() => {
+                loadRandomQuestion();
+            }, []);
+            
+            // 处理拖拽放置到答案区
+            const handleDropOnZone = (e) => {
+                e.preventDefault();
+                setHighlightDrop(false);
+                if (answered) {
+                    setMessage("本题已经答对了！点击「换一题」继续挑战吧～");
+                    return;
+                }
+                if (!currentQuestion) return;
+                
+                let dragData;
+                try {
+                    const rawData = e.dataTransfer.getData("text/plain");
+                    if (!rawData) return;
+                    dragData = JSON.parse(rawData);
+                } catch(err) {
+                    setMessage("请从右侧答案卡片上拖拽～");
+                    return;
+                }
+                const { optionText } = dragData;
+                if (!optionText) return;
+                
+                // 验证是否与正确答案匹配
+                if (optionText === currentQuestion.correctAnswer) {
+                    // 答对
+                    setAnswered(true);
+                    setScore(prev => prev + 1);
+                    setMessage(`🎉 完全正确！ ${currentQuestion.title} 的最优方案就是：${currentQuestion.correctAnswer} 最少需要 ${currentQuestion.correctTime} 分钟！ +1分 🎉`);
+                    setEffectTrigger(prev => prev+1);
+                    const zoneElem = document.getElementById('answer-dropzone');
+                    if (zoneElem) {
+                        zoneElem.classList.add('match-animation');
+                        setTimeout(() => zoneElem.classList.remove('match-animation'), 500);
+                    }
+                    // 自动在2秒后换下一题（让孩子有成就感）
+                    setTimeout(() => {
+                        loadRandomQuestion();
+                    }, 2000);
+                } else {
+                    // 答错
+                    setMessage(`❌ 不对哦！ “${optionText.substring(0, 40)}...” 不是最优方案。再想想优化策略～ ${currentQuestion.hint}`);
+                    const zoneElem = document.getElementById('answer-dropzone');
+                    if (zoneElem) {
+                        zoneElem.style.backgroundColor = "#fee2e2";
+                        setTimeout(() => zoneElem.style.backgroundColor = "", 400);
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterZone = () => setHighlightDrop(true);
+            const onDragLeaveZone = () => setHighlightDrop(false);
+            
+            // 选项卡片拖拽开始
+            const onOptionDragStart = (e, optionText) => {
+                if (answered) {
+                    e.preventDefault();
+                    setMessage("本题已完成，请点击「换一题」继续！");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ optionText }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onOptionDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            if (!currentQuestion) return <div className="text-white text-2xl">加载优化问题中...</div>;
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区 ========= */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                ⏳ 优化小课堂
+                                <span className="text-lg bg-amber-200 px-3 py-0.5 rounded-full">统筹安排</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-5 text-base md:text-lg text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">⚡</span>
+                                <span><strong className="text-purple-700">优化思想</strong> 就是在有限资源下，通过合理安排顺序、并行任务，使总时间最短或效率最高。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 经典优化策略</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>✨ <strong>沏茶问题</strong>：能同时做的事情尽量同时做（烧水的同时洗茶杯）。</li>
+                                    <li>✨ <strong>烙饼问题</strong>：让锅始终不空闲，交替烙饼。</li>
+                                    <li>✨ <strong>排队问题</strong>：用时少的人优先，总等待时间最短。</li>
+                                    <li>✨ <strong>通知问题</strong>：利用倍增原理，让接到通知的人立刻帮忙。</li>
+                                </ul>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p>💡 核心口诀：<br/>“能并行则并行，顺序要合理，资源不空闲，时间自然短。”</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧸 例子：</p>
+                                <p>烧水8分钟，洗茶杯2分钟，找茶叶1分钟。洗水壶1分钟。最优：先洗水壶(1分钟)，然后烧水(8分钟)，同时洗茶杯和找茶叶(2+1=3分钟)，总共9分钟。</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 右边每个问题都有一个最优解决方案。把<strong>正确的答案卡片</strong>拖拽到下方的“答案放置区”，配对正确就能得分并自动换题！
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* ========= 右侧游戏互动区 ========= */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5" id="game-area">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 优化挑战 · 拖拖乐
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽方案</span>
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-amber-100 rounded-full px-4 py-1 text-xl font-bold text-amber-800">
+                                    🏆 得分: {score}
+                                </div>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-base"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 当前问题卡片 */}
+                        <div className="bg-purple-100/90 rounded-2xl p-4 shadow-md">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-3xl">{currentQuestion.title.split(' ')[0]}</span>
+                                <h4 className="text-2xl font-bold text-purple-800">{currentQuestion.title}</h4>
+                            </div>
+                            <p className="text-base md:text-lg text-gray-700 leading-relaxed">
+                                {currentQuestion.description}
+                            </p>
+                            <div className="mt-2 text-sm text-purple-600 bg-white/50 rounded-lg p-2">
+                                💡 小提示：{currentQuestion.hint}
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-amber-50 rounded-xl p-2 text-center text-amber-800 font-medium text-sm shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 答案放置区（拖拽目标） */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2">📦 答案放置区（拖拽正确方案到这里）</h4>
+                            <div 
+                                id="answer-dropzone"
+                                onDragOver={onDragOver}
+                                onDrop={handleDropOnZone}
+                                onDragEnter={onDragEnterZone}
+                                onDragLeave={onDragLeaveZone}
+                                className={`answer-dropzone border-4 border-dashed rounded-2xl p-4 transition-all duration-200 flex flex-col items-center justify-center ${
+                                    highlightDrop ? 'drop-zone-active bg-yellow-50' : 'border-purple-300 bg-white/50'
+                                } ${answered ? 'bg-green-100 border-green-400' : ''}`}
+                            >
+                                {answered ? (
+                                    <div className="text-center">
+                                        <span className="text-3xl">✅ 已答对！</span>
+                                        <p className="text-lg text-green-700 mt-1">最优方案：{currentQuestion.correctAnswer}</p>
+                                        <p className="text-sm text-gray-600">即将进入下一题...</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <span className="text-2xl font-semibold text-purple-600">⬅️ 拖拽答案到这里</span>
+                                        <p className="text-md text-gray-500 mt-2">把正确的优化方案卡片拖到此区域</p>
+                                        <div className="mt-2 text-sm bg-purple-50 inline-block px-3 py-1 rounded-full">✨ 拖拽卡片松手即可 ✨</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 可拖拽答案卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🎴 方案卡片（拖拽到上方放置区）</h4>
+                            <div className="flex flex-wrap gap-3 justify-start items-center min-h-[180px] bg-white/40 rounded-2xl p-4 custom-scroll overflow-x-auto">
+                                {answerOptions.map((opt, idx) => (
+                                    <div 
+                                        key={`opt_${currentQuestion.id}_${idx}`}
+                                        draggable="true"
+                                        onDragStart={(e) => onOptionDragStart(e, opt)}
+                                        onDragEnd={onOptionDragEnd}
+                                        className="bg-gradient-to-br from-amber-200 to-orange-300 w-64 max-w-full rounded-2xl p-3 shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-2xl">📄</span>
+                                            <span className="text-sm font-medium text-purple-900 break-words">{opt}</span>
+                                        </div>
+                                        <span className="text-[10px] text-gray-700 block mt-1">拖拽配对</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 按住或长按卡片，拖到上方「答案放置区」松手，系统会自动判断对错！</p>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：从卡片拖到虚线框内，配对正确会自动换题并加分。</span>
+                            <button onClick={() => setMessage("💡 提示：回忆优化策略——能并行做的要同时做，顺序要合理，让资源不空闲。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {/* 得分与鼓励 */}
+                        <div className="flex justify-center gap-4 text-sm font-medium text-purple-800">
+                            <div className="bg-white/50 rounded-full px-3 py-1">✅ 已答对 {score} 个优化问题</div>
+                            <div className="bg-white/50 rounded-full px-3 py-1">🎯 继续挑战，成为时间管理大师！</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // ---------- 根组件（标题字号3号）----------
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            ⏱️ 优化大师 · 统筹安排挑战 🧸
+                        </h1>
+                        <p className="text-white/90 text-lg md:text-xl mt-2 font-medium">拖拽最优方案，掌握沏茶、烙饼、排队等优化技巧！</p>
+                    </div>
+                    <OptimizationGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 把正确的优化方案卡片拖拽到答案区，答对得分并自动换题～ 点击【换一题】手动挑战新问题 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>用字母表示数·第3课时 | 两步关系小英雄</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义样式：淡紫色主题 + 大字体 + 拖拽体验 -->
+    <style>
+        /* 主题渐变淡紫 */
+        body {
+            background: linear-gradient(145deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, sans-serif;
+        }
+        /* 滚动条可爱 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f0e2f7;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a67cac;
+            border-radius: 20px;
+        }
+        /* 拖拽卡片时的效果 */
+        .drag-card-active {
+            opacity: 0.5;
+            cursor: grabbing !important;
+        }
+        /* 放置区高亮 */
+        .drop-highlight {
+            background-color: #f9ebff !important;
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px #b38fcc;
+            transition: all 0.1s ease;
+        }
+        /* 配对成功动画 */
+        .matched-pulse {
+            animation: matchGlow 0.4s ease;
+        }
+        @keyframes matchGlow {
+            0% { background-color: #c8e6c9; border-color: #81c784; }
+            100% { background-color: #e8f5e9; border-color: #a5d6a7; }
+        }
+        /* 胜利彩蛋 */
+        @keyframes bounceWin {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-6px); }
+        }
+        .win-bounce {
+            animation: bounceWin 0.5s ease;
+        }
+        /* 字体大6号 (基础放大) */
+        .text-super {
+            font-size: 1.55rem;
+            line-height: 2rem;
+        }
+        @media (min-width: 768px) {
+            .text-super {
+                font-size: 1.75rem;
+                line-height: 2.2rem;
+            }
+        }
+        /* 移动端优化拖拽 */
+        .drag-card, .drop-zone {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="p-3 md:p-6 min-h-screen flex items-center justify-center">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+    // 第3课时：用字母表示数——两步关系（总量-用掉，单价×数量+剩余等）
+    const { useState, useEffect, useCallback } = React;
+
+    // ---------- 游戏数据：问题与对应的字母表达式 ----------
+    // 每个问题包含描述，正确的字母表达式，提示类型
+    const questionsData = [
+        { 
+            id: 0, 
+            title: "🍎 水果店问题", 
+            desc: "水果店原有苹果 m 千克，卖出 15 千克，还剩多少千克？", 
+            correctExpr: "m - 15", 
+            hint: "总量 - 用掉 = 剩余",
+            category: "总量-用掉"
+        },
+        { 
+            id: 1, 
+            title: "✏️ 文具采购", 
+            desc: "买 8 支钢笔，每支钢笔 x 元，付了 100 元，应找回多少元？", 
+            correctExpr: "100 - 8x", 
+            hint: "付的钱 - 单价×数量 = 找回",
+            category: "总量-用掉"
+        },
+        { 
+            id: 2, 
+            title: "🍬 糖果礼盒", 
+            desc: "一盒糖果有 a 颗，先吃了 12 颗，又吃了 5 颗，还剩多少颗？", 
+            correctExpr: "a - 12 - 5 或 a - 17", 
+            hint: "连续减去用掉量，可以合并",
+            category: "总量-用掉"
+        },
+        { 
+            id: 3, 
+            title: "📚 图书馆购书", 
+            desc: "图书馆买了 15 套书，每套 y 元，又买了 3 个书架每个 z 元，一共花了多少元？", 
+            correctExpr: "15y + 3z", 
+            hint: "单价×数量 + 单价×数量 = 总花费",
+            category: "单价×数量+剩余"
+        },
+        { 
+            id: 4, 
+            title: "💰 零花钱攒钱", 
+            desc: "小明原来有 n 元，妈妈每天给他 5 元，一周后（7天）他一共有多少元？", 
+            correctExpr: "n + 5×7 或 n + 35", 
+            hint: "原有 + 每天收入×天数",
+            category: "总量+增加"
+        },
+        { 
+            id: 5, 
+            title: "🧸 超市购物", 
+            desc: "买 2 个玩具熊每个 t 元，又买 1 盒彩笔花了 18 元，一共付了多少钱？", 
+            correctExpr: "2t + 18", 
+            hint: "单价×数量 + 另外物品价格",
+            category: "单价×数量+剩余"
+        }
+    ];
+
+    // 答案卡片数据（字母表达式卡片），打乱顺序配对
+    const cardsData = [
+        { id: 0, label: "m - 15", matchId: 0, emoji: "🍎" },
+        { id: 1, label: "100 - 8x", matchId: 1, emoji: "✏️" },
+        { id: 2, label: "a - 17", matchId: 2, emoji: "🍬", note: "a - 12 - 5" },
+        { id: 3, label: "15y + 3z", matchId: 3, emoji: "📚" },
+        { id: 4, label: "n + 35", matchId: 4, emoji: "💰" },
+        { id: 5, label: "2t + 18", matchId: 5, emoji: "🧸" }
+    ];
+
+    // 主组件
+    const AlgebraicGame = () => {
+        // 记录每个问题是否已配对
+        const [matchedQuestions, setMatchedQuestions] = useState({});
+        // 剩余卡片列表
+        const [remainingCards, setRemainingCards] = useState([]);
+        // 游戏胜利状态
+        const [gameWin, setGameWin] = useState(false);
+        // 全局反馈消息
+        const [feedbackMsg, setFeedbackMsg] = useState("🐣 把右边的字母表达式卡片拖到左边对应的数学问题框！练习两步关系～");
+        // 高亮放置区id
+        const [highlightZoneId, setHighlightZoneId] = useState(null);
+        
+        // 初始化/重置游戏
+        const initGame = useCallback(() => {
+            const initialMatched = {};
+            questionsData.forEach(q => { initialMatched[q.id] = false; });
+            setMatchedQuestions(initialMatched);
+            // 打乱卡片顺序
+            const shuffled = [...cardsData];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setRemainingCards(shuffled);
+            setGameWin(false);
+            setFeedbackMsg("✨ 新回合！把表达式拖拽到正确的问题框，学习用字母表示两步关系 ✨");
+            setHighlightZoneId(null);
+        }, []);
+        
+        // 检查是否全部配对
+        useEffect(() => {
+            const allMatched = Object.values(matchedQuestions).every(v => v === true);
+            if (allMatched && remainingCards.length === 0 && !gameWin) {
+                setGameWin(true);
+                setFeedbackMsg("🎉 完美通关！你已掌握总量-用掉、单价×数量+剩余等字母表达式！🎉");
+            } else if (allMatched && remainingCards.length === 0 && gameWin) {
+                // 保持胜利状态
+            }
+        }, [matchedQuestions, remainingCards, gameWin]);
+        
+        // ----- 拖拽事件处理 -----
+        const handleDragStart = (e, card) => {
+            // 检查卡片是否还在剩余卡片中
+            if (!remainingCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                e.dataTransfer.effectAllowed = "none";
+                setFeedbackMsg("⛔ 这张卡片已经配对过了！不能重复拖拽 ⛔");
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, matchId: card.matchId, label: card.label }));
+            e.dataTransfer.effectAllowed = "copy";
+            // 自定义拖拽图像
+            const dragIcon = document.createElement('div');
+            dragIcon.textContent = `${card.emoji} ${card.label}`;
+            dragIcon.style.position = "absolute";
+            dragIcon.style.top = "-1000px";
+            dragIcon.style.background = "#b28bcb";
+            dragIcon.style.padding = "8px";
+            dragIcon.style.borderRadius = "20px";
+            dragIcon.style.color = "white";
+            dragIcon.style.fontWeight = "bold";
+            document.body.appendChild(dragIcon);
+            e.dataTransfer.setDragImage(dragIcon, 0, 0);
+            setTimeout(() => document.body.removeChild(dragIcon), 0);
+            if (e.target && e.target.classList) {
+                e.target.classList.add('drag-card-active');
+            }
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target && e.target.classList) {
+                e.target.classList.remove('drag-card-active');
+            }
+            setHighlightZoneId(null);
+        };
+        
+        // 放置区高亮
+        const handleDragOver = (e, zoneId) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (highlightZoneId !== zoneId) {
+                setHighlightZoneId(zoneId);
+            }
+        };
+        
+        const handleDragLeave = () => {
+            setHighlightZoneId(null);
+        };
+        
+        // 放置配对逻辑
+        const handleDrop = (e, targetQuestion) => {
+            e.preventDefault();
+            setHighlightZoneId(null);
+            // 如果问题已配对，不能再放
+            if (matchedQuestions[targetQuestion.id]) {
+                setFeedbackMsg(`🔁 问题“${targetQuestion.title}”已经配对成功！不用重复啦 🔁`);
+                return;
+            }
+            
+            let dragData;
+            try {
+                const raw = e.dataTransfer.getData("text/plain");
+                dragData = JSON.parse(raw);
+            } catch(err) {
+                setFeedbackMsg("拖拽出了一点小问题，再试一次~");
+                return;
+            }
+            if (!dragData) return;
+            
+            const { cardId, matchId, label } = dragData;
+            // 验证卡片是否还在剩余中
+            const cardExists = remainingCards.some(c => c.id === cardId);
+            if (!cardExists) {
+                setFeedbackMsg("这张卡片已经被配对过了！请使用其他卡片。");
+                return;
+            }
+            
+            // 判断配对是否正确 (卡片匹配id === 问题id)
+            const isCorrect = (matchId === targetQuestion.id);
+            if (isCorrect) {
+                // 配对成功
+                setMatchedQuestions(prev => ({ ...prev, [targetQuestion.id]: true }));
+                const newRemaining = remainingCards.filter(c => c.id !== cardId);
+                setRemainingCards(newRemaining);
+                setFeedbackMsg(`🎈 正确！ ${targetQuestion.desc} → 字母表达式为 ${label} ，很棒的两步关系！ 🎈`);
+                // 动画效果
+                const zoneEl = document.getElementById(`qzone-${targetQuestion.id}`);
+                if (zoneEl) {
+                    zoneEl.classList.add('matched-pulse');
+                    setTimeout(() => zoneEl.classList.remove('matched-pulse'), 400);
+                }
+            } else {
+                // 配对错误：给出正确答案提示
+                const correctAns = questionsData.find(q => q.id === targetQuestion.id)?.correctExpr || "???";
+                setFeedbackMsg(`❌ 配对错误！ “${targetQuestion.desc}” 正确的字母表达式是 ${correctAns}，再试试两步关系吧！❌`);
+            }
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            initGame();
+        };
+        
+        // 初始化
+        useEffect(() => {
+            initGame();
+        }, [initGame]);
+        
+        const totalQuestions = questionsData.length;
+        const matchedCount = Object.values(matchedQuestions).filter(v => v === true).length;
+        
+        return (
+            <div className="w-full rounded-3xl shadow-2xl p-4 md:p-5 bg-white/30 backdrop-blur-sm border border-white/40">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区域 ========= */}
+                    <div className="lg:w-2/5 bg-white/85 rounded-2xl p-5 md:p-6 shadow-xl backdrop-blur-sm border border-purple-100 overflow-y-auto max-h-[85vh] lg:max-h-none">
+                        <div className="border-l-8 border-[#a67cac] pl-4 mb-4">
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-[#5e3a63]">📐 用字母表示数</h1>
+                            <p className="text-xl text-gray-700 mt-1 font-semibold">第3课时 · 两步关系轻松学</p>
+                        </div>
+                        
+                        {/* 1. 两步关系导入 */}
+                        <div className="bg-gradient-to-r from-[#f7effb] to-white p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800 flex items-center gap-2">✨ 两步关系是什么？</h2>
+                            <p className="text-lg mt-2 leading-relaxed">生活中很多问题需要<strong className="text-purple-700">两个步骤</strong>才能表示数量关系，比如：</p>
+                            <ul className="list-disc list-inside mt-2 text-lg space-y-1">
+                                <li>📌 <strong>总量 - 用掉部分</strong>：原来有 m 个，用掉 15 个 → 剩下 <span className="font-mono font-bold bg-purple-100 px-1">m - 15</span></li>
+                                <li>📌 <strong>单价×数量 + 剩余/另外费用</strong>：买 a 支笔每支 x 元，再加一个书包 y 元 → 一共 <span className="font-mono font-bold bg-purple-100 px-1">ax + y</span></li>
+                                <li>📌 <strong>原有 + 增加部分</strong>：原有 n 元，每天收入 5 元，7天后 → <span className="font-mono font-bold bg-purple-100 px-1">n + 35</span></li>
+                            </ul>
+                        </div>
+                        
+                        {/* 2. 典型两步模型 */}
+                        <div className="bg-white/80 p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">🧩 常见两步字母式</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="font-black text-xl">总量 - 用掉</p>
+                                    <p className="text-2xl font-mono">a - b</p>
+                                    <p className="text-sm">原有a，用掉b，剩a-b</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="font-black text-xl">单价×数量 + 额外</p>
+                                    <p className="text-2xl font-mono">nx + m</p>
+                                    <p className="text-sm">n个单价x，再加m</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="font-black text-xl">连续减少</p>
+                                    <p className="text-2xl font-mono">a - b - c</p>
+                                    <p className="text-sm">也可合并 a-(b+c)</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="font-black text-xl">原有 + 增加</p>
+                                    <p className="text-2xl font-mono">a + kt</p>
+                                    <p className="text-sm">原有a，每天增加k，t天后</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 3. 例题精讲（两步关系） */}
+                        <div className="bg-[#faf0ff] p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📖 生活例题 · 两步关系</h2>
+                            <div className="space-y-3 mt-2 text-lg">
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例1（总量-用掉）</span> 仓库有大米 n 千克，运走 25 千克，还剩多少？</p>
+                                    <p className="text-purple-700">→ 表达式：<strong className="font-mono">n - 25</strong></p>
+                                </div>
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例2（单价×数量+剩余）</span> 买4个笔记本每个b元，又买一支钢笔花12元，共付多少？</p>
+                                    <p className="text-purple-700">→ 表达式：<strong className="font-mono">4b + 12</strong></p>
+                                </div>
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例3（原有+增加）</span> 小华有 x 张卡片，每天收集3张，一周后有多少张？</p>
+                                    <p className="text-purple-700">→ 表达式：<strong className="font-mono">x + 21</strong></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 4. 解题小窍门 */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">💡 两步关系顺口溜</h2>
+                            <div className="bg-yellow-50 p-3 rounded-xl mt-2 text-center text-xl font-medium">
+                                “总量减用掉，剩下全知道；<br/>
+                                单价乘数量，再加额外数；<br/>
+                                原有加增长，字母来帮忙！”
+                            </div>
+                            <div className="mt-3 text-center text-green-700 bg-green-50 rounded-full py-2">
+                                🌟 右侧小游戏：将字母表达式拖到对应的问题框，练习两步关系！
+                            </div>
+                        </div>
+                        <div className="mt-4 text-sm text-center text-purple-600 bg-white/60 rounded-full py-2">✨ 用字母简明的表示两步数量关系 ✨</div>
+                    </div>
+                    
+                    {/* ========= 右侧互动游戏区域：拖拽配对（扭蛋/超市购物风格） ========= */}
+                    <div className="lg:w-3/5 bg-[#faf3ff]/95 rounded-2xl p-5 md:p-6 shadow-lg border-2 border-[#CBAACB] flex flex-col">
+                        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+                            <h2 className="text-2xl md:text-3xl font-black text-[#6b3f74] flex items-center gap-2">
+                                🎮 表达式配对·超市扭蛋 <span className="text-lg bg-white/70 px-3 py-1 rounded-full">拖拽配对</span>
+                            </h2>
+                            <button 
+                                onClick={resetGame}
+                                className="bg-gradient-to-r from-[#a17bb5] to-[#cba3db] hover:from-[#8f68a3] hover:to-[#b887cf] text-white font-bold py-2 px-5 rounded-full shadow-md transition transform active:scale-95 text-lg"
+                            >
+                                🔄 新的一局
+                            </button>
+                        </div>
+                        
+                        {/* 反馈消息 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-bold text-lg transition-all ${feedbackMsg.includes('正确') || feedbackMsg.includes('🎈') ? 'bg-green-100 text-green-800 border border-green-300' : (feedbackMsg.includes('错误') || feedbackMsg.includes('⛔') ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')}`}>
+                            {feedbackMsg}
+                        </div>
+                        
+                        {/* 进度条 */}
+                        <div className="w-full bg-purple-200 rounded-full h-3 mb-3">
+                            <div className="bg-purple-600 h-3 rounded-full transition-all duration-300" style={{ width: `${(matchedCount / totalQuestions) * 100}%` }}></div>
+                        </div>
+                        <p className="text-right text-purple-700 text-sm font-medium">配对进度: {matchedCount}/{totalQuestions}</p>
+                        
+                        {/* 挑战问题区域 (放置区) */}
+                        <div className="space-y-4 mb-6 mt-2 max-h-[440px] overflow-y-auto pr-1">
+                            {questionsData.map(q => {
+                                const isMatched = matchedQuestions[q.id];
+                                const isHighlight = highlightZoneId === q.id;
+                                return (
+                                    <div
+                                        key={q.id}
+                                        id={`qzone-${q.id}`}
+                                        className={`drop-zone relative bg-white rounded-2xl p-4 border-2 transition-all ${isMatched ? 'border-green-400 bg-green-50/90' : (isHighlight ? 'border-purple-500 bg-purple-50 drop-highlight' : 'border-purple-200')}`}
+                                        onDragOver={(e) => handleDragOver(e, q.id)}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, q)}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="text-xl font-black text-purple-800 flex items-center gap-2">
+                                                    {q.title} 
+                                                    {!isMatched && <span className="text-sm bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">待配对</span>}
+                                                    {isMatched && <span className="text-sm bg-green-200 text-green-800 px-2 py-0.5 rounded-full">✓ 已配对</span>}
+                                                </div>
+                                                <p className="text-base md:text-lg text-gray-700 mt-1">{q.desc}</p>
+                                                <div className="mt-2 text-sm text-purple-600 bg-purple-50 inline-block px-2 py-1 rounded-full">
+                                                    💡 {q.hint} &nbsp;|&nbsp; 类型：{q.category}
+                                                </div>
+                                                {isMatched && (
+                                                    <div className="mt-2 inline-flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
+                                                        ✅ 表达式：{q.correctExpr}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-4xl ml-2">{q.id === 0 ? '🍎' : (q.id === 1 ? '✏️' : (q.id === 2 ? '🍬' : (q.id === 3 ? '📚' : (q.id === 4 ? '💰' : '🧸'))))}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽卡片区（字母表达式扭蛋） */}
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <p className="text-xl font-bold text-purple-800 flex items-center gap-2">🎴 字母表达式扭蛋 (拖拽配对)</p>
+                                <span className="bg-purple-200 rounded-full px-3 py-1 text-sm font-bold">剩余: {remainingCards.length}</span>
+                            </div>
+                            
+                            {remainingCards.length === 0 && !gameWin && (
+                                <div className="text-center py-6 bg-yellow-50 rounded-2xl border border-yellow-300 text-yellow-700 font-bold text-xl">
+                                    ✨ 太厉害了！全部配对正确！点击[新的一局]继续挑战 ✨
+                                </div>
+                            )}
+                            
+                            {remainingCards.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {remainingCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable="true"
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className="drag-card bg-gradient-to-br from-[#e8d3fc] to-white rounded-2xl p-3 text-center shadow-md cursor-grab active:cursor-grabbing border-2 border-purple-300 hover:shadow-xl transform transition hover:-translate-y-1"
+                                        >
+                                            <div className="text-3xl mb-1">{card.emoji}</div>
+                                            <div className="font-black text-xl md:text-2xl text-purple-800">{card.label}</div>
+                                            {card.note && <div className="text-xs text-purple-400 mt-1">{card.note}</div>}
+                                            <div className="text-xs text-purple-500 mt-1">✨ 拖拽配对 ✨</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 玩法说明：拖拽互动详细步骤 */}
+                            <div className="mt-5 bg-[#e9d4f0] rounded-xl p-3 text-center text-purple-800 text-base flex flex-wrap justify-center gap-2 items-center">
+                                <span className="font-bold">🐣 如何拖拉拽互动：</span>
+                                <span>👉 手指长按右边紫色卡片 → 拖到左边对应的问题框 → 松开配对！</span>
+                                <span className="text-sm bg-white rounded-full px-2 py-0.5">练习两步关系字母表达式</span>
+                            </div>
+                        </div>
+                        
+                        {/* 胜利彩蛋 */}
+                        {gameWin && (
+                            <div className="mt-5 p-4 bg-gradient-to-r from-green-200 to-emerald-200 rounded-2xl text-center win-bounce">
+                                <div className="text-5xl mb-2">🏆✨🔤🧸</div>
+                                <p className="font-extrabold text-2xl text-emerald-800">字母表示数小达人！两步关系全掌握～</p>
+                                <button onClick={resetGame} className="mt-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow">🏅 再玩一次 🏅</button>
+                            </div>
+                        )}
+                        
+                        {/* 底部总结 */}
+                        <div className="mt-3 text-right text-sm text-purple-600 flex justify-end items-center gap-1">
+                            <span>📌 总量-用掉：a-b &nbsp;|&nbsp; 单价×数量+剩余：nx+m &nbsp;|&nbsp; 原有+增长：a+kt</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-center mt-5 text-sm text-purple-900/80 bg-white/30 rounded-full py-2 px-4 mx-auto w-fit">
+                    🌟 用字母表示两步数量关系，让数学更简洁！ 拖拽配对，巩固练习 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染根组件
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<AlgebraicGame />);
+</script>
+</body>
+</html>

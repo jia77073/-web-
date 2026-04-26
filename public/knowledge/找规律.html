@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小达人：找规律 | 拖拖乐规律拼图</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 大5号字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',
+                        '6xl': '3.75rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 拖拽优化 & 移动端适配 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        /* 配对成功动画 */
+        @keyframes matchSuccess {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-animation {
+            animation: matchSuccess 0.4s ease-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        /* 禁止移动端长按菜单 */
+        .no-tap-highlight {
+            -webkit-touch-callout: none;
+        }
+        /* 规律卡片样式 */
+        .pattern-item {
+            transition: all 0.2s;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 找规律 —— 拖拽补全规律游戏 (图形/数字规律)
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 规律题库 ----------
+        // 每个规律包含: 前几个图案(数组), 空缺位置索引(从0开始), 正确选项的值, 选项列表(包含正确+干扰), 类型(用于显示)
+        // 图案支持: 图形emoji, 数字, 字母, 形状等
+        
+        const PATTERN_LIBRARY = [
+            {   // 颜色交替: 红,蓝,红,蓝,? 
+                pattern: ["🔴", "🔵", "🔴", "🔵", "❓"],
+                missingIndex: 4,
+                correctValue: "🔵",
+                options: ["🔴", "🔵", "🟢", "🟡"],
+                explanation: "颜色交替规律：红、蓝、红、蓝，接下来是蓝色。",
+                type: "颜色规律"
+            },
+            {   // 数字递增2: 2,4,6,8,?
+                pattern: ["2", "4", "6", "8", "❓"],
+                missingIndex: 4,
+                correctValue: "10",
+                options: ["10", "12", "9", "14"],
+                explanation: "每次增加2：2,4,6,8，下一个是10。",
+                type: "数字规律"
+            },
+            {   // 形状循环: △,□,○,△,□,?
+                pattern: ["△", "□", "○", "△", "□", "❓"],
+                missingIndex: 5,
+                correctValue: "○",
+                options: ["△", "□", "○", "☆"],
+                explanation: "形状循环规律：△,□,○ 重复，下一个是○。",
+                type: "图形规律"
+            },
+            {   // 大小写字母交替: A, a, B, b, C, ?
+                pattern: ["A", "a", "B", "b", "C", "❓"],
+                missingIndex: 5,
+                correctValue: "c",
+                options: ["c", "d", "C", "D"],
+                explanation: "大写字母后跟小写字母，C后面是c。",
+                type: "字母规律"
+            },
+            {   // 数量递增: ★, ★★, ★★★, ?
+                pattern: ["★", "★★", "★★★", "❓"],
+                missingIndex: 3,
+                correctValue: "★★★★",
+                options: ["★★", "★★★★", "★★★★★", "★"],
+                explanation: "星星数量每次增加1个：1个、2个、3个，下一个是4个。",
+                type: "数量规律"
+            },
+            {   // 方向旋转: ↑, →, ↓, ←, ↑, ?
+                pattern: ["↑", "→", "↓", "←", "↑", "❓"],
+                missingIndex: 5,
+                correctValue: "→",
+                options: ["→", "↓", "↑", "←"],
+                explanation: "箭头顺时针旋转：上、右、下、左、上，接下来是右。",
+                type: "方向规律"
+            },
+            {   // 数字递减3: 18,15,12,9,?
+                pattern: ["18", "15", "12", "9", "❓"],
+                missingIndex: 4,
+                correctValue: "6",
+                options: ["6", "3", "10", "7"],
+                explanation: "每次减少3：18-3=15, 15-3=12, 12-3=9, 9-3=6。",
+                type: "数字规律"
+            },
+            {   // 水果交替: 🍎,🍌,🍎,🍌,?
+                pattern: ["🍎", "🍌", "🍎", "🍌", "❓"],
+                missingIndex: 4,
+                correctValue: "🍎",
+                options: ["🍎", "🍌", "🍒", "🍊"],
+                explanation: "苹果和香蕉交替出现，下一个是苹果。",
+                type: "食物规律"
+            }
+        ];
+        
+        // 随机选择一个规律题目
+        const getRandomPattern = () => {
+            const index = Math.floor(Math.random() * PATTERN_LIBRARY.length);
+            return { ...PATTERN_LIBRARY[index] };
+        };
+        
+        // ---------- 主游戏组件: 拖拽补全规律 ----------
+        const PatternGame = () => {
+            const [currentPattern, setCurrentPattern] = useState(null);
+            const [score, setScore] = useState(0);
+            const [completed, setCompleted] = useState(false);   // 当前题目是否已答对
+            const [message, setMessage] = useState("🐣 观察规律，把正确的选项拖拽到问号❓的位置吧！");
+            const [highlightDropIndex, setHighlightDropIndex] = useState(null); // 高亮空缺位置
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            
+            // 加载新题目
+            const loadNewPattern = () => {
+                const newPattern = getRandomPattern();
+                setCurrentPattern(newPattern);
+                setCompleted(false);
+                setMessage("✨ 新规律来啦！拖拽答案到问号处 ✨");
+                setHighlightDropIndex(null);
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 换一题 (手动)
+            const handleChangeQuestion = () => {
+                loadNewPattern();
+            };
+            
+            // 初始化
+            useEffect(() => {
+                loadNewPattern();
+            }, []);
+            
+            // 处理拖拽放置到空缺位置
+            const handleDropOnSlot = (e, slotIndex) => {
+                e.preventDefault();
+                setHighlightDropIndex(null);
+                if (completed) {
+                    setMessage("🎉 这道题已经完成了！点击「换一题」继续挑战吧～");
+                    return;
+                }
+                if (!currentPattern) return;
+                // 确保拖拽的是空缺位置
+                if (slotIndex !== currentPattern.missingIndex) {
+                    setMessage("请把卡片拖拽到问号❓的位置！");
+                    return;
+                }
+                let dragData;
+                try {
+                    const raw = e.dataTransfer.getData("text/plain");
+                    if (!raw) return;
+                    dragData = JSON.parse(raw);
+                } catch(err) {
+                    setMessage("请从下方选项卡片上拖拽～");
+                    return;
+                }
+                const { optionValue } = dragData;
+                if (!optionValue) return;
+                
+                // 验证是否正确
+                if (optionValue === currentPattern.correctValue) {
+                    // 答对
+                    setCompleted(true);
+                    setScore(prev => prev + 1);
+                    setMessage(`🎉 完全正确！ ${currentPattern.explanation} +1分 🎉`);
+                    setEffectTrigger(prev => prev+1);
+                    // 播放动画
+                    const slotElem = document.getElementById(`pattern-slot-${slotIndex}`);
+                    if (slotElem) {
+                        slotElem.classList.add('match-animation');
+                        setTimeout(() => slotElem.classList.remove('match-animation'), 500);
+                    }
+                    // 自动在1.5秒后换下一题
+                    setTimeout(() => {
+                        loadNewPattern();
+                    }, 1800);
+                } else {
+                    // 答错
+                    setMessage(`❌ 不对哦！ “${optionValue}” 不符合规律。再观察一下～ ${currentPattern.explanation.substring(0, 30)}...`);
+                    // 错误闪烁红色
+                    const slotElem = document.getElementById(`pattern-slot-${slotIndex}`);
+                    if (slotElem) {
+                        slotElem.style.backgroundColor = "#fee2e2";
+                        setTimeout(() => slotElem.style.backgroundColor = "", 400);
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            
+            const onDragEnterSlot = (index) => {
+                if (!completed && currentPattern && index === currentPattern.missingIndex) {
+                    setHighlightDropIndex(index);
+                }
+            };
+            const onDragLeaveSlot = () => setHighlightDropIndex(null);
+            
+            // 选项卡片拖拽开始
+            const onCardDragStart = (e, optionVal) => {
+                if (completed) {
+                    e.preventDefault();
+                    setMessage("本题已完成，请点击「换一题」继续！");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ optionValue: optionVal }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onCardDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            if (!currentPattern) return <div className="text-white text-2xl">加载规律中...</div>;
+            
+            // 渲染规律序列（将空缺位置显示为可拖拽区域）
+            const renderPatternSequence = () => {
+                return currentPattern.pattern.map((item, idx) => {
+                    const isMissing = (item === "❓");
+                    const isHighlight = highlightDropIndex === idx && !completed;
+                    return (
+                        <div
+                            key={idx}
+                            id={`pattern-slot-${idx}`}
+                            onDragOver={onDragOver}
+                            onDrop={(e) => handleDropOnSlot(e, idx)}
+                            onDragEnter={() => onDragEnterSlot(idx)}
+                            onDragLeave={onDragLeaveSlot}
+                            className={`pattern-item flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-2xl text-4xl md:text-5xl font-bold transition-all duration-200 ${
+                                isMissing 
+                                    ? (isHighlight ? 'drop-zone-active bg-yellow-100 border-4 border-dashed border-yellow-500' : 'bg-white/60 border-4 border-dashed border-purple-300')
+                                    : 'bg-white/80 shadow-md'
+                            } ${completed && isMissing ? 'bg-green-100 border-green-400' : ''}`}
+                        >
+                            {isMissing ? (
+                                completed ? (
+                                    <span className="text-3xl text-green-600">{currentPattern.correctValue}</span>
+                                ) : (
+                                    <span className="text-4xl text-gray-400">❓</span>
+                                )
+                            ) : (
+                                <span>{item}</span>
+                            )}
+                        </div>
+                    );
+                });
+            };
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区 ========= */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-4xl md:text-5xl font-extrabold text-purple-800 flex items-center gap-2">
+                                🔍 找规律小课堂
+                                <span className="text-xl bg-amber-200 px-3 py-1 rounded-full">数学广角</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-lg md:text-xl text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">🧩</span>
+                                <span><strong className="text-purple-700">找规律</strong> 就是观察事物的排列顺序，发现重复或变化的模式。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 常见规律类型</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>✨ 重复规律：🔴🔵🔴🔵...</li>
+                                    <li>✨ 数字规律：2,4,6,8,... (每次+2)</li>
+                                    <li>✨ 图形规律：△□○△□○...</li>
+                                    <li>✨ 数量规律：★,★★,★★★,...</li>
+                                    <li>✨ 方向规律：↑→↓←↑→...</li>
+                                </ul>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p>🎯 小技巧：先看相邻两个的变化，再猜下一个！</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧠 思考步骤：</p>
+                                <p>1️⃣ 找相同 & 找不同 &nbsp;|&nbsp; 2️⃣ 确定变化规则 &nbsp;|&nbsp; 3️⃣ 应用规则填空</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 右侧规律中有一个问号❓，从下方选项卡片中<strong>拖拽</strong>正确的一项到问号处，就能完成规律！答对自动加分并换题。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* ========= 右侧游戏互动区 (拖拽补全规律) ========= */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-3xl md:text-4xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 规律拼图 · 拖拖乐
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽填空</span>
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-amber-100 rounded-full px-4 py-1 text-xl font-bold text-amber-800">
+                                    🏆 得分: {score}
+                                </div>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-lg"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-purple-100/80 rounded-xl p-3 text-center text-purple-800 font-medium text-base shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 规律序列展示区 */}
+                        <div className="bg-white/50 rounded-2xl p-5 shadow-inner">
+                            <div className="text-center mb-3">
+                                <span className="text-lg bg-purple-200 px-3 py-1 rounded-full">🔎 观察规律，拖拽答案到❓处</span>
+                            </div>
+                            <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4">
+                                {renderPatternSequence()}
+                            </div>
+                            {completed && (
+                                <div className="mt-3 text-center text-green-700 font-bold text-lg">
+                                    ✅ 正确答案：{currentPattern.correctValue} &nbsp; | &nbsp; {currentPattern.explanation}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* 可拖拽选项卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🎴 可选卡片 (拖拽到问号处)</h4>
+                            <div className="flex flex-wrap gap-3 justify-center items-center min-h-[130px] bg-white/40 rounded-2xl p-4 custom-scroll overflow-x-auto">
+                                {currentPattern.options.map((opt, idx) => (
+                                    <div 
+                                        key={`opt_${idx}`}
+                                        draggable="true"
+                                        onDragStart={(e) => onCardDragStart(e, opt)}
+                                        onDragEnd={onCardDragEnd}
+                                        className="bg-gradient-to-br from-amber-200 to-orange-300 w-28 h-28 rounded-2xl flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                                    >
+                                        <span className="text-5xl mb-1">{opt}</span>
+                                        <span className="text-sm font-bold text-purple-800 mt-1">拖拽我</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 按住或长按卡片，拖到规律中的❓位置，松手就会判断对错！</p>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：从下方卡片拖到上方序列的❓框内，正确自动加分换题。</span>
+                            <button onClick={() => setMessage("💡 提示：仔细观察相邻两个图案或数字的变化，找出重复的模式或增加的数量。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {/* 得分与鼓励 */}
+                        <div className="flex justify-center gap-4 text-sm font-medium text-purple-800">
+                            <div className="bg-white/50 rounded-full px-3 py-1">✅ 已答对 {score} 个规律</div>
+                            <div className="bg-white/50 rounded-full px-3 py-1">🎯 继续挑战，成为规律小侦探！</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // ---------- 根组件 ----------
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-5xl md:text-7xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🧠 规律大冒险 · 小小侦探家 🧸
+                        </h1>
+                        <p className="text-white/90 text-xl md:text-2xl mt-2 font-medium">拖拽答案，补全规律，锻炼观察力！</p>
+                    </div>
+                    <PatternGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 把正确的卡片拖到问号❓处，配对成功就能得分～ 点击【换一题】挑战更多规律 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

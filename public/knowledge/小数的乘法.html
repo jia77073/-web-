@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>✖️ 小数乘法 · 数学游乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .option-card {
+      transition: all 0.15s ease;
+    }
+    .option-card:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#E6FFFA] to-[#E8FFF5] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（小数乘法）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/85 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-teal-200/80 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-teal-300 pb-3 mb-4">
+          <span className="text-3xl">✖️</span>
+          <h2 className="text-2xl font-extrabold text-teal-800">小数乘法 · 按整数算，再点小数点<br/><span className="text-sm font-normal">先按整数乘法计算，再确定小数位数</span></h2>
+        </div>
+        <div className="space-y-4 text-teal-800">
+          <div className="bg-teal-50/90 rounded-2xl p-4 border border-teal-200">
+            <p className="font-bold text-teal-700 flex items-center gap-2">📐 计算法则：</p>
+            <p className="text-sm mt-1">1️⃣ 先按照<span className="font-bold">整数乘法</span>算出积。<br/>
+            2️⃣ 看因数中一共有几位小数，就从积的<span className="font-bold">右边起数出几位</span>，点上小数点。<br/>
+            3️⃣ 如果积的小数位数不够，要在前面用<span className="font-bold">0补足</span>，再点小数点。<br/>
+            4️⃣ 小数末尾的0一般要去掉。</p>
+            <div className="mt-2 text-xs bg-white/60 p-2 rounded-lg font-mono text-center">
+              例：1.2 × 0.5 → 12×5=60 → 两位小数 → 0.60 → 0.6<br/>
+              例：0.25 × 0.4 → 25×4=100 → 三位小数 → 0.100 → 0.1
+            </div>
+          </div>
+          <div className="bg-teal-50/90 rounded-2xl p-4 border border-teal-200">
+            <p className="font-bold text-teal-700">⚠️ 易错提醒：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li>因数一共有几位小数，积就有几位小数（末尾去0前）。</li>
+              <li>计算时末尾对齐，而不是小数点对齐（与加减法不同）。</li>
+              <li>记得<span className="font-bold">补零</span>：如 0.03×0.5 = 0.015，因数共3位小数，积要补一个0。</li>
+            </ul>
+          </div>
+          <div className="bg-teal-50/90 rounded-2xl p-4 border border-teal-200">
+            <p className="font-bold text-teal-700">🧠 巧记口诀：</p>
+            <p className="text-sm italic">小数乘法先整数，因数小数位数和；<br/>积的右边数几位，点上小数点别忘咯。</p>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center">
+              <span className="bg-teal-200 px-2 py-1 rounded-full text-xs">0.3 × 0.2 = 0.06</span>
+              <span className="bg-teal-200 px-2 py-1 rounded-full text-xs">1.5 × 0.4 = 0.6</span>
+              <span className="bg-teal-200 px-2 py-1 rounded-full text-xs">2.5 × 1.2 = 3</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-teal-700 bg-teal-100/70 p-2 rounded-xl">
+          🎯 右侧挑战：快速计算小数乘法，选出正确结果！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 工具函数：精确小数乘法（避免浮点误差）----------
+  // 返回精确的乘积（数字），以及两个因数的小数位数
+  const preciseMultiply = (a, b) => {
+    // 将数字转为字符串，获取小数位数
+    const aStr = a.toString();
+    const bStr = b.toString();
+    const aDecLen = aStr.includes('.') ? aStr.split('.')[1].length : 0;
+    const bDecLen = bStr.includes('.') ? bStr.split('.')[1].length : 0;
+    const totalDecLen = aDecLen + bDecLen;
+    
+    // 转为整数进行乘法
+    const aInt = Math.round(a * Math.pow(10, aDecLen));
+    const bInt = Math.round(b * Math.pow(10, bDecLen));
+    const productInt = aInt * bInt;
+    const result = productInt / Math.pow(10, totalDecLen);
+    return { result, totalDecLen };
+  };
+
+  // 格式化数字：保留最多5位小数，去掉末尾无意义的零，但不使用科学计数法
+  const formatDecimal = (num) => {
+    if (isNaN(num)) return '0';
+    // 处理接近整数的情况
+    if (Math.abs(num - Math.round(num)) < 1e-10) return Math.round(num).toString();
+    let str = num.toFixed(10); // 先转为字符串，再去除尾部零
+    str = str.replace(/\.?0+$/, '');
+    if (str === '') return '0';
+    return str;
+  };
+
+  // 生成随机小数（0.1 ~ 9.99，最多两位小数，避免太复杂）
+  const generateRandomDecimal = () => {
+    const intPart = Math.floor(Math.random() * 10); // 0~9
+    const decPart = Math.floor(Math.random() * 100); // 0~99
+    let val = intPart + decPart / 100;
+    if (val === 0) val = 0.1;
+    // 偶尔生成一位小数或整数（更自然）
+    if (Math.random() > 0.6) {
+      // 变成一位小数
+      val = Math.floor(val * 10) / 10;
+    }
+    if (Math.random() > 0.8 && val < 10) {
+      val = Math.floor(val); // 变成整数
+    }
+    return val;
+  };
+
+  // 生成题目（小数乘法）
+  const generateQuestion = () => {
+    let numA = generateRandomDecimal();
+    let numB = generateRandomDecimal();
+    // 避免结果过于庞大（乘积最大约 9.99*9.99≈99.8，可以接受）
+    const { result, totalDecLen } = preciseMultiply(numA, numB);
+    const correctNum = result;
+    const correctDisplay = formatDecimal(correctNum);
+    
+    const displayA = formatDecimal(numA);
+    const displayB = formatDecimal(numB);
+    const questionText = `${displayA} × ${displayB} = ?`;
+    
+    // 生成干扰项：基于正确结果微调（加减0.01、0.1、0.2等，并考虑位数影响）
+    let wrongSet = new Set();
+    const correctVal = correctNum;
+    
+    // 干扰1: ±0.01（但结果必须 >0 且不同）
+    let off1 = 0.01;
+    let wrong1 = correctVal + off1;
+    if (wrong1 < 0) wrong1 = correctVal + 0.02;
+    let wrong1Disp = formatDecimal(wrong1);
+    if (wrong1Disp !== correctDisplay) wrongSet.add(wrong1Disp);
+    
+    let wrong2 = correctVal - off1;
+    if (wrong2 < 0) wrong2 = correctVal + 0.03;
+    let wrong2Disp = formatDecimal(wrong2);
+    if (wrong2Disp !== correctDisplay) wrongSet.add(wrong2Disp);
+    
+    // 干扰2: ±0.1
+    let off2 = 0.1;
+    let wrong3 = correctVal + off2;
+    let wrong3Disp = formatDecimal(wrong3);
+    if (wrong3Disp !== correctDisplay) wrongSet.add(wrong3Disp);
+    
+    let wrong4 = correctVal - off2;
+    if (wrong4 < 0) wrong4 = correctVal + 0.15;
+    let wrong4Disp = formatDecimal(wrong4);
+    if (wrong4Disp !== correctDisplay) wrongSet.add(wrong4Disp);
+    
+    // 干扰3: 因数小数点位数错误造成的常见错误（例如忘记小数位数）
+    // 简单模拟：将正确结果乘以10或除以10
+    let wrong5 = correctVal * 10;
+    let wrong5Disp = formatDecimal(wrong5);
+    if (wrong5Disp !== correctDisplay) wrongSet.add(wrong5Disp);
+    
+    let wrong6 = correctVal / 10;
+    let wrong6Disp = formatDecimal(wrong6);
+    if (wrong6Disp !== correctDisplay) wrongSet.add(wrong6Disp);
+    
+    // 保证至少有3个干扰项
+    let wrongList = Array.from(wrongSet);
+    while (wrongList.length < 3) {
+      let extra = formatDecimal(correctVal + 0.2);
+      if (extra !== correctDisplay && !wrongList.includes(extra)) wrongList.push(extra);
+      else {
+        extra = formatDecimal(correctVal - 0.2);
+        if (extra !== correctDisplay && !wrongList.includes(extra)) wrongList.push(extra);
+      }
+    }
+    wrongList = wrongList.slice(0, 3);
+    
+    // 合并选项并打乱
+    let options = [correctDisplay, ...wrongList];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    
+    return {
+      numA: displayA,
+      numB: displayB,
+      operation: '×',
+      correctAnswer: correctDisplay,
+      options,
+      questionText
+    };
+  };
+
+  // ---------- 小数乘法挑战游戏组件 ----------
+  const MultiplyGame = ({ resetKey, onNewQuestion }) => {
+    const [question, setQuestion] = React.useState(() => generateQuestion());
+    const [selectedOption, setSelectedOption] = React.useState(null);
+    const [feedback, setFeedback] = React.useState('');
+    const [isLocked, setIsLocked] = React.useState(false);
+    const [hasScored, setHasScored] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const refreshQuestion = () => {
+      setQuestion(generateQuestion());
+      setSelectedOption(null);
+      setFeedback('');
+      setIsLocked(false);
+      setHasScored(false);
+    };
+    
+    React.useEffect(() => {
+      refreshQuestion();
+    }, [resetKey]);
+    
+    const handleSelectOption = (optValue) => {
+      if (isLocked) {
+        setFeedback('🎯 本题已完成！点击“换一题”继续挑战吧！');
+        return;
+      }
+      setSelectedOption(optValue);
+      const isCorrect = (optValue === question.correctAnswer);
+      
+      if (isCorrect) {
+        if (!hasScored) {
+          setScore(prev => prev + 1);
+          setHasScored(true);
+        }
+        setFeedback('🎉✨ 完全正确！小数乘法掌握得真棒！ ✨🎉');
+        setIsLocked(true);
+      } else {
+        setFeedback(`❌ 再算一算～ 正确答案是 ${question.correctAnswer}。记得先按整数乘，再点小数点！`);
+      }
+    };
+    
+    const resetCurrent = () => {
+      if (isLocked) {
+        setSelectedOption(null);
+        setFeedback('');
+        setIsLocked(false);
+      } else {
+        setSelectedOption(null);
+        setFeedback('');
+      }
+    };
+    
+    const nextQuestion = () => {
+      onNewQuestion();
+    };
+    
+    const getOptionClass = (opt) => {
+      let base = "option-card cursor-pointer text-center p-3 rounded-2xl shadow-md transition-all border-2 font-mono font-bold text-xl ";
+      if (selectedOption === opt) {
+        if (opt === question.correctAnswer && isLocked) {
+          return base + "bg-teal-400 text-white border-teal-600 scale-105 ring-2 ring-teal-300";
+        }
+        return base + "bg-cyan-400 text-white border-cyan-600";
+      }
+      if (isLocked && opt === question.correctAnswer) {
+        return base + "bg-teal-200 text-teal-800 border-teal-400 opacity-80";
+      }
+      return base + "bg-white hover:bg-teal-100 text-teal-800 border-teal-200 hover:border-teal-400";
+    };
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 得分区域 */}
+        <div className="flex justify-between items-center bg-white/70 rounded-2xl px-5 py-2 shadow-sm border border-teal-200">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <span className="font-bold text-teal-800">乘法积分</span>
+            <span className="text-3xl font-black text-teal-700">{score}</span>
+            <span className="text-sm text-teal-600">分</span>
+          </div>
+          <div className="text-xs bg-teal-200 px-3 py-1 rounded-full text-teal-800 font-medium">
+            ✖️ 答对一题 +1
+          </div>
+        </div>
+        
+        {/* 题目算式区 */}
+        <div className="bg-gradient-to-r from-teal-100 to-cyan-100 rounded-2xl p-5 shadow-md border border-teal-200">
+          <div className="text-center">
+            <div className="text-sm font-semibold text-teal-700 bg-white/50 inline-block px-4 py-1 rounded-full mb-3">✖️ 小数乘法挑战 ✖️</div>
+            <div className="text-5xl md:text-6xl font-black font-mono text-teal-800 bg-white/60 py-5 px-4 rounded-2xl inline-block shadow-inner">
+              {question.numA} × {question.numB}
+            </div>
+            <div className="mt-3 text-sm text-teal-700 bg-teal-50/80 rounded-full px-3 py-1 inline-flex items-center gap-1">
+              <span>🔍 先按整数乘，再数小数点位数！</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* 选项区域 */}
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 mt-2">
+          {question.options.map((opt, idx) => (
+            <div
+              key={idx}
+              className={getOptionClass(opt)}
+              onClick={() => handleSelectOption(opt)}
+            >
+              <div className="text-xl md:text-2xl tracking-wide">{opt}</div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 反馈信息 */}
+        {feedback && (
+          <div className={`text-center font-bold p-3 rounded-xl ${
+            feedback.includes('正确') ? 'bg-teal-200 text-teal-800 border-l-8 border-teal-500' : 'bg-amber-100 text-amber-700 border-l-8 border-amber-400'
+          } shadow-sm`}>
+            {feedback}
+          </div>
+        )}
+        
+        {/* 操作按钮组 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={resetCurrent} 
+            className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2.5 rounded-full transition shadow-sm text-base active:scale-[0.98]"
+          >
+            🔄 重置本题
+          </button>
+          <button 
+            onClick={nextQuestion} 
+            className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🎲 换一题
+          </button>
+        </div>
+        
+        {/* 小贴士 */}
+        <div className="text-xs text-center text-teal-700 bg-teal-50/70 rounded-full py-1.5 px-3">
+          💡 小贴士：计算小数乘法时，先忽略小数点当整数乘，再根据因数小数位数之和确定积的小数点位置。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (浅青色主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/75 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-teal-200/70">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <h3 className="text-xl font-bold text-teal-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                小数乘法 · 选结果
+              </h3>
+              <span className="text-sm text-teal-600 bg-teal-100 px-3 py-1 rounded-full">✨ 点击正确的乘积 ✨</span>
+            </div>
+            <MultiplyGame resetKey={gameResetKey} onNewQuestion={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-teal-700 bg-white/60 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>⚡ 规则：计算小数乘法，从四个选项中选出正确结果</span>
+            <span>🏅 连续答对，成为乘法小高手！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

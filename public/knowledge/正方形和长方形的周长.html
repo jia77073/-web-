@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>正方形和长方形的周长 · 围栅栏小能手 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #d49b3a;
+      background-color: #fff8ef;
+    }
+    .drag-over {
+      background-color: #ffe0b5;
+      transform: scale(1.02);
+      border: 2px solid #d49b3a;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #e0c8a0;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .shape-svg {
+      background: white;
+      border-radius: 0.75rem;
+      display: inline-block;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 正方形和长方形的周长 =======================
+  // 知识点：周长是封闭图形一周的长度。
+  // 正方形周长 = 边长 × 4，长方形周长 = (长 + 宽) × 2
+  
+  // ---------- 游戏数据：拖拽配对（图形/描述 ↔ 周长数值）----------
+  const perimeterItems = [
+    { id: 1, description: "正方形边长5厘米", shapeType: "square", side: 5, correctPerimeter: 20, unit: "厘米", displayPerimeter: "20厘米" },
+    { id: 2, description: "长方形长8分米，宽3分米", shapeType: "rectangle", length: 8, width: 3, correctPerimeter: 22, unit: "分米", displayPerimeter: "22分米" },
+    { id: 3, description: "正方形边长12米", shapeType: "square", side: 12, correctPerimeter: 48, unit: "米", displayPerimeter: "48米" },
+    { id: 4, description: "长方形长15厘米，宽10厘米", shapeType: "rectangle", length: 15, width: 10, correctPerimeter: 50, unit: "厘米", displayPerimeter: "50厘米" },
+    { id: 5, description: "正方形边长7分米", shapeType: "square", side: 7, correctPerimeter: 28, unit: "分米", displayPerimeter: "28分米" },
+    { id: 6, description: "长方形长6米，宽4米", shapeType: "rectangle", length: 6, width: 4, correctPerimeter: 20, unit: "米", displayPerimeter: "20米" }
+  ];
+  
+  // 根据类型绘制图形示意图（带标注）
+  const ShapeWithLabel = ({ item, size = 100 }) => {
+    if (item.shapeType === "square") {
+      const side = item.side;
+      return (
+        <svg width={size} height={size} viewBox="0 0 120 100" className="shape-svg" style={{ background: 'white' }}>
+          <rect x="20" y="20" width="80" height="80" fill="#fde68a" stroke="#d97706" strokeWidth="2.5" />
+          <text x="55" y="55" fontSize="14" fill="#b45309" textAnchor="middle">{side}</text>
+          <text x="55" y="95" fontSize="10" fill="#b45309" textAnchor="middle">边长</text>
+        </svg>
+      );
+    } else {
+      const len = item.length;
+      const wid = item.width;
+      // 为了让长方形视觉比例合适，宽度比例按实际
+      const svgW = 100;
+      const svgH = 70;
+      const rectW = 70;
+      const rectH = 45;
+      const rectX = 25;
+      const rectY = 25;
+      return (
+        <svg width={svgW} height={svgH} viewBox="0 0 120 80" className="shape-svg" style={{ background: 'white' }}>
+          <rect x="25" y="20" width="70" height="45" fill="#fde68a" stroke="#d97706" strokeWidth="2.5" />
+          <text x="60" y="45" fontSize="12" fill="#b45309" textAnchor="middle">{len}</text>
+          <text x="60" y="68" fontSize="10" fill="#b45309" textAnchor="middle">长</text>
+          <text x="20" y="38" fontSize="10" fill="#b45309">宽 {wid}</text>
+        </svg>
+      );
+    }
+  };
+  
+  // 游戏组件：拖拽配对（将左边图形卡片拖拽到右边正确的周长槽位）
+  const MatchingGame = () => {
+    // 左侧图形卡片（未配对）
+    const [perimeterCards, setPerimeterCards] = React.useState(() => 
+      perimeterItems.map(item => ({
+        id: item.id,
+        description: item.description,
+        shapeType: item.shapeType,
+        correctPerimeter: item.correctPerimeter,
+        displayPerimeter: item.displayPerimeter,
+        matched: false,
+        itemData: item
+      }))
+    );
+    
+    // 右侧周长槽位（打乱顺序）
+    const [perimeterSlots, setPerimeterSlots] = React.useState(() => {
+      let slots = perimeterItems.map(item => ({
+        id: `slot-${item.id}`,
+        text: item.displayPerimeter,
+        correctValue: item.correctPerimeter,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有图形都找到了自己的周长！你已是周长计算小高手！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧卡片
+    const onDragStart = (e, cardId, correctValue) => {
+      const card = perimeterCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "perimeter", cardId, correctValue }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "perimeter") return;
+      const { cardId, correctValue } = dragData;
+      
+      const targetSlot = perimeterSlots.find(s => s.id === slotId);
+      const sourceCard = perimeterCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个图形或周长槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配
+      if (correctValue === targetSlot.correctValue) {
+        // 配对成功
+        setPerimeterCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setPerimeterSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.description} 的周长是 ${targetSlot.text}。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = perimeterCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = perimeterSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.description} 的周长不是 ${targetSlot.text}。再算一遍吧～ 正方形周长=边长×4，长方形周长=(长+宽)×2。`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newCards = perimeterItems.map(item => ({
+        id: item.id,
+        description: item.description,
+        shapeType: item.shapeType,
+        correctPerimeter: item.correctPerimeter,
+        displayPerimeter: item.displayPerimeter,
+        matched: false,
+        itemData: item
+      }));
+      let newSlots = perimeterItems.map(item => ({
+        id: `slot-${item.id}`,
+        text: item.displayPerimeter,
+        correctValue: item.correctPerimeter,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setPerimeterCards(newCards);
+      setPerimeterSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的图形拖拽到右边正确的周长上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = perimeterCards.every(c => c.matched) && perimeterSlots.every(s => s.matched);
+    const totalPairs = perimeterItems.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#d49b3a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-amber-800">📏 周长配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>图形卡片</strong>拖拽到右边<strong>正确的周长</strong>上，配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧图形卡片区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">📦 图形卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {perimeterCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.correctPerimeter)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-white rounded-xl p-2 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102 cursor-grab'}`}
+                  style={{ background: card.matched ? '#e0c8a0' : 'white' }}
+                >
+                  <div className="flex justify-center">
+                    <ShapeWithLabel item={card.itemData} size={90} />
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-gray-700">{card.description}</div>
+                  {!card.matched && <div className="text-xs text-amber-600 mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs text-green-700 mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧周长槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 周长卡片 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto">
+              {perimeterSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-3xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把图形拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-amber-100 p-2 rounded-xl text-amber-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 围栅栏高手！你已完全掌握正方形和长方形的周长计算！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-full">
+          💡 周长公式：正方形周长 = 边长 × 4；长方形周长 = (长 + 宽) × 2。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：正方形和长方形的周长 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#fff4e6] to-[#ffe0b5] rounded-3xl p-5 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📏</span>
+          <h2 className="text-3xl font-extrabold text-amber-900">正方形和长方形的周长</h2>
+        </div>
+        <div className="space-y-4 text-base text-amber-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是周长？</p>
+            <p>封闭图形<strong>一周的长度</strong>就是它的周长。就像给图形围一圈栅栏，栅栏的总长就是周长。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 正方形周长公式</p>
+            <p>正方形四条边都相等，所以：<strong>周长 = 边长 × 4</strong></p>
+            <div className="mt-2 flex justify-center">
+              <div className="w-20 h-20 bg-yellow-100 border-2 border-amber-600 flex items-center justify-center text-sm">边长a</div>
+              <span className="mx-2 text-xl">→</span>
+              <div className="text-lg font-mono">C = a × 4</div>
+            </div>
+            <p className="text-sm mt-1">🌰 边长5厘米的正方形，周长=5×4=20厘米。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 长方形周长公式</p>
+            <p>长方形对边相等，所以：<strong>周长 = (长 + 宽) × 2</strong></p>
+            <div className="mt-2 flex justify-center items-center gap-2">
+              <div className="w-28 h-16 bg-yellow-100 border-2 border-amber-600 flex items-center justify-center text-sm">长a<br/>宽b</div>
+              <span className="text-xl">→</span>
+              <div className="text-lg font-mono">C = (a + b) × 2</div>
+            </div>
+            <p className="text-sm mt-1">🌰 长8分米、宽3分米的长方形，周长=(8+3)×2=22分米。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>正方形边长9米，周长（ ）米；长方形长12厘米宽7厘米，周长（ ）厘米。</p>
+            <p className="text-sm text-amber-700">（答案：36，38）</p>
+          </div>
+          <div className="bg-amber-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“周长公式不难记，正方形边长乘4，长方形长宽和乘2。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：计算周长（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ type: "square", side: 6, answer: 24 });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { type: "square", side: 6, answer: 24, text: "正方形边长6厘米，周长是多少厘米？" },
+      { type: "rectangle", length: 10, width: 4, answer: 28, text: "长方形长10分米，宽4分米，周长是多少分米？" },
+      { type: "square", side: 9, answer: 36, text: "正方形边长9米，周长是多少米？" },
+      { type: "rectangle", length: 15, width: 8, answer: 46, text: "长方形长15厘米，宽8厘米，周长是多少厘米？" },
+      { type: "square", side: 12, answer: 48, text: "正方形边长12分米，周长是多少分米？" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const userVal = parseFloat(userAnswer);
+      if (isNaN(userVal)) {
+        setFeedback("📛 输入数字答案哟～");
+        return;
+      }
+      if (userVal === question.answer) {
+        setFeedback(`✅ 正确！${question.text} 答案是 ${question.answer}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.answer}。再算一次吧～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#d49b3a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-amber-800">快问快答 · 周长计算</h3>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="number" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-amber-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="输入数字"
+            />
+            <button onClick={checkAnswer} className="bg-amber-400 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-amber-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-amber-700 text-sm border border-amber-200">
+            🌈 周长就像给图形量“腰带”，掌握了公式，你就能轻松计算任何正方形和长方形的周长，成为围栅栏小能手！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

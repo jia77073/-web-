@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小侦探：集合与重叠问题 | 韦恩图拖拖乐</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 字体大小（标题3号，其他3号正常） -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '3xl': '1.875rem',   // 标题大3号
+                        'base': '1rem',       // 正常3号≈16px
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 拖拽优化 & 移动端适配 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        /* 配对成功动画 */
+        @keyframes dropSuccess {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .drop-animation {
+            animation: dropSuccess 0.3s ease-out;
+        }
+        /* 自定义滚动条 */
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        /* 韦恩图区域布局 */
+        .venn-container {
+            position: relative;
+            min-height: 280px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+        }
+        .venn-zone {
+            transition: all 0.2s;
+            border-radius: 1rem;
+        }
+        /* 移动端优化 */
+        @media (max-width: 640px) {
+            .venn-zone {
+                width: 100%;
+            }
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 集合（重叠问题）—— 拖拽卡片到韦恩图区域
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 随机生成学生数据 ----------
+        // 生成4~6个学生，每个学生有名字、是否喜欢数学、是否喜欢语文
+        const generateStudents = () => {
+            const firstNames = ["小轩", "小雅", "小宇", "小欣", "小哲", "小彤", "小杰", "小琪", "小豪", "小薇"];
+            const count = Math.floor(Math.random() * 3) + 4; // 4,5,6
+            const shuffled = [...firstNames];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            const selectedNames = shuffled.slice(0, count);
+            
+            // 为每个学生随机分配是否喜欢数学和语文，确保至少存在交集和差集的情况，但不强制
+            const students = selectedNames.map((name, idx) => {
+                // 随机布尔值，使题目丰富
+                const likeMath = Math.random() > 0.4;
+                const likeChinese = Math.random() > 0.4;
+                return {
+                    id: `student_${idx}_${Date.now()}_${Math.random()}`,
+                    name: name,
+                    likeMath: likeMath,
+                    likeChinese: likeChinese,
+                    category: getCategory(likeMath, likeChinese)
+                };
+            });
+            return students;
+        };
+        
+        const getCategory = (likeMath, likeChinese) => {
+            if (likeMath && likeChinese) return "both";
+            if (likeMath && !likeChinese) return "mathOnly";
+            if (!likeMath && likeChinese) return "chineseOnly";
+            return "none";
+        };
+        
+        // 根据类别获取应该放置的区域key
+        const getTargetZone = (student) => {
+            if (student.likeMath && student.likeChinese) return "both";
+            if (student.likeMath && !student.likeChinese) return "mathOnly";
+            if (!student.likeMath && student.likeChinese) return "chineseOnly";
+            return "none";
+        };
+        
+        // ---------- 主游戏组件: 拖拽集合配对 ----------
+        const SetGame = () => {
+            // 未放置的学生卡片列表
+            const [pendingStudents, setPendingStudents] = useState([]);
+            // 各区域已放置的学生列表
+            const [mathOnlyStudents, setMathOnlyStudents] = useState([]);
+            const [chineseOnlyStudents, setChineseOnlyStudents] = useState([]);
+            const [bothStudents, setBothStudents] = useState([]);
+            const [noneStudents, setNoneStudents] = useState([]);
+            
+            // 全局消息反馈
+            const [message, setMessage] = useState("🐣 把每个学生拖拽到韦恩图的正确区域吧！");
+            const [gameCompleted, setGameCompleted] = useState(false);
+            // 高亮放置区状态
+            const [highlightZone, setHighlightZone] = useState(null);
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            
+            // 统计数据
+            const totalStudents = pendingStudents.length + mathOnlyStudents.length + chineseOnlyStudents.length + bothStudents.length + noneStudents.length;
+            const placedCount = totalStudents - pendingStudents.length;
+            const allPlaced = pendingStudents.length === 0 && totalStudents > 0;
+            
+            // 加载题目：生成新学生，重置所有区域
+            const loadNewQuestion = () => {
+                const newStudents = generateStudents();
+                setPendingStudents(newStudents);
+                setMathOnlyStudents([]);
+                setChineseOnlyStudents([]);
+                setBothStudents([]);
+                setNoneStudents([]);
+                setGameCompleted(false);
+                setMessage("✨ 新题目！把学生卡片拖到正确的集合区域 ✨");
+                setHighlightZone(null);
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                loadNewQuestion();
+            };
+            
+            // 重置当前题目（清空所有放置，恢复初始）
+            const resetCurrent = () => {
+                if (!pendingStudents.length && mathOnlyStudents.length === 0 && chineseOnlyStudents.length === 0 && bothStudents.length === 0 && noneStudents.length === 0) {
+                    setMessage("还没有开始拖拽呢，换一题试试吧～");
+                    return;
+                }
+                // 合并所有已放置的学生，恢复为待放置
+                const allPlacedStudents = [...mathOnlyStudents, ...chineseOnlyStudents, ...bothStudents, ...noneStudents];
+                const currentPending = [...pendingStudents];
+                const restoredStudents = [...currentPending, ...allPlacedStudents];
+                setPendingStudents(restoredStudents);
+                setMathOnlyStudents([]);
+                setChineseOnlyStudents([]);
+                setBothStudents([]);
+                setNoneStudents([]);
+                setGameCompleted(false);
+                setMessage("🧹 已重置，所有学生回到卡片区，重新挑战吧！");
+                setHighlightZone(null);
+            };
+            
+            // 监听是否全部放置完成
+            useEffect(() => {
+                if (allPlaced && totalStudents > 0 && !gameCompleted) {
+                    setGameCompleted(true);
+                    setMessage("🎉 太棒了！所有学生都放到了正确的位置！你学会了集合与重叠问题！ 🎉");
+                    const gameArea = document.getElementById('game-area');
+                    if (gameArea) gameArea.classList.add('drop-animation');
+                    setTimeout(() => gameArea?.classList.remove('drop-animation'), 500);
+                }
+            }, [allPlaced, totalStudents, gameCompleted]);
+            
+            // 处理拖拽放置到某个区域
+            const handleDropOnZone = (e, zoneKey) => {
+                e.preventDefault();
+                setHighlightZone(null);
+                let dragData;
+                try {
+                    const rawData = e.dataTransfer.getData("text/plain");
+                    if (!rawData) return;
+                    dragData = JSON.parse(rawData);
+                } catch(err) {
+                    setMessage("请从下方学生卡片上拖拽～");
+                    return;
+                }
+                const { studentId } = dragData;
+                if (!studentId) return;
+                
+                // 查找待放置卡片中是否存在该学生
+                const studentIndex = pendingStudents.findIndex(s => s.id === studentId);
+                if (studentIndex === -1) {
+                    setMessage("这张卡片已经放置过了！不能重复拖拽。");
+                    return;
+                }
+                const student = pendingStudents[studentIndex];
+                const expectedZone = getTargetZone(student);
+                
+                // 验证是否匹配
+                if (expectedZone === zoneKey) {
+                    // 配对正确
+                    // 从pending中移除
+                    const newPending = [...pendingStudents];
+                    newPending.splice(studentIndex, 1);
+                    setPendingStudents(newPending);
+                    
+                    // 添加到对应区域
+                    if (zoneKey === "mathOnly") {
+                        setMathOnlyStudents(prev => [...prev, student]);
+                    } else if (zoneKey === "chineseOnly") {
+                        setChineseOnlyStudents(prev => [...prev, student]);
+                    } else if (zoneKey === "both") {
+                        setBothStudents(prev => [...prev, student]);
+                    } else if (zoneKey === "none") {
+                        setNoneStudents(prev => [...prev, student]);
+                    }
+                    
+                    setMessage(`✅ 正确！ ${student.name} 应该放在 ${getZoneName(zoneKey)}，+1分 🎈`);
+                    setEffectTrigger(prev => prev+1);
+                    // 播放放置区动画
+                    const zoneElem = document.getElementById(`zone-${zoneKey}`);
+                    if (zoneElem) {
+                        zoneElem.classList.add('drop-animation');
+                        setTimeout(() => zoneElem.classList.remove('drop-animation'), 300);
+                    }
+                } else {
+                    // 配对错误
+                    setMessage(`❌ 错误！ ${student.name} 不应该放在 ${getZoneName(zoneKey)}。再想想他的爱好吧～ 试试其他区域。`);
+                    const zoneElem = document.getElementById(`zone-${zoneKey}`);
+                    if (zoneElem) {
+                        zoneElem.style.backgroundColor = "#fee2e2";
+                        setTimeout(() => zoneElem.style.backgroundColor = "", 400);
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterZone = (zoneKey) => setHighlightZone(zoneKey);
+            const onDragLeaveZone = () => setHighlightZone(null);
+            
+            // 学生卡片拖拽开始
+            const onStudentDragStart = (e, student) => {
+                // 检查是否还在待放置列表中
+                if (!pendingStudents.some(s => s.id === student.id)) {
+                    e.preventDefault();
+                    setMessage(`${student.name} 已经放置过了，不能重复拖拽～`);
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ studentId: student.id }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onStudentDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            const getZoneName = (zoneKey) => {
+                const map = {
+                    mathOnly: "只喜欢数学",
+                    chineseOnly: "只喜欢语文",
+                    both: "既喜欢数学又喜欢语文",
+                    none: "两个都不喜欢"
+                };
+                return map[zoneKey];
+            };
+            
+            // 计算集合总人数统计（用于展示）
+            const mathOnlyCount = mathOnlyStudents.length;
+            const chineseOnlyCount = chineseOnlyStudents.length;
+            const bothCount = bothStudents.length;
+            const noneCount = noneStudents.length;
+            const totalMath = mathOnlyCount + bothCount;
+            const totalChinese = chineseOnlyCount + bothCount;
+            const totalPeople = mathOnlyCount + chineseOnlyCount + bothCount + noneCount;
+            
+            // 渲染待拖拽卡片
+            const renderPendingCards = () => {
+                if (pendingStudents.length === 0) {
+                    return <div className="w-full text-center py-6 text-green-700 font-bold text-xl">🎉 所有学生都归位啦！ 🎉</div>;
+                }
+                return pendingStudents.map(student => (
+                    <div 
+                        key={student.id}
+                        draggable="true"
+                        onDragStart={(e) => onStudentDragStart(e, student)}
+                        onDragEnd={onStudentDragEnd}
+                        className="bg-gradient-to-br from-amber-200 to-orange-300 w-28 h-28 rounded-2xl flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                    >
+                        <span className="text-4xl mb-1">🧒</span>
+                        <span className="text-xl font-black text-purple-900">{student.name}</span>
+                        <span className="text-[10px] text-gray-700 mt-1">拖拽到区域</span>
+                    </div>
+                ));
+            };
+            
+            // 渲染区域内的学生列表
+            const renderZoneStudents = (students, zoneColor) => {
+                if (students.length === 0) {
+                    return <div className="text-gray-400 text-sm text-center py-2">暂无学生</div>;
+                }
+                return (
+                    <div className="flex flex-wrap gap-1 justify-center">
+                        {students.map(s => (
+                            <span key={s.id} className={`${zoneColor} rounded-full px-2 py-0.5 text-xs font-medium shadow-sm`}>
+                                {s.name}
+                            </span>
+                        ))}
+                    </div>
+                );
+            };
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区 ========= */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                📐 集合小课堂
+                                <span className="text-lg bg-amber-200 px-3 py-0.5 rounded-full">韦恩图·重叠问题</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-base md:text-lg text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">🧩</span>
+                                <span><strong className="text-purple-700">集合</strong> 就是把具有相同特点的事物放在一起。重叠问题要用<span className="font-bold bg-pink-100 px-1">韦恩图</span>来帮忙！</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 重叠问题公式</p>
+                                <div className="bg-white/70 rounded-xl p-3 text-center">
+                                    <p className="text-xl font-mono">总人数 = 喜欢A的人数 + 喜欢B的人数 - 两者都喜欢的人数</p>
+                                    <p className="text-sm text-gray-600 mt-1">因为两者都喜欢的人被重复计算了一次，所以要减去一次。</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div className="bg-red-50 p-2 rounded-lg text-center">只喜欢数学<br/>A - A∩B</div>
+                                    <div className="bg-blue-50 p-2 rounded-lg text-center">只喜欢语文<br/>B - A∩B</div>
+                                    <div className="bg-purple-50 p-2 rounded-lg text-center col-span-2">两者都喜欢 A∩B</div>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧸 例子：</p>
+                                <p>三（1）班有20人喜欢数学，15人喜欢语文，其中8人两科都喜欢。那么至少喜欢一科的有多少人？</p>
+                                <p className="font-mono bg-white inline-block px-2 py-0.5 rounded">20 + 15 - 8 = 27人</p>
+                                <p className="mt-1 text-sm">总人数 = 喜欢数学 + 喜欢语文 - 重叠部分。</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 每个学生卡片代表一个人，根据他们是否喜欢数学和语文，拖拽到韦恩图的正确区域（只数学、只语文、两者都喜欢、都不喜欢）。全部放对就通关！
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* ========= 右侧游戏互动区 ========= */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5" id="game-area">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 韦恩图拖拖乐 · 集合挑战
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽分类</span>
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={resetCurrent}
+                                    className="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-full shadow transition transform hover:scale-105 text-sm"
+                                >
+                                    🔄 重置本题
+                                </button>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-base"
+                                >
+                                    🔀 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 统计卡片 */}
+                        <div className="bg-purple-100/60 rounded-xl p-2 flex flex-wrap justify-around text-sm font-semibold text-purple-800">
+                            <div>📊 总人数: {totalPeople}</div>
+                            <div>❤️ 喜欢数学: {totalMath}人</div>
+                            <div>📖 喜欢语文: {totalChinese}人</div>
+                            <div>✨ 重叠: {bothCount}人</div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-amber-50 rounded-xl p-2 text-center text-amber-800 font-medium text-sm shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 韦恩图四个放置区域 */}
+                        <div className="venn-container grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* 只喜欢数学 (左圆) */}
+                            <div
+                                id="zone-mathOnly"
+                                onDragOver={onDragOver}
+                                onDrop={(e) => handleDropOnZone(e, "mathOnly")}
+                                onDragEnter={() => onDragEnterZone("mathOnly")}
+                                onDragLeave={onDragLeaveZone}
+                                className={`venn-zone bg-red-50/80 border-4 border-dashed rounded-2xl p-3 flex flex-col items-center ${
+                                    highlightZone === "mathOnly" ? 'drop-zone-active' : 'border-red-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-1 text-xl font-bold text-red-700">
+                                    <span>🧡</span> 只喜欢数学
+                                </div>
+                                <div className="text-xs text-gray-500 mb-2">(喜欢数学，不喜欢语文)</div>
+                                <div className="min-h-[80px] w-full bg-white/40 rounded-xl p-2">
+                                    {renderZoneStudents(mathOnlyStudents, "bg-red-200")}
+                                </div>
+                                <div className="text-sm font-mono mt-1">人数: {mathOnlyCount}</div>
+                            </div>
+                            
+                            {/* 只喜欢语文 (右圆) */}
+                            <div
+                                id="zone-chineseOnly"
+                                onDragOver={onDragOver}
+                                onDrop={(e) => handleDropOnZone(e, "chineseOnly")}
+                                onDragEnter={() => onDragEnterZone("chineseOnly")}
+                                onDragLeave={onDragLeaveZone}
+                                className={`venn-zone bg-blue-50/80 border-4 border-dashed rounded-2xl p-3 flex flex-col items-center ${
+                                    highlightZone === "chineseOnly" ? 'drop-zone-active' : 'border-blue-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-1 text-xl font-bold text-blue-700">
+                                    <span>💙</span> 只喜欢语文
+                                </div>
+                                <div className="text-xs text-gray-500 mb-2">(喜欢语文，不喜欢数学)</div>
+                                <div className="min-h-[80px] w-full bg-white/40 rounded-xl p-2">
+                                    {renderZoneStudents(chineseOnlyStudents, "bg-blue-200")}
+                                </div>
+                                <div className="text-sm font-mono mt-1">人数: {chineseOnlyCount}</div>
+                            </div>
+                            
+                            {/* 两者都喜欢 (交集) */}
+                            <div
+                                id="zone-both"
+                                onDragOver={onDragOver}
+                                onDrop={(e) => handleDropOnZone(e, "both")}
+                                onDragEnter={() => onDragEnterZone("both")}
+                                onDragLeave={onDragLeaveZone}
+                                className={`venn-zone bg-purple-50/80 border-4 border-dashed rounded-2xl p-3 flex flex-col items-center ${
+                                    highlightZone === "both" ? 'drop-zone-active' : 'border-purple-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-1 text-xl font-bold text-purple-700">
+                                    <span>💜</span> 两者都喜欢
+                                </div>
+                                <div className="text-xs text-gray-500 mb-2">(既喜欢数学，又喜欢语文)</div>
+                                <div className="min-h-[80px] w-full bg-white/40 rounded-xl p-2">
+                                    {renderZoneStudents(bothStudents, "bg-purple-200")}
+                                </div>
+                                <div className="text-sm font-mono mt-1">人数: {bothCount}</div>
+                            </div>
+                            
+                            {/* 都不喜欢 (外部) */}
+                            <div
+                                id="zone-none"
+                                onDragOver={onDragOver}
+                                onDrop={(e) => handleDropOnZone(e, "none")}
+                                onDragEnter={() => onDragEnterZone("none")}
+                                onDragLeave={onDragLeaveZone}
+                                className={`venn-zone bg-gray-50/80 border-4 border-dashed rounded-2xl p-3 flex flex-col items-center ${
+                                    highlightZone === "none" ? 'drop-zone-active' : 'border-gray-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-1 text-xl font-bold text-gray-700">
+                                    <span>⚪</span> 两个都不喜欢
+                                </div>
+                                <div className="text-xs text-gray-500 mb-2">(不喜欢数学，也不喜欢语文)</div>
+                                <div className="min-h-[80px] w-full bg-white/40 rounded-xl p-2">
+                                    {renderZoneStudents(noneStudents, "bg-gray-200")}
+                                </div>
+                                <div className="text-sm font-mono mt-1">人数: {noneCount}</div>
+                            </div>
+                        </div>
+                        
+                        {/* 可拖拽学生卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🎭 待分类学生（拖拽到上方区域）</h4>
+                            <div className="flex flex-wrap gap-3 justify-start items-center min-h-[140px] bg-white/40 rounded-2xl p-4 custom-scroll overflow-x-auto">
+                                {renderPendingCards()}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 按住或长按卡片，拖到上方四个区域中的正确位置（根据他们的爱好）。</p>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：从卡片拖到对应的彩色区域，正确就会自动放置。</span>
+                            <button onClick={() => setMessage("💡 提示：先看每个学生喜欢什么，再决定拖到哪个区域（只数学、只语文、两者都喜欢、都不喜欢）。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {gameCompleted && (
+                            <div className="mt-2 text-center text-2xl font-bold text-green-700 bg-green-100 rounded-2xl p-3 animate-bounce">
+                                🏆 完美通关！ 你已经是集合小专家啦！ 🏆
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        // ---------- 根组件（标题字号3号）----------
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🧩 集合大冒险 · 韦恩图挑战 🧸
+                        </h1>
+                        <p className="text-white/90 text-lg md:text-xl mt-2 font-medium">拖拽学生卡片到正确区域，掌握重叠问题！</p>
+                    </div>
+                    <SetGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 根据每个学生是否喜欢数学和语文，拖拽到对应的集合区域。全部正确即可通关！点击【换一题】挑战新题目 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

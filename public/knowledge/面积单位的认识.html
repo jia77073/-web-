@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>面积单位的认识 · 铺地砖小行家 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+      background-color: #faf5ff;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 面积单位的认识 =======================
+  // 知识点：平方厘米(cm²)、平方分米(dm²)、平方米(m²)是常用的面积单位。
+  // 1平方米 = 100平方分米 = 10000平方厘米
+  
+  // ---------- 游戏数据：拖拽配对（物体 → 合适的面积单位）----------
+  const matchPairs = [
+    { id: 1, object: "一张邮票", unit: "平方厘米", correctUnit: "平方厘米", display: "平方厘米 (cm²)" },
+    { id: 2, object: "一块黑板", unit: "平方米", correctUnit: "平方米", display: "平方米 (m²)" },
+    { id: 3, object: "一张书桌的桌面", unit: "平方分米", correctUnit: "平方分米", display: "平方分米 (dm²)" },
+    { id: 4, object: "一枚硬币", unit: "平方厘米", correctUnit: "平方厘米", display: "平方厘米 (cm²)" },
+    { id: 5, object: "教室的地面", unit: "平方米", correctUnit: "平方米", display: "平方米 (m²)" },
+    { id: 6, object: "一本练习本的封面", unit: "平方分米", correctUnit: "平方分米", display: "平方分米 (dm²)" },
+    { id: 7, object: "一颗糖果的包装纸", unit: "平方厘米", correctUnit: "平方厘米", display: "平方厘米 (cm²)" }
+  ];
+  
+  // 游戏组件：拖拽配对（将左边物体拖拽到右边正确的面积单位上）
+  const MatchingGame = () => {
+    // 左侧物体卡片（未配对）
+    const [objectCards, setObjectCards] = React.useState(() => 
+      matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.object,
+        matchUnit: pair.unit,
+        matched: false
+      }))
+    );
+    
+    // 右侧单位槽位（打乱顺序）
+    const [unitSlots, setUnitSlots] = React.useState(() => {
+      let slots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.display,
+        matchUnit: pair.unit,
+        matched: false
+      }));
+      // 打乱顺序
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [score, setScore] = React.useState(0);
+    
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有物体都找到了合适的面积单位！你已是面积小专家！ 🎉");
+      }
+    };
+    
+    // 拖拽左侧物体卡片
+    const onDragStart = (e, cardId, matchUnit) => {
+      const card = objectCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "object", cardId, matchUnit }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "object") return;
+      const { cardId, matchUnit } = dragData;
+      
+      const targetSlot = unitSlots.find(s => s.id === slotId);
+      const sourceCard = objectCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个物体或单位槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配
+      if (matchUnit === targetSlot.matchUnit) {
+        // 配对成功
+        setObjectCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setUnitSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true } : s));
+        setScore(prev => prev + 1);
+        setFeedbackMsg(`✅ 正确！${sourceCard.text} 的面积应该用 ${targetSlot.text} 作单位。`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+        const newCards = objectCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = unitSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 应该用 ${matchUnit === "平方厘米" ? "平方厘米 (cm²)" : (matchUnit === "平方分米" ? "平方分米 (dm²)" : "平方米 (m²)")} 作单位，而不是 ${targetSlot.text}。想一想物体的大小～`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+      }
+    };
+    
+    const resetGame = () => {
+      const newObjects = matchPairs.map(pair => ({
+        id: pair.id,
+        text: pair.object,
+        matchUnit: pair.unit,
+        matched: false
+      }));
+      let newSlots = matchPairs.map(pair => ({
+        id: `slot-${pair.id}`,
+        text: pair.display,
+        matchUnit: pair.unit,
+        matched: false
+      }));
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setObjectCards(newObjects);
+      setUnitSlots(newSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把左边的物体拖拽到右边正确的面积单位上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = objectCards.every(c => c.matched) && unitSlots.every(s => s.matched);
+    const totalPairs = matchPairs.length;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🧩 面积单位配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalPairs}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的<strong>物体</strong>拖拽到右边<strong>合适的面积单位</strong>上，配对正确会消除！全部配对成功即可获胜。
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧物体卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 物体卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {objectCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.matchUnit)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-orange-400 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧面积单位槽位区 */}
+          <div className="flex-1 bg-emerald-50/60 rounded-2xl p-3">
+            <div className="font-bold text-emerald-800 text-center mb-2">🎯 面积单位 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto">
+              {unitSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over' : ''} ${slot.matched ? 'slot-filled' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-emerald-700">{slot.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把物体拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 铺地砖大师！你已掌握面积单位，能量出世界的大小啦！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 面积单位小知识：平方厘米(cm²)量小物体（邮票、硬币），平方分米(dm²)量中等物体（书桌、练习本），平方米(m²)量大物体（黑板、教室地面）。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：面积单位的认识 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📐</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">面积单位的认识</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是面积单位？</p>
+            <p>测量物体表面的大小要用<strong>面积单位</strong>。常用的面积单位有<strong>平方厘米、平方分米、平方米</strong>。</p>
+            <div className="mt-2 bg-purple-100 p-2 rounded-lg text-center font-mono">
+              1平方米 = 100平方分米 = 10000平方厘米
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📏 感受1平方厘米</p>
+            <p>边长1厘米的正方形面积是1平方厘米（1cm²）。大约是一个指甲盖的大小。</p>
+            <p className="font-bold mt-2">📏 感受1平方分米</p>
+            <p>边长1分米的正方形面积是1平方分米（1dm²）。大约是一个手掌的大小。</p>
+            <p className="font-bold mt-2">📏 感受1平方米</p>
+            <p>边长1米的正方形面积是1平方米（1m²）。大约是一张餐桌的桌面大小。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 选择合适的单位</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>平方厘米 (cm²)</strong>：邮票、硬币、糖果纸</li>
+              <li><strong>平方分米 (dm²)</strong>：书桌、练习本、手机屏幕</li>
+              <li><strong>平方米 (m²)</strong>：黑板、教室地面、客厅</li>
+            </ul>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>数学书封面大约用（ ）作单位；教室地面用（ ）作单位；一块橡皮的上面用（ ）作单位。</p>
+            <p className="text-sm text-purple-700">（答案：平方分米，平方米，平方厘米）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“面积单位三兄弟，平方厘米小不点；平方分米中等个，平方米来量大地；进率一百要牢记，换算准确别大意。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：选择合适的面积单位 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ object: "一张邮票", options: ["平方厘米", "平方分米", "平方米"], correct: "平方厘米" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { object: "一张邮票", options: ["平方厘米", "平方分米", "平方米"], correct: "平方厘米" },
+      { object: "一块黑板", options: ["平方厘米", "平方分米", "平方米"], correct: "平方米" },
+      { object: "一张书桌", options: ["平方厘米", "平方分米", "平方米"], correct: "平方分米" },
+      { object: "一枚硬币", options: ["平方厘米", "平方分米", "平方米"], correct: "平方厘米" },
+      { object: "教室地面", options: ["平方厘米", "平方分米", "平方米"], correct: "平方米" },
+      { object: "练习本封面", options: ["平方厘米", "平方分米", "平方米"], correct: "平方分米" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.object} 的面积应该用 ${question.correct} 作单位。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.object} 的面积应该用 ${question.correct} 作单位。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-purple-800">快问快答 · 选单位</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.object} 用哪个面积单位？</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-purple-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 面积单位就像不同大小的“小方块”，量小物体用小方块，量大物体用大方块。选择合适的单位，测量世界更轻松！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>认识平行四边形 · 底和高探险 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .para-svg {
+      background: #ffffffdd;
+      border-radius: 1rem;
+      display: inline-block;
+      box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.1);
+    }
+    .knowledge-card {
+      background: #e8f5e9;
+      border-left: 0.8rem solid #4caf50;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 认识平行四边形（底和高） =======================
+  // 知识点：平行四边形两组对边平行且相等；从一条边上的一点向对边作垂线，这条垂直线段就是高，这条对边就是底。
+  
+  // ---------- 游戏数据：三个平行四边形，每个需要配对“底”和“高”标签 ----------
+  const parallelogramData = [
+    { id: 1, name: "平行四边形①", baseLabel: "底 (5 cm)", heightLabel: "高 (3 cm)", baseKey: "base1", heightKey: "height1" },
+    { id: 2, name: "平行四边形②", baseLabel: "底 (6 cm)", heightLabel: "高 (4 cm)", baseKey: "base2", heightKey: "height2" },
+    { id: 3, name: "平行四边形③", baseLabel: "底 (4 cm)", heightLabel: "高 (2.5 cm)", baseKey: "base3", heightKey: "height3" }
+  ];
+  
+  // 生成右侧可拖拽卡片（每个图形的底和高各一张，打乱顺序）
+  const generateCards = () => {
+    let cards = [];
+    parallelogramData.forEach(item => {
+      cards.push({ id: `${item.id}-base`, text: item.baseLabel, type: "base", targetId: item.id, matched: false });
+      cards.push({ id: `${item.id}-height`, text: item.heightLabel, type: "height", targetId: item.id, matched: false });
+    });
+    // 打乱顺序
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    return cards;
+  };
+  
+  // 绘制平行四边形（带底边标注和高线虚线）
+  const ParallelogramSVG = ({ baseLen = 100, heightLen = 60, skew = 30, baseLabel = "底", heightLabel = "高" }) => {
+    // 绘制一个倾斜的平行四边形，底边水平，高垂直
+    const width = 140;
+    const height = 100;
+    const offsetX = 25; // 倾斜偏移
+    const baseY = 70;
+    const topY = baseY - heightLen;
+    const leftX = 20;
+    const rightX = leftX + baseLen;
+    const topLeftX = leftX + offsetX;
+    const topRightX = rightX + offsetX;
+    return (
+      <svg width={width+40} height={height+20} viewBox={`0 0 ${width+40} ${height+20}`} className="para-svg" style={{ background: '#fef9e6' }}>
+        {/* 平行四边形四条边 */}
+        <polygon points={`${leftX},${baseY} ${rightX},${baseY} ${topRightX},${topY} ${topLeftX},${topY}`} fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2.5" />
+        {/* 底边标注（虚线） */}
+        <line x1={leftX} y1={baseY+5} x2={rightX} y2={baseY+5} stroke="#b45309" strokeWidth="2" strokeDasharray="4,3" />
+        <text x={(leftX+rightX)/2} y={baseY+18} fontSize="12" fill="#b45309" textAnchor="middle">底</text>
+        {/* 高线（虚线垂直） */}
+        <line x1={leftX+offsetX} y1={topY} x2={leftX+offsetX} y2={baseY} stroke="#d97706" strokeWidth="2" strokeDasharray="4,3" />
+        <text x={leftX+offsetX-12} y={(topY+baseY)/2} fontSize="12" fill="#d97706" textAnchor="end">高</text>
+        {/* 直角标记（模拟垂足） */}
+        <polyline points={`${leftX+offsetX-5},${baseY} ${leftX+offsetX},${baseY} ${leftX+offsetX},${baseY-5}`} fill="none" stroke="#d97706" strokeWidth="1.5" />
+      </svg>
+    );
+  };
+  
+  // 游戏组件：拖拽配对（将底/高卡片拖拽到对应图形的正确槽位）
+  const MatchingGame = () => {
+    const [cards, setCards] = React.useState(() => generateCards());
+    // 槽位状态：记录每个图形两个槽位是否已填及填的内容
+    const [slots, setSlots] = React.useState(() => {
+      const init = {};
+      parallelogramData.forEach(item => {
+        init[`${item.id}-base`] = { filled: false, value: null, correctLabel: item.baseLabel };
+        init[`${item.id}-height`] = { filled: false, value: null, correctLabel: item.heightLabel };
+      });
+      return init;
+    });
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalSlots = Object.keys(slots).length;
+    const filledCount = Object.values(slots).filter(s => s.filled).length;
+    
+    const checkVictory = (currentSlots) => {
+      const allFilled = Object.values(currentSlots).every(s => s.filled);
+      if (allFilled && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有平行四边形的底和高都配对成功！你已是几何小高手！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, cardText, cardType, targetId) => {
+      const card = cards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardText, cardType, targetId }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotKey) => {
+      e.preventDefault();
+      setDragOverSlotId(slotKey);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotKey) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardText, cardType, targetId } = dragData;
+      
+      const sourceCard = cards.find(c => c.id === cardId);
+      const targetSlot = slots[slotKey];
+      if (!sourceCard || !targetSlot) return;
+      if (sourceCard.matched || targetSlot.filled) {
+        setFeedbackMsg("⏳ 这张卡片或这个槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证匹配：slotKey格式 "图形id-类型", 例如 "1-base" 需匹配 cardType 和 targetId
+      const [expectedId, expectedType] = slotKey.split('-');
+      if (parseInt(expectedId) !== targetId || expectedType !== cardType) {
+        setFeedbackMsg(`❌ 配对错误！“${cardText}” 不能放在这里。请将底标签拖到底部槽位，高标签拖到高槽位。`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+        return;
+      }
+      
+      // 验证卡片文字是否匹配该槽位正确的标签
+      const isMatch = (cardText === targetSlot.correctLabel);
+      if (!isMatch) {
+        setFeedbackMsg(`❌ 配对错误！“${cardText}” 不是这个图形正确的${expectedType === 'base' ? '底' : '高'}标签。正确的应该是 ${targetSlot.correctLabel}。`);
+        setTimeout(() => setFeedbackMsg(""), 1800);
+        return;
+      }
+      
+      // 配对成功
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setSlots(prev => ({
+        ...prev,
+        [slotKey]: { ...prev[slotKey], filled: true, value: cardText }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！${cardText} 配对成功！`);
+      setTimeout(() => setFeedbackMsg(""), 1200);
+      
+      const newSlots = { ...slots, [slotKey]: { ...slots[slotKey], filled: true, value: cardText } };
+      checkVictory(newSlots);
+    };
+    
+    const resetGame = () => {
+      setCards(generateCards());
+      const initSlots = {};
+      parallelogramData.forEach(item => {
+        initSlots[`${item.id}-base`] = { filled: false, value: null, correctLabel: item.baseLabel };
+        initSlots[`${item.id}-height`] = { filled: false, value: null, correctLabel: item.heightLabel };
+      });
+      setSlots(initSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把底和高的卡片拖拽到正确的图形槽位上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">📐 底高配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalSlots}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将右边的<strong>底/高卡片</strong>拖拽到左边对应平行四边形下方的<strong>底槽位或高槽位</strong>上。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧图形区：三个平行四边形，每个有底槽和高槽 */}
+          <div className="flex-1 bg-green-50/60 rounded-2xl p-3">
+            <div className="font-bold text-green-800 text-center mb-2">📦 平行四边形工坊</div>
+            <div className="space-y-6 max-h-[550px] overflow-y-auto pr-1">
+              {parallelogramData.map(para => (
+                <div key={para.id} className="bg-white rounded-xl p-3 shadow border border-green-200">
+                  <div className="text-center font-bold text-green-700">{para.name}</div>
+                  <div className="flex justify-center my-2">
+                    {/* 根据数据动态生成SVG示意 */}
+                    <ParallelogramSVG baseLen={90} heightLen={para.id === 1 ? 45 : (para.id === 2 ? 60 : 38)} skew={25} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {/* 底槽位 */}
+                    <div 
+                      onDragOver={(e) => onDragOverSlot(e, `${para.id}-base`)}
+                      onDragLeave={onDragLeaveSlot}
+                      onDrop={(e) => onDropToSlot(e, `${para.id}-base`)}
+                      className={`drop-slot rounded-xl p-2 text-center transition-all ${dragOverSlotId === `${para.id}-base` ? 'drag-over' : ''} ${slots[`${para.id}-base`].filled ? 'slot-filled' : ''}`}
+                    >
+                      <div className="text-sm font-bold text-green-800">底 槽位</div>
+                      {slots[`${para.id}-base`].filled ? (
+                        <div className="text-lg font-mono text-green-700">{slots[`${para.id}-base`].value}</div>
+                      ) : (
+                        <div className="text-xs text-gray-500">⬅️ 拖拽底卡片至此</div>
+                      )}
+                    </div>
+                    {/* 高槽位 */}
+                    <div 
+                      onDragOver={(e) => onDragOverSlot(e, `${para.id}-height`)}
+                      onDragLeave={onDragLeaveSlot}
+                      onDrop={(e) => onDropToSlot(e, `${para.id}-height`)}
+                      className={`drop-slot rounded-xl p-2 text-center transition-all ${dragOverSlotId === `${para.id}-height` ? 'drag-over' : ''} ${slots[`${para.id}-height`].filled ? 'slot-filled' : ''}`}
+                    >
+                      <div className="text-sm font-bold text-green-800">高 槽位</div>
+                      {slots[`${para.id}-height`].filled ? (
+                        <div className="text-lg font-mono text-green-700">{slots[`${para.id}-height`].value}</div>
+                      ) : (
+                        <div className="text-xs text-gray-500">⬅️ 拖拽高卡片至此</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧卡片池 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 卡片池 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[550px] overflow-y-auto">
+              {cards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.text, card.type, card.targetId)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-36 h-24 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-base px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个卡片只能用一次，拖拽到正确图形的对应槽位。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 底高探险家！你已完全掌握平行四边形的底和高！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 平行四边形：两组对边平行且相等。从一条边上的一点向对边作垂线，这条垂直线段就是高，这条对边就是底。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：认识平行四边形（底和高） ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">🔷</span>
+          <h2 className="text-3xl font-extrabold text-green-900">认识平行四边形</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 平行四边形的定义</p>
+            <p>两组对边分别<strong>平行</strong>的四边形叫做平行四边形。对边相等，对角相等。</p>
+            <div className="mt-2 flex justify-center">
+              <svg width="120" height="80" viewBox="0 0 120 80">
+                <polygon points="20,60 80,60 100,20 40,20" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2" />
+                <text x="35" y="45" fontSize="10" fill="#2e7d32">对边平行</text>
+              </svg>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">📐 底和高</p>
+            <p><strong>底</strong>：平行四边形的一条边。<br />
+            <strong>高</strong>：从这条边上任意一点向对边作垂线，垂直线段的长度就是高。</p>
+            <div className="mt-2 flex justify-center">
+              <svg width="130" height="90" viewBox="0 0 130 90">
+                <polygon points="20,70 90,70 110,20 40,20" fill="#fff3e0" stroke="#d97706" strokeWidth="2" />
+                <line x1="40" y1="20" x2="40" y2="70" stroke="#d97706" strokeWidth="2" strokeDasharray="4,3" />
+                <text x="25" y="45" fontSize="10" fill="#d97706">高</text>
+                <line x1="20" y1="75" x2="90" y2="75" stroke="#b45309" strokeWidth="2" strokeDasharray="4,3" />
+                <text x="55" y="85" fontSize="10" fill="#b45309">底</text>
+              </svg>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 如何作高</p>
+            <p>从底的对边上任意一点，向底作垂线。平行四边形可以画出无数条高，且长度都相等。</p>
+            <p className="text-sm mt-1">🌰 长方形和正方形是特殊的平行四边形。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>平行四边形的两组对边互相（ ）；从一条边上一点向对边作垂线，这条垂线叫做（ ）。</p>
+            <p className="text-sm text-green-700">（答案：平行，高）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“平行四边形，对边平行又相等；底和高垂直，面积底乘高。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断底和高（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ desc: "平行四边形的底是8cm，高是5cm，面积是多少？", answer: "40" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { desc: "平行四边形的底是8cm，高是5cm，面积是多少？", answer: "40" },
+      { desc: "平行四边形的底是12dm，高是6dm，面积是多少？", answer: "72" },
+      { desc: "平行四边形的高是从底的对边上任意一点向底作的（ ）线", answer: "垂" },
+      { desc: "平行四边形的两组对边互相（ ）", answer: "平行" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const normalized = userAnswer.trim();
+      const isCorrect = (normalized === question.answer);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.desc} 答案是 ${question.answer}。`);
+      } else {
+        setFeedback(`❌ 不对哦，正确答案是 ${question.answer}。再想想平行四边形底和高的关系～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 底高挑战</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.desc}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="text" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-green-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="输入答案"
+            />
+            <button onClick={checkAnswer} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 平行四边形在生活中有很多应用：伸缩门、楼梯扶手、衣架…… 掌握底和高，你就能轻松计算它的面积！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

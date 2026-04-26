@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🧮 小数加减法 · 数学游乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .option-card {
+      transition: all 0.15s ease;
+    }
+    .option-card:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#E8F5E9] to-[#D1FAE5] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（小数加减法）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/85 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-green-200/80 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-green-300 pb-3 mb-4">
+          <span className="text-3xl">🧮</span>
+          <h2 className="text-2xl font-extrabold text-emerald-800">小数加减法 · 对齐有妙招<br/><span className="text-sm font-normal">小数点对齐，按位计算</span></h2>
+        </div>
+        <div className="space-y-4 text-emerald-800">
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700 flex items-center gap-2">📐 计算法则：</p>
+            <p className="text-sm mt-1">1️⃣ <span className="font-bold">小数点对齐</span>（也就是相同数位对齐）<br/>
+            2️⃣ 按整数加减法的方法计算<br/>
+            3️⃣ 结果中的<span className="font-bold">小数点</span>要与上面的小数点对齐</p>
+            <div className="mt-2 text-xs bg-white/60 p-2 rounded-lg font-mono text-center">
+              例：3.25 + 1.3 → 3.25 + 1.30 = 4.55<br/>
+              例：5.2 - 2.15 → 5.20 - 2.15 = 3.05
+            </div>
+          </div>
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700">⚠️ 易错提醒：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li>小数部分<span className="font-bold">位数不同</span>时，可以在末尾添“0”补位。</li>
+              <li>减法时注意<span className="font-bold">借位</span>，整数部分相减也要小心。</li>
+              <li>得数末尾有0一般要去掉（但保留小数位数需看情况，通常化简）。</li>
+            </ul>
+          </div>
+          <div className="bg-green-50/90 rounded-2xl p-4 border border-green-200">
+            <p className="font-bold text-green-700">🧠 巧记口诀：</p>
+            <p className="text-sm italic">小数加减并不难，小数点对齐是关键；<br/>位数不同添个零，结果对齐点不偏。</p>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center">
+              <span className="bg-green-200 px-2 py-1 rounded-full text-xs">2.3 + 1.45 = 3.75</span>
+              <span className="bg-green-200 px-2 py-1 rounded-full text-xs">7.8 - 2.56 = 5.24</span>
+              <span className="bg-green-200 px-2 py-1 rounded-full text-xs">0.9 + 0.1 = 1.0</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-emerald-700 bg-green-100/70 p-2 rounded-xl">
+          🎯 右侧挑战：快速计算小数加减法，选出正确结果！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 工具函数：将数字保留两位小数（或指定小数位数）并去除末尾无效零，但为了显示整齐，保留最多两位-----
+  const formatDecimal = (num, maxDecimals = 2) => {
+    // 保留maxDecimals位，但去除末尾零
+    let fixed = num.toFixed(maxDecimals);
+    // 去掉末尾多余的0，但至少保留一位小数（如果本来就是整数则显示整数）
+    if (fixed.includes('.')) {
+      fixed = fixed.replace(/\.?0+$/, '');
+    }
+    if (fixed === '') fixed = '0';
+    return fixed;
+  };
+
+  // 使用整数运算精确计算两个小数的和/差（避免浮点误差）
+  // 输入两个数字，以及运算类型 'add' 或 'sub'
+  // 返回精确结果（数字）
+  const preciseCalc = (a, b, op) => {
+    // 将两个数放大为整数（最多支持3位小数，我们一般生成最多两位小数，为了安全，取最大小数位数）
+    const factor = 1000; // 放大1000倍确保三位小数精度
+    const intA = Math.round(a * factor);
+    const intB = Math.round(b * factor);
+    let resultInt;
+    if (op === 'add') {
+      resultInt = intA + intB;
+    } else {
+      resultInt = intA - intB;
+    }
+    return resultInt / factor;
+  };
+
+  // 随机生成一个小数（范围 0.1 ~ 29.99，最多两位小数）
+  const generateRandomDecimal = () => {
+    const integer = Math.floor(Math.random() * 30); // 0~29
+    const decimal = Math.floor(Math.random() * 100); // 0~99
+    let val = integer + decimal / 100;
+    // 避免出现0.00，但可以接受0.0几
+    if (val === 0) val = 0.1;
+    return val;
+  };
+
+  // 生成一个随机算式（加法或减法，保证减法结果非负，且两者差距不太大）
+  const generateQuestion = () => {
+    const isAdd = Math.random() > 0.5;
+    let numA = generateRandomDecimal();
+    let numB = generateRandomDecimal();
+    let operation = isAdd ? 'add' : 'sub';
+    let correctNum;
+    
+    if (isAdd) {
+      correctNum = preciseCalc(numA, numB, 'add');
+    } else {
+      // 保证被减数不小于减数，如果小于则交换
+      if (numA < numB) {
+        [numA, numB] = [numB, numA];
+      }
+      correctNum = preciseCalc(numA, numB, 'sub');
+      // 防止负零
+      if (Math.abs(correctNum) < 1e-8) correctNum = 0;
+    }
+    
+    // 格式化显示数字（去除多余末尾零，但最多显示两位）
+    const displayA = formatDecimal(numA, 2);
+    const displayB = formatDecimal(numB, 2);
+    const opSymbol = isAdd ? '+' : '−';
+    const questionText = `${displayA} ${opSymbol} ${displayB} = ?`;
+    const correctDisplay = formatDecimal(correctNum, 2);
+    
+    // 生成干扰项：基于正确结果微调
+    let wrongSet = new Set();
+    // 正确结果的数值
+    const correctVal = correctNum;
+    // 干扰1: +0.1 或 -0.1（确保正数，且非正确结果）
+    let offset1 = 0.1;
+    let wrong1 = preciseCalc(correctVal, offset1, correctVal + offset1 > 0 ? 'add' : 'sub');
+    let wrong1Display = formatDecimal(wrong1, 2);
+    if (wrong1Display !== correctDisplay) wrongSet.add(wrong1Display);
+    
+    let offset2 = 0.05;
+    let wrong2 = preciseCalc(correctVal, offset2, correctVal + offset2 > 0 ? 'add' : 'sub');
+    let wrong2Display = formatDecimal(wrong2, 2);
+    if (wrong2Display !== correctDisplay) wrongSet.add(wrong2Display);
+    
+    let offset3 = 0.2;
+    let wrong3 = preciseCalc(correctVal, offset3, correctVal + offset3 > 0 ? 'add' : 'sub');
+    let wrong3Display = formatDecimal(wrong3, 2);
+    if (wrong3Display !== correctDisplay) wrongSet.add(wrong3Display);
+    
+    // 额外产生一个基于运算错误的干扰：比如忘了进位/借位，改变最后一位
+    let fakeWrong = formatDecimal(correctVal + (Math.random() > 0.5 ? 0.02 : -0.02), 2);
+    if (fakeWrong !== correctDisplay && !wrongSet.has(fakeWrong)) wrongSet.add(fakeWrong);
+    
+    // 保证至少有3个干扰项
+    let wrongList = Array.from(wrongSet);
+    while (wrongList.length < 3) {
+      let extra = formatDecimal(correctVal + 0.15, 2);
+      if (extra !== correctDisplay && !wrongList.includes(extra)) wrongList.push(extra);
+      else extra = formatDecimal(correctVal - 0.15, 2);
+      if (extra !== correctDisplay && !wrongList.includes(extra)) wrongList.push(extra);
+    }
+    // 只取前3个干扰
+    wrongList = wrongList.slice(0, 3);
+    
+    // 合并选项并打乱
+    let options = [correctDisplay, ...wrongList];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    
+    return {
+      numA: displayA,
+      numB: displayB,
+      operation: isAdd ? '+' : '−',
+      correctAnswer: correctDisplay,
+      options,
+      questionText
+    };
+  };
+
+  // ---------- 小数加减法挑战游戏组件 ----------
+  const DecimalCalcGame = ({ resetKey, onNewQuestion }) => {
+    const [question, setQuestion] = React.useState(() => generateQuestion());
+    const [selectedOption, setSelectedOption] = React.useState(null);
+    const [feedback, setFeedback] = React.useState('');
+    const [isLocked, setIsLocked] = React.useState(false);
+    const [hasScored, setHasScored] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    // 刷新题目
+    const refreshQuestion = () => {
+      setQuestion(generateQuestion());
+      setSelectedOption(null);
+      setFeedback('');
+      setIsLocked(false);
+      setHasScored(false);
+    };
+    
+    React.useEffect(() => {
+      refreshQuestion();
+    }, [resetKey]);
+    
+    const handleSelectOption = (optValue) => {
+      if (isLocked) {
+        setFeedback('🎯 本题已完成！点击“换一题”继续挑战吧！');
+        return;
+      }
+      setSelectedOption(optValue);
+      const isCorrect = (optValue === question.correctAnswer);
+      
+      if (isCorrect) {
+        if (!hasScored) {
+          setScore(prev => prev + 1);
+          setHasScored(true);
+        }
+        setFeedback('🎉✨ 完全正确！小数加减法掌握得真棒！ ✨🎉');
+        setIsLocked(true);
+      } else {
+        setFeedback(`❌ 再算一算～ 正确答案是 ${question.correctAnswer}。记得小数点要对齐哦！`);
+        // 不锁定，允许继续尝试正确选项
+      }
+    };
+    
+    const resetCurrent = () => {
+      if (isLocked) {
+        setSelectedOption(null);
+        setFeedback('');
+        setIsLocked(false);
+      } else {
+        setSelectedOption(null);
+        setFeedback('');
+      }
+    };
+    
+    const nextQuestion = () => {
+      onNewQuestion();
+    };
+    
+    const getOptionClass = (opt) => {
+      let base = "option-card cursor-pointer text-center p-3 rounded-2xl shadow-md transition-all border-2 font-mono font-bold text-xl ";
+      if (selectedOption === opt) {
+        if (opt === question.correctAnswer && isLocked) {
+          return base + "bg-green-400 text-white border-green-600 scale-105 ring-2 ring-green-300";
+        }
+        return base + "bg-emerald-400 text-white border-emerald-600";
+      }
+      if (isLocked && opt === question.correctAnswer) {
+        return base + "bg-green-200 text-green-800 border-green-400 opacity-80";
+      }
+      return base + "bg-white hover:bg-green-100 text-emerald-800 border-green-200 hover:border-green-400";
+    };
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 得分区域 */}
+        <div className="flex justify-between items-center bg-white/70 rounded-2xl px-5 py-2 shadow-sm border border-green-200">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <span className="font-bold text-emerald-800">计算积分</span>
+            <span className="text-3xl font-black text-green-700">{score}</span>
+            <span className="text-sm text-emerald-600">分</span>
+          </div>
+          <div className="text-xs bg-green-200 px-3 py-1 rounded-full text-emerald-800 font-medium">
+            ➕ 答对一题 +1
+          </div>
+        </div>
+        
+        {/* 题目算式区 */}
+        <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-2xl p-5 shadow-md border border-green-200">
+          <div className="text-center">
+            <div className="text-sm font-semibold text-green-700 bg-white/50 inline-block px-4 py-1 rounded-full mb-3">🧮 小数计算挑战 🧮</div>
+            <div className="text-5xl md:text-6xl font-black font-mono text-emerald-800 bg-white/60 py-5 px-4 rounded-2xl inline-block shadow-inner">
+              {question.numA} {question.operation} {question.numB}
+            </div>
+            <div className="mt-3 text-sm text-green-700 bg-green-50/80 rounded-full px-3 py-1 inline-flex items-center gap-1">
+              <span>🔍 先对齐小数点，再计算！</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* 选项区域 */}
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 mt-2">
+          {question.options.map((opt, idx) => (
+            <div
+              key={idx}
+              className={getOptionClass(opt)}
+              onClick={() => handleSelectOption(opt)}
+            >
+              <div className="text-xl md:text-2xl tracking-wide">{opt}</div>
+            </div>
+          ))}
+        </div>
+        
+        {/* 反馈信息 */}
+        {feedback && (
+          <div className={`text-center font-bold p-3 rounded-xl ${
+            feedback.includes('正确') ? 'bg-green-200 text-green-800 border-l-8 border-green-500' : 'bg-amber-100 text-amber-700 border-l-8 border-amber-400'
+          } shadow-sm`}>
+            {feedback}
+          </div>
+        )}
+        
+        {/* 操作按钮组 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={resetCurrent} 
+            className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2.5 rounded-full transition shadow-sm text-base active:scale-[0.98]"
+          >
+            🔄 重置本题
+          </button>
+          <button 
+            onClick={nextQuestion} 
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🎲 换一题
+          </button>
+        </div>
+        
+        {/* 小贴士 */}
+        <div className="text-xs text-center text-emerald-700 bg-green-50/70 rounded-full py-1.5 px-3">
+          💡 小贴士：小数点对齐，不够位数可以末尾添“0”补位，再按整数加减计算。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 App (浅绿色主题) ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/75 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-green-200/70">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <h3 className="text-xl font-bold text-emerald-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 0v6m0-6l-6 6" />
+                </svg>
+                小数加减 · 选结果
+              </h3>
+              <span className="text-sm text-emerald-600 bg-green-100 px-3 py-1 rounded-full">✨ 点击正确的计算结果 ✨</span>
+            </div>
+            <DecimalCalcGame resetKey={gameResetKey} onNewQuestion={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-emerald-700 bg-white/60 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>⚡ 规则：计算小数加减法，从四个选项中选出正确结果</span>
+            <span>🏅 连续答对，成为计算小能手！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

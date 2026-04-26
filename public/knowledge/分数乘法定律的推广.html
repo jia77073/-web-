@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>⚖️ 分数乘法定律的推广 · 淡紫工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(230, 210, 250, 0.6);
+      border: 2px dashed #b58ddf;
+    }
+    .drop-slot.drag-over {
+      background-color: #e5d2ff;
+      border-color: #8b5cf6;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #e1caf7;
+      border: 2px solid #a855f7;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .lavender-light-bg {
+      background-image: radial-gradient(circle at 15% 45%, rgba(168, 85, 247, 0.06) 2.5%, transparent 2.8%);
+      background-size: 36px 36px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#F0E6FF] to-[#DDCCFF] min-h-screen flex items-center justify-center p-4 font-sans lavender-light-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数：最大公因数 & 约分 ----------
+  const computeGCD = (a, b) => {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b !== 0) {
+      let temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
+  };
+
+  const reduceFraction = (numerator, denominator) => {
+    if (denominator === 0) return "0/1";
+    if (numerator === 0) return "0";
+    const gcd = computeGCD(numerator, denominator);
+    const num = numerator / gcd;
+    const den = denominator / gcd;
+    if (den === 1) return `${num}`;
+    return `${num}/${den}`;
+  };
+
+  // 分数乘法 (支持分数×分数、整数×分数，输入可为字符串)
+  const multiplyFractions = (frac1, frac2) => {
+    const toFraction = (val) => {
+      if (val.includes('/')) {
+        const [n, d] = val.split('/').map(Number);
+        return { n, d };
+      } else {
+        const num = parseInt(val);
+        return { n: num, d: 1 };
+      }
+    };
+    const f1 = toFraction(frac1);
+    const f2 = toFraction(frac2);
+    const newNum = f1.n * f2.n;
+    const newDen = f1.d * f2.d;
+    return reduceFraction(newNum, newDen);
+  };
+
+  // 生成随机分数 (分母2~12，分子1~10，避免过大)
+  const generateRandomFraction = () => {
+    const denominator = Math.floor(Math.random() * 11) + 2;
+    let numerator = Math.floor(Math.random() * 10) + 1;
+    if (numerator > denominator * 2) numerator = denominator;
+    return `${numerator}/${denominator}`;
+  };
+
+  // 生成随机整数 (2~8)
+  const generateRandomInteger = () => Math.floor(Math.random() * 7) + 2;
+
+  // 生成挑战集：每个挑战展示原始算式和应用定律后的等价算式（缺一个关键部分）
+  // 挑战类型：0=交换律，1=结合律，2=分配律(左分配)，3=分配律(右分配)
+  // 结构：{ id, leftExpr, rightExprTemplate, missingSlot, correctAnswer, lawName }
+  const generateChallengeSet = (count = 4) => {
+    let challenges = [];
+    let usedKeys = new Set();
+    const lawTypes = ['交换律', '结合律', '分配律', '分配律'];
+    
+    for (let i = 0; i < count; i++) {
+      let type = i % 4; // 循环使用四种题型
+      let leftExpr, rightExprTemplate, missingSlot, correctAnswer, lawName;
+      let valid = false;
+      let attempts = 0;
+      
+      while (!valid && attempts < 30) {
+        attempts++;
+        if (type === 0) { // 乘法交换律： a × b = b × a
+          const a = generateRandomFraction();
+          const b = generateRandomFraction();
+          leftExpr = `${a} × ${b}`;
+          const swapped = `${b} × ${a}`;
+          // 让玩家拖拽交换后的第二个因数（或第一个），这里设计缺失第二个因数： b × ___ 
+          rightExprTemplate = `${b} × ______`;
+          missingSlot = "第二个因数";
+          correctAnswer = a;
+          lawName = "乘法交换律";
+          valid = true;
+        } 
+        else if (type === 1) { // 结合律： (a×b)×c = a×(b×c)
+          const a = generateRandomFraction();
+          const b = generateRandomFraction();
+          const c = generateRandomFraction();
+          leftExpr = `(${a} × ${b}) × ${c}`;
+          // 右边缺失中间部分： a × ( ___  × c )
+          rightExprTemplate = `${a} × ( ______ × ${c})`;
+          missingSlot = "括号内的第一个因数";
+          correctAnswer = b;
+          lawName = "乘法结合律";
+          valid = true;
+        }
+        else if (type === 2) { // 分配律（左分配）： a × (b + c) = a×b + a×c
+          const a = generateRandomFraction();
+          const b = generateRandomFraction();
+          const c = generateRandomFraction();
+          leftExpr = `${a} × (${b} + ${c})`;
+          // 右边缺失加号后的项： a×b + ______
+          rightExprTemplate = `${multiplyFractions(a, b)} + ______`;
+          missingSlot = "缺失的项";
+          correctAnswer = multiplyFractions(a, c);
+          lawName = "乘法分配律 (左分配)";
+          valid = true;
+        }
+        else if (type === 3) { // 分配律（右分配）： (a + b) × c = a×c + b×c
+          const a = generateRandomFraction();
+          const b = generateRandomFraction();
+          const c = generateRandomFraction();
+          leftExpr = `(${a} + ${b}) × ${c}`;
+          rightExprTemplate = `${multiplyFractions(a, c)} + ______`;
+          missingSlot = "缺失的项";
+          correctAnswer = multiplyFractions(b, c);
+          lawName = "乘法分配律 (右分配)";
+          valid = true;
+        }
+        
+        const key = `${type}_${leftExpr}_${correctAnswer}`;
+        if (usedKeys.has(key)) valid = false;
+        else usedKeys.add(key);
+      }
+      
+      if (!valid) {
+        // 保底题目
+        if (type === 0) {
+          leftExpr = `2/3 × 3/4`;
+          rightExprTemplate = `3/4 × ______`;
+          correctAnswer = "2/3";
+          lawName = "乘法交换律";
+        } else if (type === 1) {
+          leftExpr = `(1/2 × 2/3) × 3/4`;
+          rightExprTemplate = `1/2 × ( ______ × 3/4)`;
+          correctAnswer = "2/3";
+          lawName = "乘法结合律";
+        } else if (type === 2) {
+          leftExpr = `1/2 × (1/3 + 1/6)`;
+          rightExprTemplate = `1/6 + ______`;
+          correctAnswer = "1/12";
+          lawName = "乘法分配律 (左分配)";
+        } else {
+          leftExpr = `(1/4 + 1/2) × 2/3`;
+          rightExprTemplate = `1/6 + ______`;
+          correctAnswer = "1/3";
+          lawName = "乘法分配律 (右分配)";
+        }
+      }
+      
+      challenges.push({
+        id: `ch-${Date.now()}-${i}-${Math.random()}`,
+        leftExpr: leftExpr,
+        rightExprTemplate: rightExprTemplate,
+        missingSlot: missingSlot,
+        correctAnswer: correctAnswer,
+        lawName: lawName,
+        matched: false,
+        matchedValue: null
+      });
+    }
+    return challenges;
+  };
+
+  // 生成卡片池：所有正确答案 + 干扰项
+  const generateAnswerCards = (challenges) => {
+    let correctSet = new Set();
+    challenges.forEach(ch => {
+      correctSet.add(ch.correctAnswer);
+    });
+    let correctArray = Array.from(correctSet);
+    
+    // 干扰池：随机分数/整数
+    let distractorPool = [];
+    let usedDistractors = new Set();
+    for (let i = 0; i < correctArray.length + 2; i++) {
+      let candidate;
+      let attempts = 0;
+      do {
+        if (Math.random() > 0.5) {
+          candidate = generateRandomFraction();
+        } else {
+          candidate = generateRandomInteger().toString();
+        }
+        attempts++;
+        if (attempts > 25) break;
+      } while (correctSet.has(candidate) || usedDistractors.has(candidate));
+      if (!correctSet.has(candidate) && !usedDistractors.has(candidate)) {
+        usedDistractors.add(candidate);
+        distractorPool.push(candidate);
+      }
+      if (distractorPool.length >= correctArray.length + 1) break;
+    }
+    // 额外干扰
+    const extra = ["1/2", "1/3", "2/3", "1/4", "3/4", "1", "1/6", "5/6", "2/5", "3/5", "2", "3"];
+    for (let ex of extra) {
+      if (!correctSet.has(ex) && !usedDistractors.has(ex) && distractorPool.length < correctArray.length + 2) {
+        distractorPool.push(ex);
+        usedDistractors.add(ex);
+      }
+    }
+    
+    let allCardValues = [...correctArray, ...distractorPool];
+    // 洗牌
+    for (let i = allCardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCardValues[i], allCardValues[j]] = [allCardValues[j], allCardValues[i]];
+    }
+    return allCardValues.map((val, idx) => ({
+      id: `card-${Date.now()}-${idx}-${Math.random()}`,
+      value: val,
+      used: false
+    }));
+  };
+
+  // 比较两个表达式是否相等（支持分数比较）
+  const areEqual = (val1, val2) => {
+    if (val1 === val2) return true;
+    const toFraction = (v) => {
+      if (v.includes('/')) {
+        const [n, d] = v.split('/').map(Number);
+        return { n, d };
+      } else {
+        const num = parseInt(v);
+        return { n: num, d: 1 };
+      }
+    };
+    const f1 = toFraction(val1);
+    const f2 = toFraction(val2);
+    return f1.n * f2.d === f2.n * f1.d;
+  };
+
+  // ---------- 左侧知识点卡片：分数乘法定律推广 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#FAF5FF]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#D9C5FF] h-full text-[#5B21B6]">
+        <div className="flex items-center gap-2 border-b-2 border-[#C4B0F5] pb-3 mb-4">
+          <span className="text-4xl">⚖️</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">分数乘法定律的推广<br/><span className="text-sm font-normal text-[#7C3AED]">淡紫课堂 · 运算律大显身手</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#F3EBFF] rounded-2xl p-4 border border-[#D9C5FF]">
+            <p className="font-bold text-[#6D28D9] flex items-center gap-2">✨ 乘法交换律</p>
+            <p className="text-sm mt-1">两个数相乘，交换因数的位置，积不变。<br/>a × b = b × a</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">📖 例：2/3 × 4/5 = 4/5 × 2/3</div>
+          </div>
+          <div className="bg-[#F3EBFF] rounded-2xl p-4 border border-[#D9C5FF]">
+            <p className="font-bold text-[#6D28D9]">⚡ 乘法结合律</p>
+            <p className="text-sm mt-1">三个数相乘，先乘前两个或先乘后两个，积不变。<br/>(a×b)×c = a×(b×c)</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">💡 例：(1/2×2/3)×3/4 = 1/2×(2/3×3/4)</div>
+          </div>
+          <div className="bg-[#F3EBFF] rounded-2xl p-4 border border-[#D9C5FF]">
+            <p className="font-bold text-[#6D28D9]">🌀 乘法分配律</p>
+            <p className="text-sm mt-1">两个数的和与一个数相乘，等于分别相乘再相加。<br/>a×(b+c) = a×b + a×c</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">🎯 例：1/2×(1/3+1/4)=1/2×1/3 + 1/2×1/4</div>
+          </div>
+          <div className="bg-[#EDE0FF] rounded-2xl p-3 text-center text-sm border border-[#C4B0F5]">
+            🎯 挑战规则：观察左边算式，根据运算律将右边等式补充完整，拖拽正确的卡片填入空白处。
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：运算律匹配 ----------
+  const LawsOfMultiplicationGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => generateChallengeSet(4));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    const initCards = (currentChallenges) => generateAnswerCards(currentChallenges);
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.matched === true);
+      if (allFilled && !isVictory) setIsVictory(true);
+      else if (!allFilled && isVictory) setIsVictory(false);
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    const resetGame = () => {
+      const newChallenges = generateChallengeSet(4);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到槽位
+    const onDropToSlot = (e, challengeId) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      let draggedCardId, draggedValue;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('⚖️ 这张卡片已经使用过了！不能重复投放。');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      if (targetChallenge.matched) {
+        setErrorMsg('💜 这个等式槽位已经匹配完成啦！');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      // 验证拖拽的值是否与正确答案相等
+      const isMatch = areEqual(draggedValue, targetChallenge.correctAnswer);
+      if (!isMatch) {
+        const expected = targetChallenge.correctAnswer;
+        setErrorMsg(`❌ 不匹配！根据${targetChallenge.lawName}，右边空白处应该填入 ${expected}，而不是 ${draggedValue}。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1900);
+        return;
+      }
+      
+      // 正确匹配
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].matched = true;
+      newChallenges[challengeIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        matched: false,
+        matchedValue: null
+      }));
+      const resetCards = answerCards.map(card => ({ ...card, used: false }));
+      // 洗牌
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    const totalCount = challenges.length;
+    const filledCount = challenges.filter(ch => ch.matched).length;
+    const progressPercent = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-purple-300 to-violet-400 rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#F0E6FF]">
+        <div className="text-2xl font-bold text-white">🎉 运算律大师！全部正确 🎉</div>
+        <div className="text-sm text-purple-100 font-semibold">所有定律推广都匹配成功！点击「全新挑战」继续练习～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#F4EEFE]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#D1BDFF]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">⚖️</span>
+            <span className="font-bold text-[#5B21B6]">定律推广进度</span>
+            <span className="text-lg font-black text-purple-800">{filledCount} / {totalCount}</span>
+          </div>
+          <div className="w-36 bg-[#E0D0FF] rounded-full h-2.5">
+            <div className="bg-[#A855F7] h-2.5 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#E7D9FF] px-2 py-1 rounded-full text-purple-800 border border-[#CBB5FF]">🧩 拖拽正确卡片 填补空白</div>
+        </div>
+        
+        {/* 挑战区域 */}
+        <div className="bg-[#F9F4FF]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#D6C4FF]">
+          <div className="text-center text-sm font-semibold text-[#5B21B6] mb-3">📌 根据左边算式和运算律，将右边等式中的空白补充完整</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-[#F5EEFF] rounded-xl p-4 border border-[#D2BBFF] shadow-sm">
+                <div className="mb-2 text-xs text-purple-600 text-center font-medium">适用定律：{challenge.lawName}</div>
+                <div className="flex flex-col gap-3">
+                  <div className="bg-white/60 rounded-lg p-2 text-center">
+                    <div className="text-sm text-purple-600">左边算式</div>
+                    <div className="text-lg font-mono font-bold text-purple-900">{challenge.leftExpr}</div>
+                  </div>
+                  <div className="text-center text-purple-400 text-xl">⇩ 应用定律 ⇩</div>
+                  <div className="bg-white/60 rounded-lg p-2 text-center">
+                    <div className="text-sm text-purple-600">右边等价式</div>
+                    <div className="text-lg font-mono font-bold text-purple-900">
+                      {challenge.rightExprTemplate.replace('______', 
+                        challenge.matched ? challenge.matchedValue : '________'
+                      )}
+                    </div>
+                    {!challenge.matched && (
+                      <div className="text-xs text-purple-500 mt-1">(空白处需要填入正确的因数/项)</div>
+                    )}
+                  </div>
+                  <div className="mt-2">
+                    <div
+                      className={`drop-slot rounded-xl p-3 text-center transition-all ${challenge.matched ? 'filled-slot' : ''}`}
+                      onDragOver={onDragOverSlot}
+                      onDragLeave={onDragLeaveSlot}
+                      onDrop={(e) => onDropToSlot(e, challenge.id)}
+                    >
+                      <div className="text-xs font-semibold text-purple-700">✨ 将正确卡片拖拽至此 ✨</div>
+                      {challenge.matched ? (
+                        <div className="text-xl font-bold text-purple-800 mt-1">✓ 已匹配：{challenge.matchedValue}</div>
+                      ) : (
+                        <div className="text-sm text-purple-500 mt-1 border-t border-dashed border-purple-300 pt-1">⬅️ 拖拽卡片放置区域</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-[#F7F0FF]/80 rounded-2xl p-4 border border-[#D9C5FF]">
+          <div className="text-center text-sm font-semibold text-[#5B21B6] mb-2">🎴 卡片库（拖拽到上方对应槽位）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all ${
+                  card.used 
+                    ? 'bg-gray-300/60 cursor-default border-2 border-gray-400 text-gray-500' 
+                    : 'bg-gradient-to-br from-purple-100 to-violet-200 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-purple-500 text-purple-900'
+                }`}
+              >
+                {card.used ? '✓ 已用' : card.value}
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-purple-500">加载卡片中...</div>}
+          </div>
+          <div className="text-[11px] text-center text-purple-700 mt-2">💡 每个卡片只能用一次，根据运算律选择正确的因数或项填入空白</div>
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FDE68A]/90 text-purple-800 font-bold p-2.5 rounded-xl border-l-8 border-[#F59E0B] backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-1">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#C4B0F5] hover:bg-[#B193F0] text-purple-900 font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#A855F7] hover:bg-[#9333EA] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批题目）
+          </button>
+        </div>
+        <div className="text-xs text-center text-purple-900 bg-[#F3E9FF]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 推广提示：整数和分数的乘法同样适用交换律、结合律和分配律，灵活运用可以简化计算。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#FBF7FF]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#D9C9FF]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#5B21B6] flex items-center gap-2">
+                <span className="text-3xl">⚖️</span>
+                分数乘法定律的推广 · 淡紫工坊
+              </h3>
+              <span className="text-sm bg-[#E8D9FF] px-3 py-1 rounded-full text-purple-800 border border-purple-300">🎯 拖拽匹配填补空白</span>
+            </div>
+            <LawsOfMultiplicationGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>长方体的表面积 · 包装小工匠 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景，内容区淡绿色卡片 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .slot-filled {
+      background-color: #c7f0c2;
+      border: 2px solid #2e7d32;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-slot {
+        font-size: 1.2rem;
+      }
+    }
+    .cuboid-icon {
+      background: white;
+      border-radius: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 长方体的表面积（优化版） =======================
+  // 知识点：长方体表面积 = 2 × (长×宽 + 长×高 + 宽×高)
+  
+  // ---------- 游戏数据：6个长方体（长宽高），需要配对正确的表面积 ----------
+  const cuboidData = [
+    { id: 1, length: 4, width: 3, height: 2, unit: "cm", area: 52, display: "长4cm 宽3cm 高2cm", areaText: "52 cm²" },
+    { id: 2, length: 5, width: 4, height: 3, unit: "cm", area: 94, display: "长5cm 宽4cm 高3cm", areaText: "94 cm²" },
+    { id: 3, length: 6, width: 5, height: 4, unit: "cm", area: 148, display: "长6cm 宽5cm 高4cm", areaText: "148 cm²" },
+    { id: 4, length: 3, width: 3, height: 3, unit: "cm", area: 54, display: "长3cm 宽3cm 高3cm（正方体）", areaText: "54 cm²" },
+    { id: 5, length: 8, width: 6, height: 5, unit: "cm", area: 236, display: "长8cm 宽6cm 高5cm", areaText: "236 cm²" },
+    { id: 6, length: 10, width: 8, height: 6, unit: "cm", area: 376, display: "长10cm 宽8cm 高6cm", areaText: "376 cm²" }
+  ];
+  
+  // 生成右侧可拖拽卡片：包含正确面积和干扰项
+  const generateAreaCards = () => {
+    const correctAreas = cuboidData.map(c => c.areaText);
+    // 干扰项
+    const distractors = ["30 cm²", "42 cm²", "68 cm²", "78 cm²", "96 cm²", "112 cm²", "128 cm²", "168 cm²", "200 cm²", "280 cm²", "320 cm²", "400 cm²"];
+    let allCards = [...correctAreas];
+    for (let d of distractors) {
+      if (!allCards.includes(d)) allCards.push(d);
+      if (allCards.length >= 12) break;
+    }
+    // 打乱顺序
+    for (let i = allCards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
+    }
+    return allCards.map((text, idx) => ({
+      id: `card-${idx}`,
+      text: text,
+      matched: false,
+      areaValue: parseFloat(text.split(' ')[0])
+    }));
+  };
+  
+  // 绘制长方体示意图（带标注长宽高）
+  const CuboidSvg = ({ length, width, height }) => {
+    const scale = 0.5;
+    const l = length * scale;
+    const w = width * scale;
+    const h = height * scale;
+    const maxSize = 70;
+    const lPx = Math.min(l, maxSize);
+    const wPx = Math.min(w, maxSize);
+    const hPx = Math.min(h, maxSize);
+    const offsetX = 15;
+    const offsetY = 10;
+    return (
+      <svg width="90" height="80" viewBox="0 0 90 80" className="cuboid-icon">
+        <rect x="10" y="30" width={lPx} height={hPx} fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2" />
+        <polygon points={`10,30 ${10+offsetX},${30-offsetY} ${10+offsetX+lPx},${30-offsetY} ${10+lPx},30`} fill="#a5d6a7" stroke="#2e7d32" strokeWidth="2" />
+        <polygon points={`${10+lPx},30 ${10+lPx+offsetX},${30-offsetY} ${10+lPx+offsetX},${30-offsetY+hPx} ${10+lPx},${30+hPx}`} fill="#9ccc9c" stroke="#2e7d32" strokeWidth="2" />
+        <text x="10" y="25" fontSize="8" fill="#b45309">长{l}</text>
+        <text x="45" y="70" fontSize="8" fill="#b45309">高{h}</text>
+        <text x="60" y="18" fontSize="8" fill="#b45309">宽{w}</text>
+      </svg>
+    );
+  };
+  
+  // 游戏组件：拖拽配对（将面积卡片拖拽到对应长方体的槽位）
+  const MatchingGame = () => {
+    const [areaCards, setAreaCards] = React.useState(() => generateAreaCards());
+    const [slots, setSlots] = React.useState(() => {
+      const init = {};
+      cuboidData.forEach(c => {
+        init[c.id] = { filled: false, value: null, correctArea: c.areaText };
+      });
+      return init;
+    });
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalSlots = cuboidData.length;
+    const filledCount = Object.values(slots).filter(s => s.filled).length;
+    
+    const checkVictory = (currentSlots) => {
+      const allFilled = Object.values(currentSlots).every(s => s.filled);
+      if (allFilled && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有长方体的表面积都配对成功！你已是包装小能手！ 🎉");
+      }
+    };
+    
+    const onDragStart = (e, cardId, cardText) => {
+      const card = areaCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, cardText }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, cardText } = dragData;
+      
+      const sourceCard = areaCards.find(c => c.id === cardId);
+      const targetSlot = slots[slotId];
+      if (!sourceCard || !targetSlot) return;
+      if (sourceCard.matched || targetSlot.filled) {
+        setFeedbackMsg("⏳ 这张面积卡片或这个槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      const targetCuboid = cuboidData.find(c => c.id === slotId);
+      const isMatch = (cardText === targetCuboid.areaText);
+      if (!isMatch) {
+        setFeedbackMsg(`❌ 配对错误！“${cardText}” 不是 ${targetCuboid.display} 的表面积。正确表面积是 ${targetCuboid.areaText}。再算一遍吧～ 表面积=2×(长×宽+长×高+宽×高)。`);
+        setTimeout(() => setFeedbackMsg(""), 2000);
+        return;
+      }
+      
+      setAreaCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      setSlots(prev => ({
+        ...prev,
+        [slotId]: { ...prev[slotId], filled: true, value: cardText }
+      }));
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！${targetCuboid.display} 的表面积是 ${cardText}。`);
+      setTimeout(() => setFeedbackMsg(""), 1500);
+      
+      const newSlots = { ...slots, [slotId]: { ...slots[slotId], filled: true, value: cardText } };
+      checkVictory(newSlots);
+    };
+    
+    const resetGame = () => {
+      setAreaCards(generateAreaCards());
+      const initSlots = {};
+      cuboidData.forEach(c => {
+        initSlots[c.id] = { filled: false, value: null, correctArea: c.areaText };
+      });
+      setSlots(initSlots);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把右边的面积卡片拖拽到左边正确长方体的槽位下吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">📦 表面积配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalSlots}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
+        </div>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：计算每个长方体的表面积，然后将右侧<strong>面积卡片</strong>拖拽到对应图形下方的槽位中。全部配对正确即可获胜！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧图形区 */}
+          <div className="flex-1 bg-green-50/60 rounded-2xl p-3">
+            <div className="font-bold text-green-800 text-center mb-2">📦 长方体工坊</div>
+            <div className="space-y-5 max-h-[550px] overflow-y-auto pr-1">
+              {cuboidData.map(c => (
+                <div key={c.id} className="bg-white rounded-xl p-3 shadow border border-green-200">
+                  <div className="text-center font-bold text-green-700 text-sm">{c.display}</div>
+                  <div className="flex justify-center my-2">
+                    <CuboidSvg length={c.length} width={c.width} height={c.height} />
+                  </div>
+                  <div 
+                    onDragOver={(e) => onDragOverSlot(e, c.id)}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, c.id)}
+                    className={`drop-slot rounded-xl p-3 text-center transition-all mt-2 ${dragOverSlotId === c.id ? 'drag-over' : ''} ${slots[c.id].filled ? 'slot-filled' : ''}`}
+                  >
+                    <div className="text-sm font-bold text-green-800">📌 表面积槽位</div>
+                    {slots[c.id].filled ? (
+                      <div className="text-xl font-mono text-green-700">{slots[c.id].value}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500">⬅️ 拖拽面积卡片至此</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧卡片池 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎲 面积卡片 (拖拽我)</div>
+            <div className="flex flex-wrap justify-center gap-3 max-h-[550px] overflow-y-auto">
+              {areaCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.text)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card w-36 h-24 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+                >
+                  <span className="text-base px-1">{card.matched ? "✓ 已用" : card.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-center text-amber-700 mt-2">💡 每个面积卡片只能用一次，拖拽到对应长方体的表面积槽位。</div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 包装小能手！你已完全掌握长方体的表面积计算！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 长方体表面积 = 2 × (长×宽 + 长×高 + 宽×高)。正方体是特殊的长方体，表面积 = 6 × 棱长²。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：长方体的表面积 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📦</span>
+          <h2 className="text-3xl font-extrabold text-green-900">长方体的表面积</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是表面积？</p>
+            <p>长方体<strong>6个面的总面积</strong>叫做它的表面积。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 表面积公式</p>
+            <p><strong>S = 2 × (a×b + a×h + b×h)</strong></p>
+            <p>其中 a = 长，b = 宽，h = 高。</p>
+            <div className="mt-2 bg-green-100 p-2 rounded-lg font-mono text-center">S = 2(ab + ah + bh)</div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 示例</p>
+            <p>长=4cm，宽=3cm，高=2cm，表面积 = 2×(4×3 + 4×2 + 3×2) = 2×(12+8+6) = 2×26 = 52 cm²。</p>
+            <p className="text-sm mt-1">正方体表面积 = 6 × 棱长²。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>长方体长5dm，宽4dm，高3dm，表面积（ ）dm²；正方体棱长4cm，表面积（ ）cm²。</p>
+            <p className="text-sm text-green-700">（答案：94，96）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“长方体表面积，长宽高全用到；两两相乘再相加，乘以2得答案。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：计算表面积（心算挑战）----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ length: 4, width: 3, height: 2, answer: 52, text: "长4cm，宽3cm，高2cm，表面积是多少cm²？" });
+    const [userAnswer, setUserAnswer] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { length: 4, width: 3, height: 2, answer: 52, text: "长4cm，宽3cm，高2cm，表面积是多少cm²？" },
+      { length: 5, width: 4, height: 3, answer: 94, text: "长5cm，宽4cm，高3cm，表面积是多少cm²？" },
+      { length: 6, width: 5, height: 4, answer: 148, text: "长6cm，宽5cm，高4cm，表面积是多少cm²？" },
+      { length: 3, width: 3, height: 3, answer: 54, text: "正方体棱长3cm，表面积是多少cm²？" },
+      { length: 8, width: 6, height: 5, answer: 236, text: "长8cm，宽6cm，高5cm，表面积是多少cm²？" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserAnswer("");
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = () => {
+      const userVal = parseFloat(userAnswer);
+      if (isNaN(userVal)) {
+        setFeedback("📛 输入数字答案哟～");
+        return;
+      }
+      if (Math.abs(userVal - question.answer) < 0.01) {
+        setFeedback(`✅ 正确！${question.text} 答案是 ${question.answer} cm²。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.answer} cm²。表面积 = 2×(长×宽+长×高+宽×高)。`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 表面积计算</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="number" step="any" value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              className="border border-green-300 rounded-lg px-3 py-1 w-40 text-center"
+              placeholder="输入数字"
+            />
+            <button onClick={checkAnswer} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 长方体的表面积在生活中应用广泛：包装礼物、粉刷墙壁、制作纸盒…… 掌握公式，你就能轻松解决这些问题！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

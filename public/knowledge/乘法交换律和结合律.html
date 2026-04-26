@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>乘法交换律与结合律 - 数学小探险</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动时选中文字，提升体验 */
+        }
+
+        body {
+            background: #EADCF2;  /* 柔和背景渐变 */
+            font-family: 'Comic Neue', 'Comic Neue', 'Segoe UI Emoji', 'Chalkboard SE', 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主卡片容器 */
+        .course-container {
+            max-width: 1300px;
+            width: 100%;
+            background-color: #FFFFFFEE;
+            backdrop-filter: blur(2px);
+            border-radius: 48px;
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1), 0 5px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 左右布局 Flex (移动端自适应) */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧知识点区 */
+        .knowledge-area {
+            flex: 1.2;
+            background: #D9C2E6;  /* 淡紫色主调 */
+            padding: 28px 24px;
+            border-radius: 40px 0 0 40px;
+            transition: all 0.3s;
+            color: #2E1A3E;
+        }
+
+        /* 右侧游戏区 */
+        .game-area {
+            flex: 1.8;
+            background: #FFFCF5;
+            padding: 28px 24px;
+            border-radius: 0 40px 40px 0;
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.03);
+        }
+
+        /* 响应式: 移动端堆叠 */
+        @media (max-width: 780px) {
+            body {
+                padding: 12px;
+            }
+            .knowledge-area {
+                border-radius: 40px 40px 0 0;
+                padding: 22px 20px;
+            }
+            .game-area {
+                border-radius: 0 0 40px 40px;
+                padding: 24px 20px;
+            }
+            .split-layout {
+                flex-direction: column;
+            }
+        }
+
+        /* 知识点样式 */
+        .knowledge-area h1 {
+            font-size: 1.9rem;
+            background: white;
+            display: inline-block;
+            padding: 6px 18px;
+            border-radius: 60px;
+            box-shadow: 0 6px 0 #B38FCC;
+            margin-bottom: 25px;
+            letter-spacing: -0.5px;
+        }
+        .law-card {
+            background: #FEF9FF;
+            border-radius: 32px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .law-card:hover {
+            transform: translateY(-3px);
+        }
+        .law-title {
+            font-size: 1.6rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            border-left: 8px solid #FFB347;
+            padding-left: 16px;
+        }
+        .law-formula {
+            font-size: 1.5rem;
+            background: #F2E6FA;
+            padding: 12px;
+            border-radius: 28px;
+            text-align: center;
+            font-family: monospace;
+            font-weight: bold;
+            margin: 12px 0;
+        }
+        .example {
+            font-size: 1rem;
+            background: white;
+            border-radius: 24px;
+            padding: 10px 15px;
+            margin-top: 10px;
+            color: #3d2b4f;
+        }
+        .emoji-big {
+            font-size: 1.8rem;
+        }
+
+        /* 右侧游戏区标题&说明 */
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border-bottom: 3px dashed #D9C2E6;
+            padding-bottom: 12px;
+        }
+        .game-header h2 {
+            font-size: 1.7rem;
+            background: #FADADD;
+            display: inline-block;
+            padding: 5px 18px;
+            border-radius: 40px;
+        }
+        .score-badge {
+            background: #EADCF2;
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .drag-tip {
+            background: #FFEFD2;
+            border-radius: 60px;
+            padding: 10px 14px;
+            margin: 10px 0 20px;
+            display: inline-block;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        /* 题目列表区域 */
+        .questions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: 20px 0 25px;
+            max-height: 460px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .question-item {
+            background: #FBF7FE;
+            border-radius: 28px;
+            padding: 15px 18px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            border: 1px solid #E5D4F0;
+            transition: all 0.2s;
+        }
+        .equation {
+            font-size: 1.3rem;
+            font-weight: bold;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
+        .dropzone {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 70px;
+            background: #FFF1DF;
+            border-radius: 20px;
+            padding: 8px 12px;
+            margin: 0 5px;
+            border: 3px dashed #B38FCC;
+            color: #593C70;
+            font-weight: bold;
+            font-size: 1.3rem;
+            transition: all 0.1s;
+            cursor: pointer;
+            min-height: 52px;
+        }
+        .dropzone.filled {
+            background: #C7E9D0;
+            border: 3px solid #6F9E7C;
+            color: #2A5C3A;
+            cursor: default;
+        }
+        .dropzone.highlight {
+            background: #FFE1A0;
+            border-color: #F5A623;
+            transform: scale(1.02);
+        }
+        .placeholder-text {
+            font-size: 1.2rem;
+            font-weight: normal;
+        }
+
+        /* 可拖拽选项区域 */
+        .drag-items-wrapper {
+            background: #F9F1FF;
+            border-radius: 40px;
+            padding: 20px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .drag-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        .drag-items-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 18px;
+        }
+        .drag-item {
+            background: #FFE5B4;
+            width: 75px;
+            height: 75px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            border-radius: 30px;
+            box-shadow: 0 10px 0 #C29B6B;
+            cursor: grab;
+            transition: 0.05s linear;
+            color: #553b1f;
+            touch-action: none;  /* 提升触屏拖拽 */
+            user-select: none;
+        }
+        .drag-item:active {
+            cursor: grabbing;
+        }
+        .drag-item.dragging-source {
+            opacity: 0.4;
+        }
+        .drag-item.disabled-item {
+            visibility: hidden;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow: none;
+        }
+        /* 克隆拖拽元素样式 */
+        .clone-drag {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 10px 12px rgba(0,0,0,0.3));
+            opacity: 0.85;
+            pointer-events: none;
+            transform: scale(1.05);
+            width: 75px;
+            height: 75px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #FFD966;
+            border-radius: 30px;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        /* 控制按钮 */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0 10px;
+        }
+        .btn {
+            border: none;
+            background: #D9C2E6;
+            padding: 12px 28px;
+            border-radius: 40px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #2E1A3E;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .btn-primary {
+            background: #F9B23F;
+            color: white;
+            box-shadow: 0 4px 0 #B4621A;
+        }
+        .btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #B4621A;
+        }
+        .message-area {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+            background: #EEDDFF;
+            padding: 8px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+        }
+        .celebrate {
+            animation: bounce 0.5s ease;
+        }
+        @keyframes bounce {
+            0%,100%{ transform: scale(1); }
+            50%{ transform: scale(1.03); background: #F3D382; }
+        }
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 15px;
+            color: #a98ebe;
+        }
+    </style>
+</head>
+<body>
+<div class="course-container">
+    <div class="split-layout">
+        <!-- 左侧知识点区域 -->
+        <div class="knowledge-area">
+            <h1>✨ 魔法运算律 ✨</h1>
+            <div class="law-card">
+                <div class="law-title"><span class="emoji-big">🔄</span> 乘法交换律</div>
+                <div class="law-formula">a × b = b × a</div>
+                <div class="example">🌰 例子：12 × 5 = 5 × 12<br> 两个数相乘，交换因数位置，积不变！</div>
+            </div>
+            <div class="law-card">
+                <div class="law-title"><span class="emoji-big">🔗</span> 乘法结合律</div>
+                <div class="law-formula">(a × b) × c = a × (b × c)</div>
+                <div class="example">🌰 例子：(2 × 3) × 4 = 2 × (3 × 4)<br> 先把前两个数相乘，或者先把后两个数相乘，积不变！</div>
+            </div>
+            <div class="law-card">
+                <div class="law-title"><span class="emoji-big">🎯</span> 小窍门</div>
+                <div class="example">💡 交换律让计算更灵活，结合律让大数变简单~ <br> 右边小游戏：<strong>拖拽数字到空白处</strong>，运用定律完成算式！</div>
+            </div>
+        </div>
+
+        <!-- 右侧游戏区：拖拽填空 -->
+        <div class="game-area">
+            <div class="game-header">
+                <h2>📦 拖拽魔法箱</h2>
+                <div class="score-badge" id="scoreDisplay">✅ 完成 0 / 4</div>
+            </div>
+            <div class="drag-tip">
+                🖱️✋ 用手指或鼠标按住数字，拖拽到算式里的“？”空白框！正确匹配会发光哦✨
+            </div>
+
+            <!-- 题目列表 四个结合交换律/结合律 -->
+            <div class="questions-list" id="questionsList">
+                <!-- 题目1: 交换律 -->
+                <div class="question-item" data-qid="1">
+                    <div class="equation">
+                        <span>45 × 26 = 26 × </span>
+                        <div class="dropzone" data-expected="45" data-filled="false" data-qid="1">❓</div>
+                    </div>
+                </div>
+                <!-- 题目2: 结合律 -->
+                <div class="question-item" data-qid="2">
+                    <div class="equation">
+                        <span>(15 × 4) × 3 = 15 × (4 × </span>
+                        <div class="dropzone" data-expected="3" data-filled="false" data-qid="2">❓</div>
+                        <span>)</span>
+                    </div>
+                </div>
+                <!-- 题目3: 交换律 -->
+                <div class="question-item" data-qid="3">
+                    <div class="equation">
+                        <span>39 × 128 = 128 × </span>
+                        <div class="dropzone" data-expected="39" data-filled="false" data-qid="3">❓</div>
+                    </div>
+                </div>
+                <!-- 题目4: 结合律 -->
+                <div class="question-item" data-qid="4">
+                    <div class="equation">
+                        <span>(8 × 5) × 2 = 8 × (5 × </span>
+                        <div class="dropzone" data-expected="2" data-filled="false" data-qid="4">❓</div>
+                        <span>)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可拖拽数字区域 -->
+            <div class="drag-items-wrapper">
+                <div class="drag-title">🐣 拖拽下面的数字到空位 (每个数字只能用一次)</div>
+                <div class="drag-items-container" id="dragContainer">
+                    <!-- 正确答案 45,3,39,2 以及两个干扰项 7,12 -->
+                    <div class="drag-item" data-value="45" data-used="false">45</div>
+                    <div class="drag-item" data-value="3" data-used="false">3</div>
+                    <div class="drag-item" data-value="39" data-used="false">39</div>
+                    <div class="drag-item" data-value="2" data-used="false">2</div>
+                    <div class="drag-item" data-value="7" data-used="false">7</div>
+                    <div class="drag-item" data-value="12" data-used="false">12</div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn" id="resetGameBtn">🔄 重新挑战</button>
+            </div>
+            <div class="message-area" id="gameMessage">
+                💪 把正确的数字拖入空白，运用交换律和结合律！
+            </div>
+            <footer>⚡ 根据定律填空，拖拽正确自动完成！全部正确有惊喜~</footer>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- DOM 元素 ----------
+        const dropZones = document.querySelectorAll('.dropzone');
+        const dragItems = document.querySelectorAll('.drag-item');
+        const dragContainer = document.getElementById('dragContainer');
+        const resetBtn = document.getElementById('resetGameBtn');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const messageBox = document.getElementById('gameMessage');
+
+        // 拖拽全局状态
+        let activeDragItem = null;          // 当前被拖拽的原始元素
+        let cloneElement = null;             // 拖拽跟随克隆体
+        let startX = 0, startY = 0;
+        let isDragging = false;
+        let currentPointerId = null;         // 触摸id (简单单点)
+
+        // 记录每个dropzone是否已填充
+        let filledCount = 0;                // 已正确填充个数 (最多4)
+        const totalZones = dropZones.length; // =4
+
+        // 初始化状态: 根据data-filled同步界面 & 计数
+        function updateScoreAndMessage() {
+            scoreSpan.innerText = `✅ 完成 ${filledCount} / ${totalZones}`;
+            if(filledCount === totalZones) {
+                messageBox.innerHTML = "🎉🎉 太厉害了！全部正确！乘法交换律和结合律完全掌握啦 🎉🎉";
+                messageBox.style.background = "#C7E9D0";
+                messageBox.classList.add("celebrate");
+                setTimeout(() => messageBox.classList.remove("celebrate"), 600);
+            } else {
+                messageBox.innerHTML = filledCount > 0 ? `👍 已完成 ${filledCount} 个，继续拖拽填空吧！` : "💪 把正确的数字拖入空白，运用交换律和结合律！";
+                messageBox.style.background = "#EEDDFF";
+            }
+        }
+
+        // 重新整理所有drag-item 可见性/禁用标记 (根据 data-used)
+        function syncDragItemsVisibility() {
+            dragItems.forEach(item => {
+                const used = item.getAttribute('data-used') === 'true';
+                if(used) {
+                    item.classList.add('disabled-item');
+                    item.style.cursor = 'default';
+                    // 移除拖拽能力 并且隐藏不可见
+                    item.setAttribute('data-disabled', 'true');
+                } else {
+                    item.classList.remove('disabled-item');
+                    item.style.cursor = 'grab';
+                    item.setAttribute('data-disabled', 'false');
+                }
+            });
+        }
+
+        // 重置所有游戏状态
+        function resetGame() {
+            // 重置dropzone区域
+            dropZones.forEach(zone => {
+                zone.setAttribute('data-filled', 'false');
+                zone.classList.remove('filled');
+                zone.innerHTML = '❓';
+                zone.classList.remove('highlight');
+            });
+            // 重置所有drag-item的 used 状态
+            dragItems.forEach(item => {
+                item.setAttribute('data-used', 'false');
+                item.classList.remove('disabled-item');
+                item.style.cursor = 'grab';
+                item.setAttribute('data-disabled', 'false');
+            });
+            filledCount = 0;
+            updateScoreAndMessage();
+            syncDragItemsVisibility();
+            // 清除任何拖拽残留
+            if(cloneElement) {
+                cloneElement.remove();
+                cloneElement = null;
+            }
+            activeDragItem = null;
+            isDragging = false;
+            messageBox.style.background = "#EEDDFF";
+        }
+
+        // 完成填充某个zone (正确放置)
+        function fillDropZone(zone, value) {
+            if(zone.getAttribute('data-filled') === 'true') return false;
+            const expected = zone.getAttribute('data-expected');
+            if(expected !== value) return false;
+            // 正确填充
+            zone.setAttribute('data-filled', 'true');
+            zone.classList.add('filled');
+            zone.innerHTML = value;
+            filledCount++;
+            updateScoreAndMessage();
+            return true;
+        }
+
+        // 使用拖拽源数字填充zone，并禁用源数字
+        function consumeDragItemAndFillZone(dragElem, targetZone) {
+            const dragValue = dragElem.getAttribute('data-value');
+            const isUsed = dragElem.getAttribute('data-used') === 'true';
+            if(isUsed) return false; // 已经用过了不可用
+            const zoneFilled = targetZone.getAttribute('data-filled') === 'true';
+            if(zoneFilled) {
+                messageBox.innerHTML = "⛔ 这个空位已经填好啦！不能再放数字咯～";
+                return false;
+            }
+            const expected = targetZone.getAttribute('data-expected');
+            if(dragValue !== expected) {
+                messageBox.innerHTML = `❌ 哎呀不对！${dragValue} 不匹配这个空位，再试试运用运算律吧～`;
+                return false;
+            }
+            // 正确匹配
+            const success = fillDropZone(targetZone, dragValue);
+            if(success) {
+                // 标记该drag-item已使用
+                dragElem.setAttribute('data-used', 'true');
+                dragElem.classList.add('disabled-item');
+                dragElem.style.cursor = 'default';
+                syncDragItemsVisibility();
+                messageBox.innerHTML = `🎈 正确！ ${dragValue} 运用了乘法${(dragValue=='45'||dragValue=='39')?'交换律':'结合律'}，太棒啦！`;
+                return true;
+            }
+            return false;
+        }
+
+        // ----- 自定义拖拽核心逻辑 (支持鼠标+触摸)-----
+        function onDragStart(e, dragItem) {
+            if(dragItem.getAttribute('data-used') === 'true') {
+                e.preventDefault();
+                return false;
+            }
+            e.preventDefault();   // 阻止默认拖拽图片等
+            // 记录起始点和拖拽元素
+            activeDragItem = dragItem;
+            const clientPoint = e.touches ? e.touches[0] : e;
+            startX = clientPoint.clientX;
+            startY = clientPoint.clientY;
+            isDragging = true;
+            // 创建克隆体
+            cloneElement = document.createElement('div');
+            cloneElement.className = 'clone-drag';
+            cloneElement.innerText = dragItem.innerText;
+            cloneElement.style.left = `${startX - 37.5}px`;  // 宽75一半偏移
+            cloneElement.style.top = `${startY - 37.5}px`;
+            document.body.appendChild(cloneElement);
+            // 给原元素加半透明样式
+            dragItem.classList.add('dragging-source');
+            // 绑定全局移动和结束事件
+            if(e.touches) {
+                // 触摸事件
+                document.addEventListener('touchmove', onDragMove);
+                document.addEventListener('touchend', onDragEnd);
+                document.addEventListener('touchcancel', onDragEnd);
+            } else {
+                document.addEventListener('mousemove', onDragMove);
+                document.addEventListener('mouseup', onDragEnd);
+            }
+        }
+
+        function onDragMove(e) {
+            if(!isDragging || !cloneElement || !activeDragItem) return;
+            e.preventDefault();
+            let clientX, clientY;
+            if(e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            // 更新克隆位置
+            cloneElement.style.left = `${clientX - 37.5}px`;
+            cloneElement.style.top = `${clientY - 37.5}px`;
+            // 高亮当前下方的 dropzone
+            const elemUnderCursor = document.elementsFromPoint(clientX, clientY);
+            let targetDrop = null;
+            for(let el of elemUnderCursor) {
+                if(el.classList && el.classList.contains('dropzone') && el.getAttribute('data-filled') !== 'true') {
+                    targetDrop = el;
+                    break;
+                }
+            }
+            // 移除所有高亮
+            dropZones.forEach(zone => zone.classList.remove('highlight'));
+            if(targetDrop) {
+                targetDrop.classList.add('highlight');
+            }
+        }
+
+        function onDragEnd(e) {
+            if(!isDragging || !activeDragItem) {
+                cleanDrag();
+                return;
+            }
+            e.preventDefault();
+            let clientX, clientY;
+            if(e.changedTouches) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else if(e.clientX !== undefined) {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            } else {
+                cleanDrag();
+                return;
+            }
+            // 查找放置目标
+            const elemUnderCursor = document.elementsFromPoint(clientX, clientY);
+            let targetZone = null;
+            for(let el of elemUnderCursor) {
+                if(el.classList && el.classList.contains('dropzone')) {
+                    targetZone = el;
+                    break;
+                }
+            }
+            let dropSuccess = false;
+            if(targetZone && activeDragItem && activeDragItem.getAttribute('data-used') !== 'true') {
+                // 尝试填充
+                dropSuccess = consumeDragItemAndFillZone(activeDragItem, targetZone);
+            } else if(targetZone && activeDragItem && activeDragItem.getAttribute('data-used') === 'true') {
+                messageBox.innerHTML = "🔁 这个数字已经被用过了！每个数字只能用一次～";
+            } else {
+                if(activeDragItem && activeDragItem.getAttribute('data-used') !== 'true')
+                    messageBox.innerHTML = "💨 没放到空白框里哦，再试一次拖拽到问号框上吧！";
+            }
+            // 清理拖拽样式和克隆
+            cleanDrag();
+            if(dropSuccess && filledCount === totalZones) {
+                // 已经弹庆祝
+            } else if(!dropSuccess && activeDragItem && activeDragItem.getAttribute('data-used') !== 'true') {
+                // 让原drag-item恢复, 无其他动作
+            }
+        }
+
+        function cleanDrag() {
+            if(cloneElement) {
+                cloneElement.remove();
+                cloneElement = null;
+            }
+            if(activeDragItem) {
+                activeDragItem.classList.remove('dragging-source');
+            }
+            dropZones.forEach(zone => zone.classList.remove('highlight'));
+            // 移除全局事件
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('touchend', onDragEnd);
+            document.removeEventListener('touchcancel', onDragEnd);
+            activeDragItem = null;
+            isDragging = false;
+        }
+
+        // 为所有 drag-item 绑定拖拽启动（同时支持鼠标/触摸）
+        function bindDragEvents() {
+            dragItems.forEach(item => {
+                // 重置任何之前绑定
+                item.removeEventListener('mousedown', onMouseDownHandler);
+                item.removeEventListener('touchstart', onTouchStartHandler);
+                item.addEventListener('mousedown', onMouseDownHandler);
+                item.addEventListener('touchstart', onTouchStartHandler, { passive: false });
+            });
+        }
+
+        function onMouseDownHandler(e) {
+            if(e.button !== 0) return;
+            if(this.getAttribute('data-used') === 'true') {
+                e.preventDefault();
+                return;
+            }
+            e.preventDefault();
+            onDragStart(e, this);
+        }
+        function onTouchStartHandler(e) {
+            if(this.getAttribute('data-used') === 'true') {
+                e.preventDefault();
+                return;
+            }
+            e.preventDefault();
+            onDragStart(e, this);
+        }
+
+        // 重置按钮事件
+        resetBtn.addEventListener('click', () => {
+            resetGame();
+            // 重置后重新确保拖拽事件绑定没有丢失
+            bindDragEvents();
+        });
+
+        // 初始化
+        function init() {
+            // 重置所有状态(保证初始无填充)
+            resetGame();
+            bindDragEvents();
+            // 额外确保dropzone的data-filled同步
+            dropZones.forEach(zone => zone.setAttribute('data-filled', 'false'));
+            filledCount = 0;
+            updateScoreAndMessage();
+            syncDragItemsVisibility();
+        }
+
+        init();
+    })();
+</script>
+</body>
+</html>

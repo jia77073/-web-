@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>解方程·第3课时 | 乘除魔法学院</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫主题 */
+    body {
+      font-size: 1.3rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', sans-serif;
+    }
+    /* 自定义滚动条 */
+    .scrollable-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scrollable-panel::-webkit-scrollbar-track {
+      background: #f1e4f0;
+      border-radius: 8px;
+    }
+    .scrollable-panel::-webkit-scrollbar-thumb {
+      background: #aa7bc0;
+      border-radius: 8px;
+    }
+    /* 拖拽卡片效果 */
+    .drag-equation {
+      cursor: grab;
+      transition: all 0.1s ease;
+    }
+    .drag-equation:active {
+      cursor: grabbing;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .game-card {
+      transition: 0.1s;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0b0d0;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun {
+      transition: all 0.2s;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    input, button {
+      font-size: 1rem;
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 解方程第3课时 · 乘除方程 + 拖拽配对游戏 =======================
+  // ---------- 1. 方程题库 (ax=b 10道, x÷a=b 10道, 小数乘5道, 小数除5道) ----------
+  const buildEquationLibrary = () => {
+    // ax = b 类型 (整数)
+    const axb = [
+      "2x = 10", "3x = 18", "4x = 24", "5x = 30", "6x = 42",
+      "7x = 56", "8x = 64", "9x = 72", "2x = 14", "3x = 27"
+    ].map(text => {
+      let coeff = parseFloat(text.split('x')[0].trim());
+      let right = parseFloat(text.split('=')[1].trim());
+      let correct = right / coeff;
+      return { text, correct, type: "ax=b" };
+    });
+    // x ÷ a = b 类型
+    const xdiva = [
+      "x ÷ 2 = 5", "x ÷ 3 = 7", "x ÷ 4 = 6", "x ÷ 5 = 9", "x ÷ 6 = 8",
+      "x ÷ 7 = 9", "x ÷ 8 = 7", "x ÷ 9 = 8", "x ÷ 3 = 12", "x ÷ 4 = 10"
+    ].map(text => {
+      let match = text.match(/÷\s*([\d.]+)/);
+      let divisor = match ? parseFloat(match[1]) : 1;
+      let right = parseFloat(text.split('=')[1].trim());
+      let correct = right * divisor;
+      return { text, correct, type: "x÷a=b" };
+    });
+    // 小数乘法 5道
+    const decMul = [
+      "0.5x = 4", "1.2x = 6", "2.5x = 10", "0.2x = 3", "1.5x = 7.5"
+    ].map(text => {
+      let coeff = parseFloat(text.split('x')[0].trim());
+      let right = parseFloat(text.split('=')[1].trim());
+      let correct = right / coeff;
+      return { text, correct, type: "小数乘法" };
+    });
+    // 小数除法 5道
+    const decDiv = [
+      "x ÷ 0.5 = 8", "x ÷ 0.2 = 10", "x ÷ 1.5 = 4", "x ÷ 2.5 = 5", "x ÷ 0.4 = 12"
+    ].map(text => {
+      let match = text.match(/÷\s*([\d.]+)/);
+      let divisor = match ? parseFloat(match[1]) : 1;
+      let right = parseFloat(text.split('=')[1].trim());
+      let correct = right * divisor;
+      return { text, correct, type: "小数除法" };
+    });
+    return [...axb, ...xdiva, ...decMul, ...decDiv];
+  };
+  
+  const FULL_EQUATIONS = buildEquationLibrary();  // 总共30道
+  
+  // 辅助浮点比较
+  const isFloatEqual = (a, b, eps = 1e-8) => Math.abs(a - b) < eps;
+  
+  // 生成方程检验信息
+  const generateVerification = (eqText, userVal, correctVal) => {
+    let [leftRaw, rightRaw] = eqText.split('=').map(s => s.trim());
+    let leftExpr = leftRaw.replace(/x/gi, `(${userVal})`);
+    let leftEval;
+    try { leftEval = eval(leftExpr); } catch(e) { leftEval = "?"; }
+    const rightVal = parseFloat(rightRaw);
+    const isValid = isFloatEqual(leftEval, rightVal);
+    const correctHint = !isValid ? ` (正确答案是 ${correctVal})` : "";
+    let msg = `🔍 检验：x = ${userVal} 代入 ${eqText}，左边 = ${leftExpr} = ${leftEval}，右边 = ${rightVal}。`;
+    if (isValid) msg += ` ✅ 左边=右边，解正确！`;
+    else msg += ` ❌ 左边≠右边，解错误${correctHint}。`;
+    return { msg, isValid };
+  };
+  
+  // ---------- 左侧练习组件: 完整方程列表(ax=b, x÷a=b, 小数乘除各5道) ----------
+  const PracticePanel = () => {
+    // 初始化所有方程状态 (未做答)
+    const [eqList, setEqList] = React.useState(() => 
+      FULL_EQUATIONS.map((eq, idx) => ({
+        id: `eq-${idx}`,
+        text: eq.text,
+        correct: eq.correct,
+        type: eq.type,
+        userAnswer: "",
+        feedback: null,
+        isCorrect: null
+      }))
+    );
+    
+    const handleAnswerChange = (id, value) => {
+      setEqList(prev => prev.map(eq => 
+        eq.id === id ? { ...eq, userAnswer: value, feedback: null, isCorrect: null } : eq
+      ));
+    };
+    
+    const handleCheck = (id) => {
+      setEqList(prev => prev.map(eq => {
+        if (eq.id !== id) return eq;
+        const userVal = parseFloat(eq.userAnswer);
+        if (isNaN(userVal)) {
+          return { ...eq, feedback: "📛 请输入数字后再检验哟！", isCorrect: null };
+        }
+        const { msg, isValid } = generateVerification(eq.text, userVal, eq.correct);
+        return { ...eq, feedback: msg, isCorrect: isValid };
+      }));
+    };
+    
+    const handleShowAnswer = (id) => {
+      setEqList(prev => prev.map(eq => {
+        if (eq.id !== id) return eq;
+        const correctVal = eq.correct;
+        const { msg } = generateVerification(eq.text, correctVal, correctVal);
+        return { ...eq, userAnswer: correctVal.toString(), feedback: msg, isCorrect: true };
+      }));
+    };
+    
+    const resetAllProgress = () => {
+      setEqList(prev => prev.map(eq => ({ ...eq, userAnswer: "", feedback: null, isCorrect: null })));
+    };
+    
+    const totalCount = eqList.length;
+    const correctCount = eqList.filter(eq => eq.isCorrect === true).length;
+    
+    // 分组渲染
+    const groups = [
+      { title: "✖️ 形如 ax = b (整数乘)", key: "ax=b", color: "bg-purple-100", eqs: eqList.filter(e => e.type === "ax=b") },
+      { title: "➗ 形如 x ÷ a = b (整数除)", key: "x÷a=b", color: "bg-indigo-100", eqs: eqList.filter(e => e.type === "x÷a=b") },
+      { title: "🔢 小数乘法方程 (ax=b 含小数)", key: "小数乘法", color: "bg-pink-100", eqs: eqList.filter(e => e.type === "小数乘法") },
+      { title: "🔢 小数除法方程 (x÷a=b 含小数)", key: "小数除法", color: "bg-rose-100", eqs: eqList.filter(e => e.type === "小数除法") }
+    ];
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
+          <h3 className="text-2xl font-extrabold text-purple-800">📝 方程练习本</h3>
+          <div className="flex gap-2">
+            <span className="bg-purple-200 px-3 py-1 rounded-full text-base font-bold">✅ 已掌握 {correctCount}/{totalCount}</span>
+            <button onClick={resetAllProgress} className="bg-amber-400 hover:bg-amber-500 text-white font-bold py-1 px-3 rounded-full text-sm transition">🔄 清空所有检验</button>
+          </div>
+        </div>
+        <div className="max-h-[520px] overflow-y-auto scrollable-panel pr-2">
+          {groups.map(group => (
+            group.eqs.length > 0 && (
+              <div key={group.key} className="mb-5">
+                <div className={`${group.color} rounded-xl p-2 mb-2 font-bold text-purple-900 text-lg`}>{group.title} ({group.eqs.length}道)</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {group.eqs.map(eq => (
+                    <div key={eq.id} className="bg-white rounded-xl p-3 shadow border border-purple-200">
+                      <div className="font-mono font-bold text-xl text-purple-800">{eq.text}</div>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <input 
+                          type="number" step="any" value={eq.userAnswer}
+                          onChange={(e) => handleAnswerChange(eq.id, e.target.value)}
+                          placeholder="x = ?"
+                          className="flex-1 min-w-[100px] border border-purple-300 rounded-lg px-2 py-1 text-base bg-gray-50 focus:ring-2 focus:ring-purple-300"
+                        />
+                        <button onClick={() => handleCheck(eq.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded-lg text-sm font-bold">🔍 检验</button>
+                        <button onClick={() => handleShowAnswer(eq.id)} className="bg-purple-400 hover:bg-purple-500 text-white px-3 py-1 rounded-lg text-sm">📖 答案</button>
+                      </div>
+                      {eq.feedback && (
+                        <div className={`mt-2 text-sm p-2 rounded-lg ${eq.isCorrect ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+                          {eq.feedback}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+        <div className="mt-2 text-center text-sm text-purple-700 bg-purple-50 p-2 rounded-xl">
+          💡 小提示：点击「检验」会代入验算；点击「答案」自动填写正确解并检验。
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 右侧互动游戏: 魔法拖拽配对 (方程 & 解 连连配) ----------
+  // 游戏机制: 显示4~6个方程卡片(可拖拽)以及对应的答案卡片(放置区)
+  // 小朋友把方程拖拽到正确的答案上配对，配对成功后两个卡片消失或标记完成。
+  // 采用HTML5 drag-drop实现，并显示得分。
+  const MatchingGame = () => {
+    // 游戏题库从完整方程库随机抽取6个 (避免太多)
+    const getRandomGameItems = (count = 6) => {
+      const shuffled = [...FULL_EQUATIONS];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled.slice(0, count).map((item, idx) => ({
+        id: `game-${Date.now()}-${idx}-${Math.random()}`,
+        text: item.text,
+        correct: item.correct,
+        matched: false
+      }));
+    };
+    
+    const [gameItems, setGameItems] = React.useState(() => getRandomGameItems(6));
+    const [matchedCount, setMatchedCount] = React.useState(0);
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverId, setDragOverId] = React.useState(null);
+    
+    // 刷新游戏 (新一组题目)
+    const refreshGame = () => {
+      const newSet = getRandomGameItems(6);
+      setGameItems(newSet);
+      setMatchedCount(0);
+      setGameWin(false);
+      setDragOverId(null);
+    };
+    
+    // 当配对成功时调用
+    const matchEquation = (eqId, targetAnswerValue) => {
+      setGameItems(prev => {
+        const eqIndex = prev.findIndex(item => item.id === eqId && !item.matched);
+        if (eqIndex === -1) return prev;
+        const equation = prev[eqIndex];
+        // 验证答案数值是否匹配
+        const isMatch = isFloatEqual(equation.correct, targetAnswerValue);
+        if (!isMatch) return prev;
+        // 配对成功，标记为matched
+        const updated = [...prev];
+        updated[eqIndex] = { ...updated[eqIndex], matched: true };
+        const newMatchedCount = updated.filter(i => i.matched).length;
+        setMatchedCount(newMatchedCount);
+        if (newMatchedCount === updated.length) setGameWin(true);
+        return updated;
+      });
+      setDragOverId(null);
+    };
+    
+    // 拖拽方程卡片
+    const onDragStart = (e, eqId, eqText, correctVal) => {
+      if (gameItems.find(i => i.id === eqId)?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ eqId, correctVal }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    // 答案槽位拖拽悬停
+    const onDragOverAnswer = (e, answerVal) => {
+      e.preventDefault();
+      setDragOverId(answerVal);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveAnswer = () => { setDragOverId(null); };
+    
+    // 放置到答案槽位
+    const onDropToAnswer = (e, answerVal) => {
+      e.preventDefault();
+      setDragOverId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { eqId, correctVal: draggedCorrect } = dragData;
+      // 检查当前方程是否已被配对
+      const eqItem = gameItems.find(i => i.id === eqId);
+      if (!eqItem || eqItem.matched) return;
+      // 验证答案数值是否匹配
+      if (isFloatEqual(draggedCorrect, answerVal)) {
+        matchEquation(eqId, answerVal);
+      } else {
+        // 错误配对提示（短暂显示tips）
+        const tipDiv = document.getElementById("game-tip");
+        if (tipDiv) {
+          tipDiv.innerText = "❌ 配对错误！再观察一下方程的解～";
+          setTimeout(() => { if(tipDiv) tipDiv.innerText = "✨ 将方程拖拽到正确的答案上配对！"; }, 1200);
+        }
+      }
+    };
+    
+    // 收集未配对的方程 和 答案集合（显示所有未匹配答案及未匹配方程）
+    const unmatchedEquations = gameItems.filter(item => !item.matched);
+    // 答案池：未配对方程对应的正确答案集合 (但为了避免重复，每个答案独立，我们根据未配对的方程生成答案选项)
+    // 为了好玩，展示所有未配对的正确答案（随机打乱）
+    const answerOptions = React.useMemo(() => {
+      const answers = unmatchedEquations.map(eq => ({
+        value: eq.correct,
+        display: eq.correct % 1 === 0 ? eq.correct : eq.correct.toFixed(2),
+        eqId: eq.id  // 关联方程id，但不是必须，但确保每个答案可对应
+      }));
+      // 打乱顺序
+      for (let i = answers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [answers[i], answers[j]] = [answers[j], answers[i]];
+      }
+      return answers;
+    }, [unmatchedEquations]);
+    
+    const progressPercent = (matchedCount / gameItems.length) * 100;
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎮 魔法配对·拖拽游戏</h3>
+          <div className="flex items-center gap-2">
+            <span className="bg-purple-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {matchedCount}/{gameItems.length}</span>
+            <button onClick={refreshGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1 px-4 rounded-full text-base btn-fun shadow-md">🔄 新的一局</button>
+          </div>
+        </div>
+        <div className="w-full bg-purple-200 rounded-full h-2 mb-3">
+          <div className="bg-purple-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+        </div>
+        <p id="game-tip" className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 text-center mb-3">
+          ✨ 将左边的方程卡片 <strong>拖拽</strong> 到右边正确的答案上！配对成功会消失哦～
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧方程卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 方程卡片 (拖拽我)</div>
+            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+              {unmatchedEquations.length === 0 && (
+                <div className="text-center text-emerald-700 bg-emerald-100 p-4 rounded-xl">🎉 哇！全部配对成功！太厉害了！点“新的一局”继续挑战～</div>
+              )}
+              {unmatchedEquations.map(eq => (
+                <div 
+                  key={eq.id} 
+                  draggable={true}
+                  onDragStart={(e) => onDragStart(e, eq.id, eq.text, eq.correct)}
+                  onDragEnd={onDragEnd}
+                  className="drag-equation bg-gradient-to-r from-purple-300 to-fuchsia-300 text-white font-bold rounded-xl p-3 text-center shadow-md hover:shadow-lg transition transform hover:scale-102"
+                >
+                  <span className="text-xl font-mono">{eq.text}</span>
+                  <div className="text-xs text-purple-100 mt-1">💡 拖拽到右边答案上</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧答案放置区 */}
+          <div className="flex-1 bg-amber-50/70 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎯 答案宝藏 (放置区)</div>
+            <div className="grid grid-cols-2 gap-3">
+              {answerOptions.map((ans, idx) => (
+                <div 
+                  key={`ans-${ans.value}-${idx}`}
+                  onDragOver={(e) => onDragOverAnswer(e, ans.value)}
+                  onDragLeave={onDragLeaveAnswer}
+                  onDrop={(e) => onDropToAnswer(e, ans.value)}
+                  className={`game-card border-2 border-dashed rounded-xl p-3 text-center font-bold text-lg transition-all cursor-pointer ${dragOverId === ans.value ? 'drag-over bg-purple-200' : 'bg-white/80 border-amber-400'} hover:shadow-md`}
+                >
+                  <span className="text-2xl text-amber-700">x = {ans.display}</span>
+                  <div className="text-xs text-gray-500 mt-1">⬅️ 拖拽方程到这里</div>
+                </div>
+              ))}
+              {answerOptions.length === 0 && unmatchedEquations.length === 0 && (
+                <div className="col-span-2 text-center text-green-700 font-bold p-4 bg-green-100 rounded-xl">🎉 胜利！方程大师！</div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {gameWin && unmatchedEquations.length === 0 && (
+          <div className="mt-4 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-xl celebration">
+            🎉🎉 完美配对！你已经成为乘除方程小英雄！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-100 p-2 rounded-full">
+          💡 拖拽方程卡片，放到对应的“答案宝藏”上，配对正确即消除！学习等式性质2，解方程so easy~
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 知识点卡片：等式性质2 注意事项 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-4xl">⚖️</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">等式性质2 · 注意事项</h2>
+        </div>
+        <div className="space-y-3 text-base text-purple-900">
+          <p className="bg-white/60 rounded-xl p-3"><strong>✨ 性质内容：</strong>等式两边同时乘同一个数，或同时除以同一个<strong className="text-red-600">不为0的数</strong>，等式仍然成立。</p>
+          <div className="bg-amber-50 border-l-8 border-amber-500 p-3 rounded-xl">
+            <p className="font-bold">⚠️ 特别提醒（敲黑板！）</p>
+            <ul className="list-disc pl-5 mt-1 space-y-1">
+              <li>除以一个数时，这个数<strong>绝对不能是0</strong>！因为0不能做除数。</li>
+              <li>在解 <span className="font-mono bg-purple-200 px-1 rounded">ax = b</span> 时，两边同时除以 a (a≠0)。</li>
+              <li>在解 <span className="font-mono bg-purple-200 px-1 rounded">x ÷ a = b</span> 时，两边同时乘以 a (a≠0)。</li>
+              <li>小数乘除同样适用，记得细心计算小数点的位置。</li>
+            </ul>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            🌟 小口诀：“乘除同数不为零，等式平衡永不倾。乘变除来除变乘，解出方程我最行！”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局: 左侧知识点 + 练习模块, 右侧游戏 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 练习面板 */}
+        <div className="flex-1 xl:w-3/5 space-y-6">
+          <KnowledgeCard />
+          <PracticePanel />
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

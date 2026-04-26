@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>整体思想小行家 | 打包代换·不求局部·整体求解</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        .dragging-card {
+            opacity: 0.6;
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        .drop-zone-active {
+            transition: 0.08s linear;
+            box-shadow: 0 0 0 4px #c084fc, 0 0 0 8px rgba(192,132,252,0.3);
+            background-color: #f3e8ff !important;
+        }
+        .win-glow {
+            animation: winPulse 0.5s ease-in-out 2;
+        }
+        @keyframes winPulse {
+            0% { box-shadow: 0 0 0 0 #c084fc; background-color: #faf5ff; }
+            50% { box-shadow: 0 0 0 12px rgba(192,132,252,0.5); background-color: #fae8ff; }
+            100% { box-shadow: 0 0 0 0 #c084fc; background-color: #faf5ff; }
+        }
+        [draggable="true"] {
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #9333ea;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-fuchsia-50 to-purple-100 min-h-screen p-4 md:p-6 font-sans">
+
+<div id="root"></div>
+
+<script type="text/babel">
+    // 整体思想专项训练 —— 打包代换、整体代入、不求局部求整体
+    const { useState, useCallback, useEffect, useRef } = React;
+
+    // ---------- 随机题目生成器 (等量代换、整体求值) ----------
+    // 类型 A: 已知几个组合的总价，求另一个组合的总价 (整体法: 倍数相加或相减)
+    // 类型 B: 已知图形中部分周长或面积关系，求整体关系
+    // 类型 C: 多个未知数的整体和，不求单个
+    const generateWholeProblem = () => {
+        const type = Math.floor(Math.random() * 3); // 0: 购物组合, 1: 图形整体, 2: 未知数整体和
+        if (type === 0) {
+            // 购物组合: 已知 3种物品的组合价格，求另一种组合价格
+            const a = Math.floor(Math.random() * 5) + 2; // 单价2~6
+            const b = Math.floor(Math.random() * 5) + 3; // 3~7
+            const c = Math.floor(Math.random() * 4) + 2; // 2~5
+            // 构造条件: 2A+3B = price1, 4B+1C = price2, 求 2A+2B+1C? 等
+            // 为了让整体思想明显，设计如：已知 2支钢笔+3个本子=38元，4个本子+1个橡皮=22元，求2支钢笔+2个本子+1个橡皮多少钱?
+            // 整体法: (2笔+3本) + (4本+1橡) = 38+22=60 => 2笔+7本+1橡=60, 再减去 5本? 不合适，最好直接通过加减组合出目标。
+            // 更典型: 已知 2苹果+3香蕉=17，3苹果+2香蕉=18，求1苹果+1香蕉? (整体相加除以5)
+            const fruitType = Math.floor(Math.random() * 2);
+            if (fruitType === 0) {
+                // 经典：两种物品的两种组合，求单种或和
+                let x = Math.floor(Math.random() * 5) + 3; // 苹果单价 3~7
+                let y = Math.floor(Math.random() * 5) + 2; // 香蕉单价 2~6
+                let combo1 = [2, 3]; // 2苹果+3香蕉
+                let combo2 = [3, 2]; // 3苹果+2香蕉
+                let price1 = combo1[0]*x + combo1[1]*y;
+                let price2 = combo2[0]*x + combo2[1]*y;
+                // 目标: 求 1苹果+1香蕉 的价格
+                let target = x + y;
+                // 也可以求 5苹果+5香蕉 = 5*(x+y)
+                let scale = Math.floor(Math.random() * 3) + 1; // 1~3
+                let targetDesc = scale === 1 ? "1个苹果和1个香蕉" : `${scale}个苹果和${scale}个香蕉`;
+                let correct = target * scale;
+                let questionText = `🍎🍌 整体代换：已知 ${combo1[0]}个苹果 + ${combo1[1]}根香蕉 = ${price1}元，${combo2[0]}个苹果 + ${combo2[1]}根香蕉 = ${price2}元。请问 ${targetDesc} 一共多少元？（用整体思想，不求单个价格）`;
+                return { text: questionText, correctAnswer: correct, hint: `💡 把两个等式相加：${combo1[0]+combo2[0]}苹果 + ${combo1[1]+combo2[1]}香蕉 = ${price1+price2}元，两边同时除以${combo1[0]+combo2[0]==combo1[1]+combo2[1] ? combo1[0]+combo2[0] : '5'}即可得到一份组合的价格。` };
+            } else {
+                // 三种物品，通过加减得出目标组合
+                let p1 = Math.floor(Math.random() * 8) + 4; // 笔单价 4~11
+                let p2 = Math.floor(Math.random() * 7) + 5; // 本子 5~11
+                let p3 = Math.floor(Math.random() * 6) + 3; // 橡皮 3~8
+                let exp1 = { pen: 2, book: 3, rubber: 0 }; // 2笔+3本
+                let exp2 = { pen: 0, book: 4, rubber: 1 }; // 4本+1橡
+                let price1 = exp1.pen*p1 + exp1.book*p2 + exp1.rubber*p3;
+                let price2 = exp2.pen*p1 + exp2.book*p2 + exp2.rubber*p3;
+                // 目标: 2笔+2本+1橡 = (2笔+3本) + (4本+1橡) - 5本 不太好，更好: 直接构造可通过加减得到。
+                // 另一种: 已知 2A+3B=18, 4B+1C=22, 求2A+2B+1C = (2A+3B)+(4B+1C) - 5B 缺少B? 不理想。
+                // 使用简单加减: 目标组合 target = {pen:2, book:2, rubber:1}
+                let target = { pen: 2, book: 2, rubber: 1 };
+                let correct = target.pen*p1 + target.book*p2 + target.rubber*p3;
+                // 检查能否用已知组合线性表示: 解决 a*(2,3,0) + b*(0,4,1) = (2,2,1) => 2a=2 => a=1, 3a+4b=2 => 3+4b=2 => b=-0.25 不整数，所以改条件。
+                // 再设计一个简单可加成的: 已知 2A+3B=23, 1A+2B=13, 求3A+5B? 直接相加整体。 改用常见两个组合求第三个组合 : 用整体加减构造。
+                // 更简单: 已知 3梨+2桃=19，2梨+3桃=16，求5梨+5桃？直接相加。还有求梨+桃。
+                let x = Math.floor(Math.random() * 5) + 3;
+                let y = Math.floor(Math.random() * 5) + 2;
+                let comboA = [3, 2]; // 3梨+2桃
+                let comboB = [2, 3]; // 2梨+3桃
+                let priceA = comboA[0]*x + comboA[1]*y;
+                let priceB = comboB[0]*x + comboB[1]*y;
+                let targetMul = Math.floor(Math.random() * 3) + 1; // 1~3倍
+                let correctAns = (x+y) * targetMul;
+                let questionText = `🍐🍑 等量代换：已知 ${comboA[0]}个梨 + ${comboA[1]}个桃 = ${priceA}元，${comboB[0]}个梨 + ${comboB[1]}个桃 = ${priceB}元。请问 ${targetMul}个梨和${targetMul}个桃一共多少元？（整体思想，不求单个价格）`;
+                return { text: questionText, correctAnswer: correctAns, hint: `💡 将两个等式相加得到 ${comboA[0]+comboB[0]}梨+${comboA[1]+comboB[1]}桃 = ${priceA+priceB}元，左边正好是${comboA[0]+comboB[0]}份“1梨+1桃”，因此一份梨+桃的价格可求，再乘倍数即可。` };
+            }
+        } 
+        else if (type === 1) {
+            // 图形整体思想: 已知几个小图形的边长或面积关系，求组合图形面积/周长
+            // 例如: 三个完全一样的小长方形拼成一个大长方形，已知小长方形周长或面积，求大长方形周长
+            // 或者已知部分区域面积和，求整体面积
+            const choice = Math.floor(Math.random() * 2);
+            if (choice === 0) {
+                // 小正方形拼长方形: 3个相同的小正方形拼成长方形，已知小正方形周长，求大长方形周长
+                let side = Math.floor(Math.random() * 5) + 2; // 边长2~6
+                let smallPerimeter = side * 4;
+                let bigPerimeter = (side * 3 + side) * 2; // 3个并排
+                let correct = bigPerimeter;
+                let questionText = `📐 图形整体：用3个完全相同的小正方形拼成一个长方形（一字排开）。已知每个小正方形的周长是 ${smallPerimeter} 厘米，拼成的长方形周长是多少厘米？（整体思想，不求边长）`;
+                return { text: questionText, correctAnswer: correct, hint: `💡 拼成长方形后，长=3倍边长，宽=边长，周长=2×(长+宽)=2×(3a+a)=8a，而小正方形周长=4a，所以大周长 = 小周长 × 2 = ${smallPerimeter*2} 厘米。` };
+            } else {
+                // 已知两个小长方形面积和，求大长方形面积 (重叠或组合)
+                let len = Math.floor(Math.random() * 8) + 5;
+                let wid = Math.floor(Math.random() * 5) + 3;
+                let area1 = len * wid;
+                let area2 = (len+2) * wid;
+                let correct = (len*2+2) * wid; // 拼起来
+                let questionText = `📏 整体面积：两个长方形，第一个长 ${len}cm 宽 ${wid}cm，第二个长 ${len+2}cm 宽 ${wid}cm，将它们并排拼成一个更大的长方形（宽相同）。拼成的大长方形面积是多少平方厘米？（不求单个再相加，直接用整体长×宽）`;
+                let correctAns = (len + (len+2)) * wid;
+                return { text: questionText, correctAnswer: correctAns, hint: `💡 拼成后大长方形的长 = ${len} + ${len+2} = ${2*len+2} cm，宽 = ${wid} cm，整体面积 = 长×宽，不必分别求两块再相加。` };
+            }
+        } 
+        else {
+            // 未知数整体和: 已知几个方程的和或差关系，求某个整体表达式的值 (不求单个未知数)
+            // 例: 已知 a+b=10, b+c=12, a+c=14, 求 a+b+c 或者 2a+3b+4c 等
+            let a = Math.floor(Math.random() * 8) + 2;
+            let b = Math.floor(Math.random() * 8) + 2;
+            let c = Math.floor(Math.random() * 8) + 2;
+            let sumAB = a+b;
+            let sumBC = b+c;
+            let sumAC = a+c;
+            let sumABC = a+b+c;
+            let exprType = Math.floor(Math.random() * 3);
+            let correct = 0;
+            let questionText = "";
+            let hint = "";
+            if (exprType === 0) {
+                correct = sumABC;
+                questionText = `🔢 整体代入：已知 a + b = ${sumAB}，b + c = ${sumBC}，a + c = ${sumAC}，求 a + b + c 的值。`;
+                hint = `💡 将三个等式左、右分别相加：(a+b)+(b+c)+(a+c) = ${sumAB+sumBC+sumAC}，即2(a+b+c)=${sumAB+sumBC+sumAC}，所以 a+b+c = ${(sumAB+sumBC+sumAC)/2}。`;
+            } else if (exprType === 1) {
+                // 求 2a+3b+2c 等
+                let coeff = [2,3,2];
+                correct = coeff[0]*a + coeff[1]*b + coeff[2]*c;
+                questionText = `🔢 整体代入：已知 a + b = ${sumAB}，b + c = ${sumBC}，a + c = ${sumAC}，求 ${coeff[0]}a + ${coeff[1]}b + ${coeff[2]}c 的值。`;
+                hint = `💡 将所求表达式用已知整体表示：${coeff[0]}a+${coeff[1]}b+${coeff[2]}c = (a+b) + (b+c) + (a+c) + ... 组合，实际可计算出。`;
+            } else {
+                // 求 (a+b) - (b-c) 之类
+                correct = (a+b) - (b-c);
+                questionText = `🔢 整体代入：已知 a + b = ${sumAB}，b - c = ${b-c}，求 (a+b) - (b-c) 的值。`;
+                hint = `💡 整体代入：原式 = ${sumAB} - ${b-c} = ${correct}，无需知道a,b,c各自多少。`;
+            }
+            return { text: questionText, correctAnswer: correct, hint: hint };
+        }
+    };
+
+    // 生成干扰选项 (基于正确答案)
+    const generateOptions = (correct) => {
+        let opts = new Set();
+        opts.add(correct);
+        let candidates = [correct+1, correct-1, correct+2, correct-2, correct+3, correct-3, Math.floor(correct*1.2), Math.floor(correct*0.8)];
+        candidates = candidates.filter(v => v > 0 && v !== correct);
+        for (let c of candidates) {
+            if (opts.size < 4) opts.add(c);
+            if (opts.size >= 4) break;
+        }
+        while (opts.size < 4) opts.add(correct + opts.size);
+        let arr = Array.from(opts);
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    // 主组件
+    const WholeGame = () => {
+        const [problem, setProblem] = useState(() => {
+            const init = generateWholeProblem();
+            return init;
+        });
+        const [options, setOptions] = useState([]);
+        const [correctAnswer, setCorrectAnswer] = useState(0);
+        const [isWin, setIsWin] = useState(false);
+        const [message, setMessage] = useState("✨ 整体打包看问题，拖拽正确整体结果到宝箱 ✨");
+        const [winAnim, setWinAnim] = useState(false);
+        const dragValueRef = useRef(null);
+
+        const refreshProblem = useCallback(() => {
+            const newProb = generateWholeProblem();
+            setProblem(newProb);
+            setCorrectAnswer(newProb.correctAnswer);
+            const newOpts = generateOptions(newProb.correctAnswer);
+            setOptions(newOpts);
+            setIsWin(false);
+            setWinAnim(false);
+            setMessage("🔄 新题目！用整体思想，不拆解局部，直接打包求解。");
+        }, []);
+
+        useEffect(() => {
+            setCorrectAnswer(problem.correctAnswer);
+            setOptions(generateOptions(problem.correctAnswer));
+        }, [problem]);
+
+        const onCardDragStart = (e, num) => {
+            if (isWin) {
+                e.preventDefault();
+                setMessage("🏆 已经胜利啦！点击「换一题」继续挑战！");
+                return false;
+            }
+            dragValueRef.current = num;
+            e.dataTransfer.setData("text/plain", num);
+            e.dataTransfer.effectAllowed = "copy";
+            if (e.target.classList) e.target.classList.add("dragging-card");
+        };
+        const onDragEnd = (e) => {
+            if (e.target.classList) e.target.classList.remove("dragging-card");
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+            dragValueRef.current = null;
+        };
+        const onDragOverTarget = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            const zone = document.getElementById("answerDropZone");
+            if (zone && !isWin) zone.classList.add("drop-zone-active");
+        };
+        const onDragLeaveTarget = () => {
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+        };
+        const onDropToTarget = (e) => {
+            e.preventDefault();
+            const zone = document.getElementById("answerDropZone");
+            if (zone) zone.classList.remove("drop-zone-active");
+            if (isWin) {
+                setMessage("你已经获胜，换一题再挑战吧！");
+                return;
+            }
+            const raw = e.dataTransfer.getData("text/plain");
+            if (!raw) return;
+            const dropped = Number(raw);
+            if (isNaN(dropped)) return;
+            if (dropped === correctAnswer) {
+                setIsWin(true);
+                setWinAnim(true);
+                setMessage("🎉🎉 整体思想应用完美！不求局部也能准确求解 🎉🎉");
+                setTimeout(() => setWinAnim(false), 600);
+            } else {
+                setMessage(`❌ ${dropped} 不是正确答案。试一试整体打包：把已知条件整体组合，不单独求每个数。提示：${problem.hint}`);
+                const msgDiv = document.querySelector(".feedback-msg");
+                if (msgDiv) msgDiv.classList.add("animate-pulse");
+                setTimeout(() => {
+                    if (msgDiv) msgDiv.classList.remove("animate-pulse");
+                }, 600);
+            }
+        };
+
+        return (
+            <div className="max-w-7xl mx-auto">
+                {/* 主标题 */}
+                <div className="text-center mb-6">
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-900 to-fuchsia-700 drop-shadow-md">
+                        🎁 整体思想小行家 · 打包求解不拆解 🎁
+                    </h1>
+                    <p className="text-purple-800 text-lg font-semibold mt-1">等量代换 | 整体代入 | 不求局部求整体</p>
+                </div>
+                
+                <div className="flex flex-col lg:flex-row gap-7">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 border border-purple-200 custom-scroll overflow-y-auto">
+                        <div className="flex items-center gap-2 border-b-2 border-purple-400 pb-2 mb-4">
+                            <span className="text-3xl">📦</span>
+                            <span className="text-3xl font-bold text-purple-900">核心知识点</span>
+                        </div>
+                        <div className="space-y-5 text-gray-800 text-base md:text-lg">
+                            <div className="bg-purple-50 p-4 rounded-xl">
+                                <p className="font-extrabold text-purple-800 text-xl">🧩 整体思想 · 打包法</p>
+                                <p>从整体出发，将一组相关的量<strong>看成一个整体</strong>，不去分别求出每个部分，而是直接求出整体结果，简化计算，避开繁琐步骤。</p>
+                            </div>
+                            <div className="bg-indigo-50 p-4 rounded-xl">
+                                <p className="font-bold text-purple-800">✨ 三大应用场景 ✨</p>
+                                <ul className="list-disc list-inside space-y-2 mt-1">
+                                    <li><strong>🎯 等量代换</strong>：已知几个组合的总价，通过加减组合直接求出目标组合，不求单价。</li>
+                                    <li><strong>📐 图形组合</strong>：将多个部分拼成一个整体图形，直接用整体长宽或面积公式求解。</li>
+                                    <li><strong>🔢 整体和差</strong>：已知多个未知数的和差关系，整体计算表达式的值，不单独解未知数。</li>
+                                </ul>
+                            </div>
+                            <div className="bg-fuchsia-50 p-4 rounded-xl">
+                                <p className="font-bold">🧠 整体思维核心优势</p>
+                                <p>避开复杂的单个量求解，将条件<strong>整体打包</strong>（相加、相减、倍乘），直接得到整体结果。适用于方程思想前的高阶算术思维。</p>
+                                <div className="mt-2 bg-white p-2 rounded-md text-sm">📌 经典例子：已知 2A+3B=23, 3A+2B=22, 求A+B？两式相加得5(A+B)=45 → A+B=9</div>
+                            </div>
+                            <div className="bg-amber-50 p-3 rounded-lg text-sm">
+                                💡 右侧游戏：拖拽正确的整体结果数字到宝箱！记住“打包已知，组合目标，不求局部”。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧互动游戏区 */}
+                    <div className="lg:w-3/5 bg-white/95 rounded-3xl shadow-2xl p-5 border-2 border-purple-300 flex flex-col">
+                        {/* 题目卡片 */}
+                        <div className="bg-gradient-to-r from-purple-200 via-fuchsia-100 to-purple-200 rounded-2xl p-5 mb-5 shadow-md">
+                            <div className="flex flex-wrap justify-between items-start gap-2">
+                                <div className="flex-1">
+                                    <span className="inline-block bg-purple-700 text-white text-sm px-4 py-1 rounded-full">🎯 整体思维挑战</span>
+                                    <p className="text-lg md:text-xl font-bold text-purple-900 mt-3 leading-relaxed">
+                                        {problem.text}
+                                    </p>
+                                    <div className="mt-2 text-sm bg-white/60 inline-block px-3 py-1 rounded-full text-purple-700">
+                                        📌 提示：{problem.hint}
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={refreshProblem}
+                                    className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-6 rounded-full transition shadow-md flex items-center gap-1 text-base md:text-lg"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 拖拽卡片 + 答案宝箱 */}
+                        <div className="flex flex-col md:flex-row gap-6 items-stretch mb-5">
+                            <div className="flex-1 bg-purple-50/80 rounded-2xl p-4 border border-purple-200">
+                                <p className="text-center font-bold text-purple-800 mb-3 text-lg">🎲 可拖拽数字 (整体结果)</p>
+                                <div className="flex flex-wrap justify-center gap-3">
+                                    {options.map((opt, idx) => (
+                                        <div
+                                            key={idx}
+                                            draggable={!isWin}
+                                            onDragStart={(e) => onCardDragStart(e, opt)}
+                                            onDragEnd={onDragEnd}
+                                            className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl shadow-lg flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition hover:scale-105 border-2 border-purple-500"
+                                        >
+                                            <span className="text-3xl md:text-4xl font-black text-white drop-shadow-md">{opt}</span>
+                                            <span className="text-[10px] font-bold text-purple-900">拖拽</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-center text-gray-600 mt-3">👉 拖拽正确的整体计算值到右边宝箱</p>
+                            </div>
+                            
+                            <div 
+                                id="answerDropZone"
+                                onDragOver={onDragOverTarget}
+                                onDragLeave={onDragLeaveTarget}
+                                onDrop={onDropToTarget}
+                                className={`flex-1 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl border-4 border-dashed p-5 flex flex-col items-center justify-center transition-all min-h-[200px] ${isWin ? 'border-green-500 bg-green-50' : 'border-purple-400'}`}
+                            >
+                                {isWin ? (
+                                    <div className="text-center">
+                                        <div className="text-7xl mb-2">🏆🎉</div>
+                                        <p className="text-2xl font-black text-green-700">整体制胜！</p>
+                                        <p className="text-purple-700 mt-2">不拆解，巧求解</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span className="text-5xl mb-2">📦</span>
+                                        <span className="text-xl font-bold text-purple-800 text-center">整体宝箱</span>
+                                        <p className="text-center text-gray-600 mt-2 text-sm">将打包后的整体结果拖拽至此 → <br/>验证整体思维！</p>
+                                        <div className="mt-3 w-32 h-16 bg-white rounded-xl flex items-center justify-center shadow-inner border border-purple-300">
+                                            <span className="text-2xl font-mono font-bold text-gray-400">???</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 反馈消息区 */}
+                        <div className={`feedback-msg mt-3 text-center py-3 px-4 rounded-full font-medium text-base md:text-lg ${isWin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'} shadow-inner transition`}>
+                            {isWin ? "🎉 完美！整体思想用得漂亮！点击换一题继续进阶 🎉" : message}
+                        </div>
+                        
+                        {/* 辅助按钮 */}
+                        <div className="flex justify-center mt-4 gap-4">
+                            <button 
+                                onClick={() => {
+                                    if (!isWin) setMessage(`💡 整体三步：1. 找已知整体；2. 组合已知整体得出目标整体；3. 直接计算。 ${problem.hint}`);
+                                    else setMessage("胜利啦！继续应用整体思想解决更复杂问题！");
+                                }}
+                                className="text-purple-600 bg-purple-100 px-3 py-1 rounded-full text-sm"
+                            >
+                                ✨ 整体策略
+                            </button>
+                            <button 
+                                onClick={refreshProblem}
+                                className="text-fuchsia-600 bg-fuchsia-100 px-3 py-1 rounded-full text-sm"
+                            >
+                                🎲 换一题新挑战
+                            </button>
+                        </div>
+                        
+                        <div className="text-xs text-purple-500 text-center mt-4 border-t pt-3 border-purple-200">
+                            💡 整体思想精髓：把若干数量“打包”成一个整体，通过整体之间的运算快速得到答案，不求局部，化繁为简。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
+    ReactDOM.createRoot(document.getElementById("root")).render(<WholeGame />);
+</script>
+</body>
+</html>

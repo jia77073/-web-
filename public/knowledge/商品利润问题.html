@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>商品利润·思维特训营 | 成本售价折扣 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽库 (稳定拖拽体验) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        .sortable-drag {
+            opacity: 0.4;
+            background-color: #f3e8ff;
+            transform: scale(0.96);
+        }
+        .sortable-ghost {
+            opacity: 0.3;
+            background-color: #d8b4fe;
+        }
+        .scene-card {
+            cursor: grab;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .scene-card:active {
+            cursor: grabbing;
+        }
+        .matched-card {
+            background-color: #bbf7d0 !important;
+            border-left: 6px solid #22c55e !important;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2rem !important;
+            }
+            .scene-card, .answer-card {
+                font-size: 0.85rem;
+                padding: 0.5rem;
+            }
+        }
+        /* 绿色自然背景 + 紫色点缀 */
+        body {
+            background: linear-gradient(145deg, #c8e6b5 0%, #a9d48e 100%);
+            font-family: 'Segoe UI', 'Comic Neue', system-ui, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 商品利润拓展题库 (成本、售价、利润率、折扣、盈亏) -----------------------------
+        // 每个题目: 场景描述 + 正确答案(数值/描述)
+        const PROBLEMS = [
+            { id: 1, scene: "📱 一部手机进价2000元，售价2500元，利润率是多少？", answer: "25%", hint: "利润率 = (售价-成本)÷成本×100% = (2500-2000)÷2000 = 25%。" },
+            { id: 2, scene: "👕 一件衣服标价300元，打八折后售出，仍获利20%，求进价？", answer: "200元", hint: "售价=300×0.8=240元，进价=240÷(1+20%)=200元。" },
+            { id: 3, scene: "🍎 某商品按标价出售可获利40%，如果打八折出售，每件仍可获利多少元（已知进价为100元）？", answer: "12元", hint: "标价=100×(1+40%)=140元，八折后112元，利润=112-100=12元。" },
+            { id: 4, scene: "📚 书店促销，每买3本送1本，相当于打几折？", answer: "七五折", hint: "付3本的钱得4本，折扣=3÷4=0.75=七五折。" },
+            { id: 5, scene: "🧥 一件皮衣降价10%后，又提价10%，现价是原价的百分之几？", answer: "99%", hint: "设原价100，降价后90，再提价10%得99，即99%。" },
+            { id: 6, scene: "🎁 某商品先提价20%，再降价20%，结果是原价的百分之几？", answer: "96%", hint: "设原价100，提价后120，降价20%得96，即96%。" },
+            { id: 7, scene: "🏷️ 一件商品以400元卖出，亏损20%，求进价？", answer: "500元", hint: "进价=售价÷(1-亏损率)=400÷0.8=500元。" },
+            { id: 8, scene: "📈 某种商品每件成本120元，按定价出售可获利50%，后来按定价的90%出售，每件实际获利多少？", answer: "42元", hint: "定价=120×1.5=180元，九折后162元，获利162-120=42元。" }
+        ];
+        
+        // ----------------------------- 左侧知识讲解组件 ------------------------------------
+        const KnowledgeBase = () => {
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">💰</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 main-title">商品利润·思维特训营</h1>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200">
+                        <h2 className="text-2xl font-bold text-purple-800 flex items-center gap-2">🧠 核心公式 · 商业利润模型</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong className="text-purple-800">利润 = 售价 - 成本</strong>；<strong className="text-purple-800">利润率 = 利润 ÷ 成本 × 100%</strong>；<strong className="text-purple-800">售价 = 成本 × (1 + 利润率)</strong></p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 拓展变式核心：</p>
+                                <p>🔹 <strong>折扣问题</strong>：售价 = 标价 × 折扣率；利润 = 标价×折扣 - 成本</p>
+                                <p>🔹 <strong>盈亏问题</strong>：亏损率 = (成本 - 售价) ÷ 成本 × 100%</p>
+                                <p>🔹 <strong>连续调价</strong>：设原价为100，逐步计算更直观</p>
+                                <p>🔹 <strong>促销优惠</strong>：“买几送几” → 实际折扣 = 付的钱 ÷ 应得总价</p>
+                            </div>
+                            <p>⚡ <strong className="text-purple-800">解题三步法</strong>：① 找准成本（单位“1”）；② 表示出售价/利润；③ 列方程或算术求解。</p>
+                            <p>🎯 <strong>拔高题型</strong>：多件商品混合获利、满减叠加折扣、不同利润率对比、成本变化后的重新定价。</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">📖 利润速记小锦囊</h3>
+                        <div className="mt-2 space-y-2 text-gray-700 text-sm md:text-base">
+                            <p>💡 <strong>利润率</strong> 总是相对于成本而言；<strong>折扣</strong> 总是相对于标价而言。</p>
+                            <p>🔄 <strong>方程法</strong>：设成本为x，根据售价关系列方程。</p>
+                            <p>📊 <strong>多件商品总利润</strong> = 单件利润 × 数量 = 总收入 - 总成本。</p>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 右侧小游戏 → 将左侧问题卡片拖拽到正确的答案卡片上配对，成功消除！挑战经济数学思维。
+                    </div>
+                </div>
+            );
+        };
+        
+        // ----------------------------- 右侧拖拽配对游戏 (商品利润知识配对) ------------------------------------
+        const ProfitGame = () => {
+            // 当前展示的题目列表（随机选6道，避免过长）
+            const [gameProblems, setGameProblems] = React.useState([]);
+            // 已配对的题目id集合
+            const [matchedIds, setMatchedIds] = React.useState(new Set());
+            // 答案卡片数组：包含正确答案+干扰项
+            const [answerCards, setAnswerCards] = React.useState([]);
+            // 反馈信息
+            const [feedbackMsg, setFeedbackMsg] = React.useState('');
+            // 是否全部完成
+            const [allCompleted, setAllCompleted] = React.useState(false);
+            // 强制刷新key
+            const [refreshKey, setRefreshKey] = React.useState(0);
+            
+            // 从题库随机选6道不同的题，并生成答案卡片（包含正确答案和干扰项）
+            const initGameSet = () => {
+                // 随机取6道题
+                const shuffledAll = [...PROBLEMS];
+                for (let i = shuffledAll.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledAll[i], shuffledAll[j]] = [shuffledAll[j], shuffledAll[i]];
+                }
+                const selected = shuffledAll.slice(0, 6);
+                setGameProblems(selected);
+                
+                // 正确答案列表
+                const correctItems = selected.map(p => ({ id: p.id, label: p.answer, type: 'correct' }));
+                // 干扰项：从所有题目答案中排除正确答案，取前3~4个
+                const allAnswers = [...new Set(PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                // 随机取3个干扰项
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                
+                let combined = [...correctItems, ...selectedDistractors];
+                // 打乱顺序
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedbackMsg('');
+                setAllCompleted(false);
+                setRefreshKey(prev => prev + 1);
+            };
+            
+            React.useEffect(() => {
+                initGameSet();
+            }, []);
+            
+            // 检查是否全部配对
+            React.useEffect(() => {
+                if (gameProblems.length > 0 && matchedIds.size === gameProblems.length) {
+                    setAllCompleted(true);
+                    setFeedbackMsg("🎉 完美！所有利润难题都配对成功！你已成经济小行家！ 🎉");
+                }
+            }, [matchedIds, gameProblems]);
+            
+            // 处理拖拽配对（使用原生HTML5拖拽，稳定可靠）
+            const handleDragStart = (e, answerLabel, answerType, correctProblemId) => {
+                if (allCompleted) {
+                    e.preventDefault();
+                    return;
+                }
+                // 只允许正确答案被拖拽配对（干扰项也可以拖拽但会配对失败，我们允许拖拽但会给出错误提示）
+                e.dataTransfer.setData("text/plain", JSON.stringify({ answerLabel, correctProblemId, answerType }));
+                e.dataTransfer.effectAllowed = "copy";
+            };
+            
+            const handleDragOver = (e) => {
+                e.preventDefault();
+            };
+            
+            const handleDrop = (e, problemId, correctAnswer) => {
+                e.preventDefault();
+                if (allCompleted) return;
+                if (matchedIds.has(problemId)) {
+                    setFeedbackMsg("这道题已经配对成功啦！");
+                    return;
+                }
+                const rawData = e.dataTransfer.getData("text/plain");
+                if (!rawData) return;
+                const { answerLabel, correctProblemId, answerType } = JSON.parse(rawData);
+                // 配对验证：答案标签是否匹配当前题目正确答案
+                if (answerLabel === correctAnswer) {
+                    // 配对成功
+                    setMatchedIds(prev => new Set(prev).add(problemId));
+                    // 从答案卡片中移除该正确答案（避免重复使用）
+                    setAnswerCards(prev => prev.filter(card => !(card.type === 'correct' && card.label === answerLabel)));
+                    setFeedbackMsg(`✅ 正确！${gameProblems.find(p=>p.id===problemId)?.scene} 的答案是 ${answerLabel}，继续挑战！`);
+                } else {
+                    setFeedbackMsg(`❌ 配对错误！正确答案是 ${correctAnswer}，再试试看～ 小提示：${gameProblems.find(p=>p.id===problemId)?.hint}`);
+                }
+            };
+            
+            // 换一组题目（换一题功能）
+            const handleRefresh = () => {
+                initGameSet();
+            };
+            
+            // 重置当前配对（清空所有配对，重置状态，不换题，只是重置配对情况）
+            const handleReset = () => {
+                // 重新基于当前题目生成答案卡片
+                const currentProblems = gameProblems;
+                const correctItems = currentProblems.map(p => ({ id: p.id, label: p.answer, type: 'correct' }));
+                const allAnswersAll = [...new Set(PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswersAll.filter(ans => !correctLabels.has(ans));
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedbackMsg("已重置配对，可以重新拖拽挑战！");
+                setAllCompleted(false);
+            };
+            
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🛍️</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">利润商店·拖拽配对</h2>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={handleReset} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-2xl shadow-md transition text-sm">🔄 重置配对</button>
+                            <button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base">🔄 换一题</button>
+                        </div>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-3 bg-purple-50 p-2 rounded-xl">
+                        🎮 <strong>玩法：</strong> 将右侧的“答案卡片” <strong>拖拽</strong> 到左侧对应的问题卡片上，配对正确则两者同时消除！全部配对即获胜。
+                    </p>
+                    <div className="flex flex-col lg:flex-row gap-5 flex-1">
+                        {/* 左侧问题区（接收拖拽） */}
+                        <div className="flex-1 bg-purple-50 rounded-2xl p-3 min-h-[400px]">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg">📋 利润问题（拖放答案到这里）</h3>
+                            <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
+                                {gameProblems.map(prob => {
+                                    const isMatched = matchedIds.has(prob.id);
+                                    return (
+                                        <div 
+                                            key={prob.id}
+                                            onDragOver={handleDragOver}
+                                            onDrop={(e) => handleDrop(e, prob.id, prob.answer)}
+                                            className={`p-3 rounded-xl border-2 transition-all ${isMatched ? 'bg-green-100 border-green-400 opacity-70 line-through' : 'bg-white border-purple-300 hover:shadow-md cursor-pointer'}`}
+                                        >
+                                            <div className="font-medium text-gray-800">{prob.scene}</div>
+                                            {!isMatched && <div className="text-xs text-purple-500 mt-1">⬅️ 将正确答案拖拽至此区域</div>}
+                                            {isMatched && <div className="text-green-600 text-sm font-bold mt-1">✓ 已配对 {matchedIds.has(prob.id) && prob.answer}</div>}
+                                        </div>
+                                    );
+                                })}
+                                {gameProblems.length === 0 && <div className="text-center text-gray-400 py-8">加载题目中...</div>}
+                            </div>
+                        </div>
+                        
+                        {/* 右侧答案卡片区（可拖拽） */}
+                        <div className="flex-1 bg-amber-50 rounded-2xl p-3">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg">🎁 答案卡片（可拖拽）</h3>
+                            <div className="flex flex-wrap gap-3 justify-center min-h-[200px]">
+                                {answerCards.map((card, idx) => (
+                                    <div
+                                        key={idx}
+                                        draggable={!allCompleted}
+                                        onDragStart={(e) => handleDragStart(e, card.label, card.type, card.id)}
+                                        className="answer-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-4 py-3 text-center font-bold text-lg cursor-grab select-none hover:scale-105 transition flex items-center justify-center"
+                                    >
+                                        {card.label}
+                                    </div>
+                                ))}
+                                {answerCards.length === 0 && !allCompleted && <div className="text-green-600 font-bold">🎉 所有答案配对完成，太棒啦！</div>}
+                                {allCompleted && <div className="text-green-700 font-bold text-center">🏆 恭喜通过全部挑战！</div>}
+                            </div>
+                            <p className="text-xs text-center text-gray-500 mt-3">💡 提示：只有正确答案能配对成功，干扰项可以拖拽但会提示错误~</p>
+                        </div>
+                    </div>
+                    
+                    {/* 反馈消息区域 */}
+                    {feedbackMsg && (
+                        <div className={`mt-4 text-center text-base font-medium rounded-xl p-3 ${allCompleted ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-purple-100 text-purple-700 border border-purple-200'}`}>
+                            {feedbackMsg}
+                        </div>
+                    )}
+                    
+                    {/* 进度条 */}
+                    <div className="mt-3">
+                        <div className="flex justify-between text-sm text-purple-700 mb-1">
+                            <span>配对进度</span>
+                            <span>{matchedIds.size} / {gameProblems.length}</span>
+                        </div>
+                        <div className="w-full bg-purple-200 rounded-full h-2.5 overflow-hidden">
+                            <div className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(matchedIds.size / gameProblems.length) * 100}%` }}></div>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-3 text-center text-xs text-purple-500 bg-purple-50/80 rounded-xl p-2">
+                        🌟 经济数学思维：成本是根基，利润率看成本，折扣看标价。多步问题设原价100最简便！
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============================ 主页面 (左右布局) ============================
+        const MainApp = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="flex-1"><KnowledgeBase /></div>
+                    <div className="flex-1"><ProfitGame /></div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>

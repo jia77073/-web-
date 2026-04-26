@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学特训营 · 追及问题大冒险</title>
+    <!-- Tailwind CSS + Google Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 自定义紫色主题 & 拖拽克隆样式 */
+        body {
+            background: linear-gradient(145deg, #f3e8ff 0%, #e9d5ff 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', system-ui, -apple-system, sans-serif;
+        }
+        /* 拖拽时的克隆样式 */
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            filter: drop-shadow(0 12px 20px rgba(128, 0, 255, 0.3));
+            transform: rotate(2deg) scale(1.05);
+            pointer-events: none;
+            transition: none;
+            opacity: 0.85;
+            width: 96px;
+            text-align: center;
+            font-weight: bold;
+            background: white;
+            border-radius: 2rem;
+            padding: 0.75rem 0;
+            border: 2px solid #a855f7;
+            color: #4c1d95;
+            font-size: 1.5rem;
+            font-weight: 800;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+        }
+        /* 禁止选择 */
+        .no-select {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 移动端按钮优化 */
+        button, .drag-card, .drop-zone {
+            touch-action: manipulation;
+        }
+        /* 滚动条可爱 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1eaff;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c084fc;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+    <div id="root" class="max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback } = React;
+
+        // ---------- 追及问题题库（经典变式：同地同时、同地不同时、异地、变速思想、停顿概念）----------
+        const QUESTION_SET = [
+            {
+                id: 1,
+                scenario: "🐢 乌龟和兔子从同一起点同时同向出发，乌龟速度 8米/分，兔子速度 20米/分。出发后几分钟兔子领先乌龟60米？",
+                hint: "领先的路程差 = 速度差 × 时间",
+                known: "速度差 = 20 - 8 = 12 (米/分)，路程差 = 60 米",
+                correctValue: 5,
+                unit: "分钟",
+                distractors: [3, 6, 8, 10],
+                explanation: "追及时间 = 路程差 ÷ 速度差 = 60 ÷ 12 = 5 分钟"
+            },
+            {
+                id: 2,
+                scenario: "🏃 哥哥和弟弟从家去学校，哥哥每分钟跑120米，弟弟每分钟跑80米。弟弟先出发5分钟后哥哥才从家出发，两人同向而行，哥哥几分钟后追上弟弟？",
+                hint: "路程差 = 弟弟先走的路程，速度差 = 哥哥速度 - 弟弟速度",
+                known: "路程差 = 80×5 = 400米，速度差 = 40米/分",
+                correctValue: 10,
+                unit: "分钟",
+                distractors: [5, 8, 12, 15],
+                explanation: "追及时间 = 路程差 ÷ 速度差 = 400 ÷ 40 = 10 分钟"
+            },
+            {
+                id: 3,
+                scenario: "🚗 轿车和货车从相距240千米的两地同向而行，货车在前，轿车在后。货车速度50千米/时，轿车速度70千米/时，轿车几小时追上货车？",
+                hint: "异地追及，路程差 = 初始距离，速度差 = 20千米/时",
+                known: "路程差 = 240千米，速度差 = 20千米/时",
+                correctValue: 12,
+                unit: "小时",
+                distractors: [6, 8, 10, 14],
+                explanation: "追及时间 = 路程差 ÷ 速度差 = 240 ÷ 20 = 12 小时"
+            },
+            {
+                id: 4,
+                scenario: "⚡ 羚羊和猎豹相距120米，同向奔跑，羚羊每秒跑18米，猎豹每秒跑24米，猎豹追羚羊，途中猎豹因为喝水停顿了4秒，问猎豹实际追赶多长时间能追上？（忽略停顿影响路程差）",
+                hint: "停顿期间羚羊继续跑，相当于路程差变大，注意动态分析",
+                known: "原本速度差6米/秒，停顿4秒羚羊多跑72米，等效路程差 = 120 + 72 = 192米",
+                correctValue: 32,
+                unit: "秒",
+                distractors: [20, 24, 28, 36],
+                explanation: "追及时实际时间 = (120 + 18×4) ÷ (24-18) = (120+72)÷6 = 192÷6 = 32秒"
+            },
+            {
+                id: 5,
+                scenario: "🚲 小明和小红同向骑行，小明速度250米/分，小红速度200米/分，小明落后小红300米开始追赶。同时小红因为手机掉落减速为150米/分，小明仍以原速追赶，几分钟后小明追上小红？",
+                hint: "速度差变化 (250-150=100米/分)，路程差300米",
+                known: "速度差 = 100米/分，路程差 = 300米",
+                correctValue: 3,
+                unit: "分钟",
+                distractors: [2, 4, 5, 6],
+                explanation: "追及时间 = 路程差 ÷ 新速度差 = 300 ÷ (250-150) = 300 ÷ 100 = 3分钟"
+            }
+        ];
+
+        // 自定义拖拽核心 Hook (支持鼠标和触摸)
+        function useDragAndDrop({ onDropSuccess }) {
+            const [dragging, setDragging] = useState(false);
+            const dragItemRef = useRef(null);       // 原始拖拽元素的数据 { value, element }
+            const cloneRef = useRef(null);
+            const startPos = useRef({ x: 0, y: 0 });
+            const currentClone = useRef(null);
+            
+            const startDrag = useCallback((e, itemValue, elementDOM) => {
+                e.preventDefault();
+                // 获取触点坐标
+                let clientX, clientY;
+                if (e.touches) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                    e.preventDefault();
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                
+                dragItemRef.current = { value: itemValue, element: elementDOM };
+                startPos.current = { x: clientX, y: clientY };
+                
+                // 创建克隆体
+                const cloneDiv = document.createElement('div');
+                cloneDiv.className = 'drag-clone';
+                cloneDiv.innerText = itemValue;
+                document.body.appendChild(cloneDiv);
+                cloneDiv.style.left = `${clientX - 40}px`;
+                cloneDiv.style.top = `${clientY - 30}px`;
+                currentClone.current = cloneDiv;
+                setDragging(true);
+                
+                // 全局监听移动和释放
+                const onMove = (moveEvent) => {
+                    if (!currentClone.current) return;
+                    let moveX, moveY;
+                    if (moveEvent.touches) {
+                        moveX = moveEvent.touches[0].clientX;
+                        moveY = moveEvent.touches[0].clientY;
+                        moveEvent.preventDefault();
+                    } else {
+                        moveX = moveEvent.clientX;
+                        moveY = moveEvent.clientY;
+                    }
+                    currentClone.current.style.left = `${moveX - 40}px`;
+                    currentClone.current.style.top = `${moveY - 30}px`;
+                };
+                
+                const onEnd = (endEvent) => {
+                    if (currentClone.current) {
+                        currentClone.current.remove();
+                        currentClone.current = null;
+                    }
+                    // 判断释放点目标是否为投放区
+                    let targetEl = null;
+                    if (endEvent.changedTouches) {
+                        const touch = endEvent.changedTouches[0];
+                        targetEl = document.elementsFromPoint(touch.clientX, touch.clientY)[0];
+                    } else {
+                        targetEl = document.elementsFromPoint(endEvent.clientX, endEvent.clientY)[0];
+                    }
+                    const dropZone = targetEl?.closest('[data-dropzone="true"]');
+                    if (dropZone && dragItemRef.current) {
+                        const zoneValue = dropZone.getAttribute('data-expected');
+                        const droppedNumber = dragItemRef.current.value;
+                        if (zoneValue && Number(zoneValue) === droppedNumber) {
+                            onDropSuccess?.(true, droppedNumber);
+                        } else {
+                            onDropSuccess?.(false, droppedNumber);
+                        }
+                    } else {
+                        // 没放到正确区域
+                        if(dragItemRef.current) onDropSuccess?.(false, dragItemRef.current.value);
+                    }
+                    setDragging(false);
+                    dragItemRef.current = null;
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onEnd);
+                    window.removeEventListener('touchmove', onMove);
+                    window.removeEventListener('touchend', onEnd);
+                    window.removeEventListener('touchcancel', onEnd);
+                };
+                
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onEnd);
+                window.addEventListener('touchmove', onMove, { passive: false });
+                window.addEventListener('touchend', onEnd);
+                window.addEventListener('touchcancel', onEnd);
+            }, [onDropSuccess]);
+            
+            const cleanup = useCallback(() => {
+                if (currentClone.current) {
+                    currentClone.current.remove();
+                    currentClone.current = null;
+                }
+                setDragging(false);
+                dragItemRef.current = null;
+            }, []);
+            
+            useEffect(() => {
+                return cleanup;
+            }, [cleanup]);
+            
+            return { startDrag, dragging };
+        }
+        
+        // 可拖拽数字卡片组件
+        function DragCard({ value, onDragStart, disabled }) {
+            const cardRef = useRef(null);
+            const handleDragStart = (e) => {
+                if (disabled) return;
+                if (cardRef.current) {
+                    onDragStart(e, value, cardRef.current);
+                }
+            };
+            return (
+                <div
+                    ref={cardRef}
+                    className={`drag-card bg-gradient-to-br from-amber-100 to-yellow-200 border-3 border-purple-400 rounded-2xl w-24 h-24 flex items-center justify-center text-4xl font-black text-purple-800 shadow-lg cursor-grab active:cursor-grabbing transition transform hover:scale-105 ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onMouseDown={!disabled ? handleDragStart : undefined}
+                    onTouchStart={!disabled ? handleDragStart : undefined}
+                    style={{ touchAction: 'none' }}
+                >
+                    {value}
+                </div>
+            );
+        }
+        
+        // 主游戏组件（右边互动区）
+        function ChaseGame({ currentQuestion, onCorrect, onWrong, resetSignal }) {
+            const [feedback, setFeedback] = useState(null); // { type: 'success'|'error', msg, correctVal? }
+            const [hasAnswered, setHasAnswered] = useState(false);
+            const [selectedValue, setSelectedValue] = useState(null);
+            
+            // 重置状态 (换题时调用)
+            useEffect(() => {
+                setFeedback(null);
+                setHasAnswered(false);
+                setSelectedValue(null);
+            }, [currentQuestion, resetSignal]);
+            
+            const handleDropResult = (isCorrect, droppedNum) => {
+                if (hasAnswered) {
+                    setFeedback({ type: 'info', msg: '🎯 你已经完成本题，点“换一题”继续挑战吧！' });
+                    return;
+                }
+                setSelectedValue(droppedNum);
+                if (isCorrect) {
+                    setFeedback({ type: 'success', msg: `✅ 完全正确！ ${currentQuestion.explanation}`, correctVal: droppedNum });
+                    setHasAnswered(true);
+                    onCorrect(); // 通知父组件加分/音效无所谓，主要是正确鼓励
+                } else {
+                    setFeedback({ type: 'error', msg: `❌ 哎呀不对！ ${droppedNum} 不正确。再试试看！提示：${currentQuestion.hint}` });
+                    setHasAnswered(false);
+                    onWrong();
+                }
+            };
+            
+            const { startDrag, dragging } = useDragAndDrop({ onDropSuccess: handleDropResult });
+            
+            // 生成干扰项加正确答案的数组，打乱顺序
+            const allOptions = React.useMemo(() => {
+                let opts = [...currentQuestion.distractors, currentQuestion.correctValue];
+                // 去重（干扰项可能会包含正确值但是题库已避免）
+                opts = [...new Set(opts)];
+                // 随机打乱
+                for (let i = opts.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [opts[i], opts[j]] = [opts[j], opts[i]];
+                }
+                return opts;
+            }, [currentQuestion]);
+            
+            return (
+                <div className="flex flex-col h-full">
+                    <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 mb-4 shadow-inner border border-purple-200">
+                        <div className="text-lg font-bold text-purple-900 mb-2">📖 追及小侦探</div>
+                        <div className="text-base md:text-lg text-gray-800 leading-relaxed bg-purple-50 p-3 rounded-xl">
+                            {currentQuestion.scenario}
+                        </div>
+                        <div className="mt-3 text-sm text-purple-700 bg-purple-100 p-2 rounded-lg flex flex-wrap gap-2">
+                            <span className="font-bold">🔍 小提示：</span> {currentQuestion.hint}
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 border-t border-purple-200 pt-2">
+                            💡 {currentQuestion.known}
+                        </div>
+                    </div>
+                    
+                    {/* 投放区（答案盒子） */}
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="font-bold text-purple-800 text-lg">✨ 把正确的数字拖拽到这里 ✨</span>
+                            <span className="bg-purple-200 px-2 py-1 rounded-full text-xs">单位：{currentQuestion.unit}</span>
+                        </div>
+                        <div 
+                            data-dropzone="true"
+                            data-expected={currentQuestion.correctValue}
+                            className={`drop-zone w-full min-h-[110px] bg-gradient-to-br from-purple-100 to-fuchsia-50 border-4 border-dashed rounded-3xl flex items-center justify-center transition-all ${feedback?.type === 'success' ? 'border-green-500 bg-green-50' : 'border-purple-400'} ${!hasAnswered ? 'hover:bg-purple-100' : ''}`}
+                        >
+                            {feedback?.type === 'success' ? (
+                                <div className="text-center p-4">
+                                    <div className="text-5xl mb-2">🏆</div>
+                                    <div className="text-xl font-black text-green-700">{currentQuestion.correctValue} {currentQuestion.unit}</div>
+                                    <div className="text-sm text-green-600 mt-1">✓ 答对啦！</div>
+                                </div>
+                            ) : (
+                                <div className="text-center text-purple-500 text-lg font-medium">
+                                    {hasAnswered ? (
+                                        <span>✅ 已完成，试试换新题目吧⬇️</span>
+                                    ) : (
+                                        <span>⬅️ 把下方数字卡片拖拽至此 ➡️</span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {feedback && feedback.type !== 'success' && feedback.type !== 'info' && (
+                            <div className="mt-2 text-red-600 bg-red-50 p-2 rounded-xl text-sm font-medium flex items-center gap-2">
+                                <span>⚠️</span> {feedback.msg}
+                            </div>
+                        )}
+                        {feedback?.type === 'success' && (
+                            <div className="mt-2 text-green-700 bg-green-50 p-2 rounded-xl text-sm">
+                                💚 {feedback.msg}
+                            </div>
+                        )}
+                        {feedback?.type === 'info' && (
+                            <div className="mt-2 text-blue-600 bg-blue-50 p-2 rounded-xl text-sm">
+                                💙 {feedback.msg}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* 可拖拽卡片池 */}
+                    <div>
+                        <div className="font-bold text-purple-800 mb-3 flex items-center gap-1">
+                            🎴 抓取正确的数字卡片（拖拽到上方虚线框）
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-4 p-2 bg-white/40 rounded-2xl min-h-[140px]">
+                            {allOptions.map((num, idx) => (
+                                <DragCard 
+                                    key={idx}
+                                    value={num}
+                                    onDragStart={startDrag}
+                                    disabled={hasAnswered}
+                                />
+                            ))}
+                        </div>
+                        {dragging && <div className="text-xs text-center text-purple-500 mt-2">✨ 拖拽中，放到答案区 ✨</div>}
+                    </div>
+                </div>
+            );
+        }
+        
+        // 主应用
+        function App() {
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [attemptCount, setAttemptCount] = useState(0);
+            const [gameResetKey, setGameResetKey] = useState(0); // 用于强制刷新游戏组件内的状态
+            const [lastCorrect, setLastCorrect] = useState(false);
+            
+            const currentQuestion = QUESTION_SET[currentQIndex % QUESTION_SET.length];
+            
+            const handleCorrect = () => {
+                setScore(prev => prev + 1);
+                setLastCorrect(true);
+                setTimeout(() => setLastCorrect(false), 800);
+            };
+            
+            const handleWrong = () => {
+                setAttemptCount(prev => prev + 1);
+                setLastCorrect(false);
+            };
+            
+            const nextQuestion = () => {
+                // 换一题: 重置一切游戏内状态，索引改变，并强制重置游戏组件内部状态
+                setCurrentQIndex(prev => (prev + 1) % QUESTION_SET.length);
+                setGameResetKey(prev => prev + 1);
+                // 不清空总分保持成就，但可保留排行榜感觉，也可以在换题时不清零
+            };
+            
+            const resetGameStats = () => {
+                setScore(0);
+                setAttemptCount(0);
+                setGameResetKey(prev => prev + 1);
+                // 不改变题目索引，只重置成绩
+            };
+            
+            return (
+                <div className="min-h-screen">
+                    {/* 主卡片布局 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                        {/* 左侧 知识点区域 + 趣味示例 */}
+                        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-purple-300 backdrop-blur-sm">
+                            <div className="bg-gradient-to-r from-purple-700 to-fuchsia-700 px-6 py-4">
+                                <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md tracking-wide">
+                                    🚀 追及问题 · 思维特训
+                                </h1>
+                                <p className="text-purple-100 text-sm mt-1">同向而行 · 速度差 · 路程差 · 追及时间</p>
+                            </div>
+                            <div className="p-5 space-y-5 text-gray-800">
+                                <div className="bg-purple-50 p-4 rounded-2xl border-l-8 border-purple-500">
+                                    <div className="text-xl font-black text-purple-900 flex items-center gap-2">📐 核心法宝</div>
+                                    <div className="mt-3 grid grid-cols-1 gap-3">
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <span className="font-mono text-2xl font-bold text-purple-700">路程差 = 速度差 × 追及时间</span>
+                                            <div className="text-sm text-gray-600 mt-1">🌟 追及时间 = 路程差 ÷ 速度差</div>
+                                            <div className="text-sm text-gray-600">🌟 速度差 = 路程差 ÷ 追及时间</div>
+                                        </div>
+                                        <div className="text-sm leading-relaxed">
+                                            <p>✨ <span className="font-bold">同时同地同向</span> → 路程差由速度差和时间决定。</p>
+                                            <p>✨ <span className="font-bold">同地不同时</span> → 先走者路程为初始路程差。</p>
+                                            <p>✨ <span className="font-bold">异地追及</span> → 初始距离就是路程差。</p>
+                                            <p>✨ 变速/停顿 → 灵活分析动态变化后的新路程差！</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-amber-50 p-4 rounded-2xl">
+                                    <div className="flex items-center gap-2 text-amber-800 font-bold text-lg">🎯 解题三步法</div>
+                                    <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
+                                        <li>🔍 找清谁追谁，找出初始<strong className="text-purple-700">路程差</strong></li>
+                                        <li>⚡ 计算两人的<strong className="text-purple-700">速度差</strong> (同向而行 快-慢)</li>
+                                        <li>⏱️ 追及时间 = 路程差 ÷ 速度差 （灵活运用公式）</li>
+                                    </ol>
+                                    <div className="mt-3 text-xs text-gray-500 italic">💡 相遇问题面对面，追及问题同向追，千万别混淆！</div>
+                                </div>
+                                
+                                <div className="bg-green-50 p-3 rounded-xl text-center text-green-800 text-sm">
+                                    🌟 右侧小游戏：拖拽数字卡片到虚线区，挑战追及达人！共{QUESTION_SET.length}种经典变式
+                                </div>
+                                
+                                {/* 记分牌 */}
+                                <div className="flex justify-between items-center bg-purple-100 p-3 rounded-xl">
+                                    <div>
+                                        <span className="font-bold text-purple-800">🏅 正确次数</span>
+                                        <span className="ml-2 text-2xl font-black text-purple-900">{score}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-purple-800">📝 尝试总数</span>
+                                        <span className="ml-2 text-lg font-bold text-purple-700">{attemptCount}</span>
+                                    </div>
+                                    <button 
+                                        onClick={resetGameStats}
+                                        className="bg-white text-purple-600 border border-purple-400 px-3 py-1 rounded-full text-xs font-semibold shadow-sm hover:bg-purple-50 transition"
+                                    >
+                                        重置战绩
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 右侧 互动游戏区 */}
+                        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-2 border-purple-300 flex flex-col">
+                            <div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 px-5 py-3 rounded-t-3xl flex justify-between items-center flex-wrap gap-2">
+                                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                    🎮 抓捕数字娃娃 · 拖拽填空
+                                </h2>
+                                <button 
+                                    onClick={nextQuestion}
+                                    className="bg-yellow-300 hover:bg-yellow-400 text-purple-900 font-extrabold py-2 px-5 rounded-full shadow-md transition transform hover:scale-105 text-sm"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                            <div className="p-5 flex-1">
+                                <ChaseGame 
+                                    key={gameResetKey + currentQIndex} 
+                                    currentQuestion={currentQuestion}
+                                    onCorrect={handleCorrect}
+                                    onWrong={handleWrong}
+                                    resetSignal={gameResetKey}
+                                />
+                                {/* 友好提示 */}
+                                <div className="mt-4 text-center text-xs text-gray-400 border-t pt-3">
+                                    💡 小贴士：手指/鼠标按住数字卡片，拖拽到上方虚线框里(放手)~ 答对获得智慧⭐
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 底部趣味装饰 + 激励 */}
+                    <div className="mt-8 text-center text-purple-800/70 text-xs flex flex-wrap justify-center gap-4">
+                        <span>🏃‍♂️ 同向而行，速度差是关键</span>
+                        <span>📏 路程差 ÷ 速度差 = 追及时间</span>
+                        <span>🎯 注意追及和相遇的区别哦</span>
+                    </div>
+                    {lastCorrect && (
+                        <div className="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce text-lg font-bold z-50">
+                            🎉 太棒了！追及成功 🎉
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

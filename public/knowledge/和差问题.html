@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>和差问题·思维拓展 | 奥数基础 | 拖拽排序 + 应用题闯关</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (移动端完美支持) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 6px 0 #3b82f6;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #bfdbfe;
+            box-shadow: 0 0 10px rgba(59,130,246,0.3);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 和差问题 (已知和与差，求大数和小数)
+        const sumDiffQuestions = [
+            {
+                text: "📚 甲、乙两数的和是120，差是40，甲、乙两数各是多少？(回答较大的数)",
+                answer: 80,
+                solution: "🎯 和差公式：大数 = (和+差)÷2 = (120+40)÷2 = 80；小数 = (和-差)÷2 = (120-40)÷2 = 40。"
+            },
+            {
+                text: "👨‍👦 爸爸和儿子的年龄和是48岁，爸爸比儿子大28岁，爸爸和儿子各多少岁？(回答爸爸年龄)",
+                answer: 38,
+                solution: "🎯 爸爸年龄(大数) = (48+28)÷2 = 38岁；儿子年龄 = (48-28)÷2 = 10岁。"
+            },
+            {
+                text: "🍎 两筐苹果共重85千克，甲筐比乙筐多5千克，甲、乙两筐各重多少千克？(回答甲筐重量)",
+                answer: 45,
+                solution: "🎯 甲筐(大数) = (85+5)÷2 = 45千克；乙筐 = (85-5)÷2 = 40千克。"
+            },
+            {
+                text: "📏 两根绳子，一共长35米，第一根比第二根短7米，两根绳子各长多少米？(回答较长的绳子)",
+                answer: 21,
+                solution: "🎯 较长绳(大数) = (35+7)÷2 = 21米；较短绳 = (35-7)÷2 = 14米。"
+            },
+            {
+                text: "🏫 四、五年级共有学生360人，四年级比五年级少24人，两个年级各有多少人？(回答五年级人数)",
+                answer: 192,
+                solution: "🎯 五年级(大数) = (360+24)÷2 = 192人；四年级 = (360-24)÷2 = 168人。"
+            },
+            {
+                text: "💰 小明和小红共有压岁钱200元，小明比小红多30元，两人各有多少元？(回答小明钱数)",
+                answer: 115,
+                solution: "🎯 小明(大数) = (200+30)÷2 = 115元；小红 = (200-30)÷2 = 85元。"
+            },
+            {
+                text: "📦 一个长方形，长和宽的和是24厘米，长比宽多4厘米，长和宽各是多少厘米？(回答长)",
+                answer: 14,
+                solution: "🎯 长(大数) = (24+4)÷2 = 14厘米；宽 = (24-4)÷2 = 10厘米。"
+            },
+            {
+                text: "🐱 两只小猫共重7千克，花猫比黑猫重1千克，两只猫各重多少千克？(回答较重的猫)",
+                answer: 4,
+                solution: "🎯 较重猫(大数) = (7+1)÷2 = 4千克；较轻猫 = (7-1)÷2 = 3千克。"
+            }
+        ];
+
+        // 左侧和差问题应用题组件
+        const SumDiffApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * sumDiffQuestions.length);
+                const newQ = { ...sumDiffQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (sumDiffQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = parseFloat(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案哟～");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！和差公式运用得非常棒！ 🧮 思维小高手！");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。看看和差公式解法吧～`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载和差题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-blue-200 h-full flex flex-col">
+                    <div className="border-b-4 border-blue-300 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">🧩</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">和差问题·奥数思维营</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 mb-5 shadow-inner border border-blue-100">
+                        <h2 className="text-xl font-bold text-blue-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-blue-200 px-2 py-0.5 rounded-full">和差公式·大数小数</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>📐 <span className="font-semibold">和差公式</span>：大数 = (和 + 差) ÷ 2，小数 = (和 - 差) ÷ 2。</li>
+                            <li>🧠 <span className="font-semibold">解题步骤</span>：① 找出两数的和与差；② 代入公式求大数和小数；③ 检验并作答。</li>
+                            <li>🎯 <span className="font-semibold">适用场景</span>：年龄、物品重量、人数、长度、金额等已知总和与差值。</li>
+                            <li>✏️ <span className="font-semibold">画图辅助</span>：用线段图表示大数和小数，直观理解。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目卡片 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-blue-500 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">🔥 和差挑战</span>
+                            <button onClick={handleNext} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="number" 
+                                step="any"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入答案 (数字)"
+                                className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-blue-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-blue-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈区 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 和差公式解法</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-blue-600 text-sm italic">💡 提示：大数=(和+差)÷2，小数=(和-差)÷2。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        🧩 和差公式：大数 = (和+差)÷2，小数 = (和-差)÷2
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏：和差问题解题步骤拖拽排序 (公式应用典型)
+        const stepsChallenges = [
+            {
+                title: "🧩 挑战1：基础和差",
+                description: "两数之和是100，两数之差是20，求大数和小数。",
+                correctSteps: [
+                    "① 和=100，差=20。",
+                    "② 大数 = (和+差)÷2 = (100+20)÷2 = 60。",
+                    "③ 小数 = (和-差)÷2 = (100-20)÷2 = 40。",
+                    "④ 答：大数是60，小数是40。"
+                ]
+            },
+            {
+                title: "🧩 挑战2：年龄和差",
+                description: "妈妈和女儿年龄和是45岁，妈妈比女儿大27岁，妈妈多少岁？",
+                correctSteps: [
+                    "① 和=45，差=27。",
+                    "② 妈妈(大数) = (45+27)÷2 = 36。",
+                    "③ 女儿(小数) = (45-27)÷2 = 9。",
+                    "④ 答：妈妈36岁。"
+                ]
+            },
+            {
+                title: "🧩 挑战3：物品重量",
+                description: "两筐橘子共重80千克，甲筐比乙筐多10千克，甲筐重多少千克？",
+                correctSteps: [
+                    "① 和=80，差=10。",
+                    "② 甲筐(大数) = (80+10)÷2 = 45。",
+                    "③ 乙筐 = (80-10)÷2 = 35。",
+                    "④ 答：甲筐重45千克。"
+                ]
+            },
+            {
+                title: "🧩 挑战4：长度和差",
+                description: "两根木条总长36分米，第一根比第二根短4分米，较长的一根是多少分米？",
+                correctSteps: [
+                    "① 和=36，差=4。",
+                    "② 较长(大数) = (36+4)÷2 = 20。",
+                    "③ 较短 = (36-4)÷2 = 16。",
+                    "④ 答：较长的一根是20分米。"
+                ]
+            }
+        ];
+
+        // 右侧拖拽排序组件
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                const stepsCopy = [...newChallenge.correctSteps];
+                // Fisher-Yates 打乱顺序
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确的和差解题步骤顺序排列！(从上到下)');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 每当 shuffledSteps 变化，重新初始化 Sortable 实例
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) sortableRef.current.destroy();
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => { /* 无额外动作 */ }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美排序！和差问题解题逻辑完全正确！成为奥数小能手！🏅');
+                    setCheckStyle('success');
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想和差解题流程：找出和与差→代入公式求大数小数→作答。重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载趣味排序游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-blue-200 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-blue-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-blue-800">拖拽排序·和差特工队</h2>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-indigo-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下逻辑递进）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[320px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-blue-400 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-blue-500">
+                        💡 拖拽卡片调整顺序，排序正确即掌握和差解题三步骤（找和差→代公式→作答）。
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 拖拽排序小游戏融合和差思想：公式应用·数形结合·奥数基础，在排序中强化模型思维！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件：左右布局
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 和差应用题训练 */}
+                    <div className="flex-1">
+                        <SumDiffApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

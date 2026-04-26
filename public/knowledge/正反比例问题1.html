@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>正反比例·思维特训营 | 比例关系判断 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN (稳定版本) -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽库 (轻松实现配对) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        /* 拖拽反馈样式 */
+        .sortable-drag {
+            opacity: 0.4;
+            background-color: #f3e8ff;
+            transform: scale(0.96);
+        }
+        .sortable-ghost {
+            opacity: 0.3;
+            background-color: #d8b4fe;
+        }
+        .matched-card {
+            background-color: #bbf7d0 !important;
+            border-left: 6px solid #22c55e !important;
+            text-decoration: line-through;
+            opacity: 0.8;
+            cursor: default;
+        }
+        .drag-card {
+            cursor: grab;
+            transition: all 0.15s;
+        }
+        .drag-card:active {
+            cursor: grabbing;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2rem !important;
+            }
+            .drag-card, .slot-card {
+                font-size: 0.85rem;
+                padding: 0.5rem;
+            }
+        }
+        /* 绿色自然背景 + 紫色点缀 */
+        body {
+            background: linear-gradient(145deg, #c6e6b3 0%, #aad48c 100%);
+            font-family: 'Segoe UI', 'Comic Neue', system-ui, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 题库：比例关系配对数据 (场景、正确类型) ---------------------------------
+        // 每个题目包含: 场景描述 + 正确比例类型 ("正比例" 或 "反比例" 或 "比例方程/份数法"，但简化成正反比例核心判断)
+        // 同时为了拓展，增加 "不成比例" 项，但主要围绕正反比例
+        const PAIR_DATA = [
+            { id: 1, scene: "🚗 汽车行驶速度一定，行驶的路程与时间", correctType: "正比例" },
+            { id: 2, scene: "🏭 工作总量一定，工作效率与工作时间", correctType: "反比例" },
+            { id: 3, scene: "📏 长方形面积一定，长与宽", correctType: "反比例" },
+            { id: 4, scene: "⏱️ 单价一定，总价与数量", correctType: "正比例" },
+            { id: 5, scene: "🏃 从甲地到乙地，速度与所需时间", correctType: "反比例" },
+            { id: 6, scene: "🍎 每份苹果个数一定，苹果总数与份数", correctType: "正比例" },
+            { id: 7, scene: "🧱 用砖铺地，每块砖的面积与所需块数（总面积不变）", correctType: "反比例" },
+            { id: 8, scene: "📈 圆的周长与直径（π一定）", correctType: "正比例" },
+            { id: 9, scene: "📉 一批货物，每天运货量与运完天数", correctType: "反比例" },
+            { id: 10, scene: "🧪 浓度一定，溶质质量与溶液质量", correctType: "正比例" }
+        ];
+        
+        // 右侧配对区域：定义三个类别槽位（正比例、反比例、暂未分类可扩展，但主要正反）
+        const CATEGORIES = [
+            { type: "正比例", color: "bg-emerald-100", border: "border-emerald-400", icon: "📈", description: "比值一定：y/x = k" },
+            { type: "反比例", color: "bg-amber-100", border: "border-amber-400", icon: "📉", description: "乘积一定：x×y = k" }
+        ];
+        
+        // ----------------------------- 左侧知识讲解组件 ------------------------------------
+        const KnowledgeBase = () => {
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">⚖️</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 main-title">正反比例·思维特训营</h1>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200">
+                        <h2 className="text-2xl font-bold text-purple-800 flex items-center gap-2">🧠 核心秘籍 · 比例综合思维</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong className="text-purple-800">正比例</strong>：两种相关联的量，<span className="font-bold text-green-700">比值（商）一定</span> → y/x = k (一定)。图像是一条过原点的直线。</p>
+                            <p>✨ <strong className="text-purple-800">反比例</strong>：两种相关联的量，<span className="font-bold text-rose-600">乘积一定</span> → x×y = k (一定)。图像是一条双曲线。</p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 判断三步法：</p>
+                                <p>① 找出两种相关联的量；② 列出关系式；③ 看是比值一定还是乘积一定 → 确定正/反比例。</p>
+                                <p className="text-sm mt-1">💡 拓展：比例方程、份数法、工程行程中的比例应用，均基于此核心判断。</p>
+                            </div>
+                            <p>⚡ <strong className="text-purple-800">典型模型</strong>：<br/>
+                            - 行程问题（速度一定→正比；路程一定→反比）<br/>
+                            - 工程问题（工效一定→正比；总量一定→反比）<br/>
+                            - 购物问题（单价一定→正比；总价一定→反比）<br/>
+                            - 几何图形（面积一定→反比；边长比一定→正比）</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">📖 比例方程·小锦囊</h3>
+                        <div className="mt-2 grid grid-cols-1 gap-2 text-gray-700">
+                            <p>🔢 <strong>解比例应用题</strong>：先判断比例关系，设未知数，列方程 (如正比例: y₁/x₁ = y₂/x₂；反比例: x₁y₁ = x₂y₂)。</p>
+                            <p>🎯 <strong>份数法</strong>：将比例量看作份数，简化计算。</p>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 右侧小游戏 → 将左边的场景卡片拖拽到正确的“正比例/反比例”槽位，匹配正确卡片会消失并得分！快来挑战比例判断高手的称号吧~
+                    </div>
+                </div>
+            );
+        };
+        
+        // ----------------------------- 右侧拖拽配对游戏 (场景分类) -----------------------------
+        const MatchGame = () => {
+            // 未配对的场景卡片列表 (随机排序)
+            const [pendingScenes, setPendingScenes] = React.useState([]);
+            // 记录配对成功的场景id (用于视觉消失和计数)
+            const [matchedIds, setMatchedIds] = React.useState(new Set());
+            // 反馈消息
+            const [feedback, setFeedback] = React.useState('');
+            // 游戏胜利标志
+            const [allMatched, setAllMatched] = React.useState(false);
+            // 刷新key用于重置
+            const [gameKey, setGameKey] = React.useState(0);
+            
+            // refs: 三个区域 (拖拽场景容器区、两个投放槽)
+            const sceneContainerRef = React.useRef(null);
+            const propSlotRef = React.useRef(null);    // 正比例槽位
+            const invSlotRef = React.useRef(null);     // 反比例槽位
+            
+            let sortableScene = null;
+            let sortableProp = null;
+            let sortableInv = null;
+            
+            // 初始化/重置游戏: 打乱场景顺序，重置配对状态
+            const initGame = () => {
+                // 拷贝原始数据，打乱顺序
+                const shuffled = [...PAIR_DATA];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                setPendingScenes(shuffled);
+                setMatchedIds(new Set());
+                setFeedback('');
+                setAllMatched(false);
+            };
+            
+            // 重置游戏外部调用
+            const resetGame = () => {
+                initGame();
+                setGameKey(prev => prev + 1);
+            };
+            
+            React.useEffect(() => {
+                initGame();
+            }, []);
+            
+            // 当配对集合变化时，检查是否全部配对
+            React.useEffect(() => {
+                if (pendingScenes.length > 0 && matchedIds.size === pendingScenes.length) {
+                    setAllMatched(true);
+                    setFeedback("🎉 太厉害了！所有场景都正确分类！你已经成为比例关系小专家啦！ 🎉");
+                } else if (pendingScenes.length > 0 && matchedIds.size === 0) {
+                    setAllMatched(false);
+                }
+            }, [matchedIds, pendingScenes]);
+            
+            // 重建DOM内容（场景卡片）
+            const buildSceneCards = () => {
+                if (!sceneContainerRef.current) return;
+                sceneContainerRef.current.innerHTML = '';
+                pendingScenes.forEach(scene => {
+                    if (matchedIds.has(scene.id)) return; // 已配对的不显示
+                    const card = document.createElement('div');
+                    card.className = 'drag-card bg-white rounded-xl p-3 shadow-md border-l-8 border-purple-400 mb-3 cursor-grab transition hover:shadow-lg';
+                    card.setAttribute('data-id', scene.id);
+                    card.setAttribute('data-type', scene.correctType);
+                    card.innerText = scene.scene;
+                    card.style.touchAction = 'none';
+                    sceneContainerRef.current.appendChild(card);
+                });
+                // 如果没有未配对卡片，显示完成信息
+                if (sceneContainerRef.current.children.length === 0 && !allMatched) {
+                    const emptyMsg = document.createElement('div');
+                    emptyMsg.className = 'text-center text-gray-500 italic py-8';
+                    emptyMsg.innerText = '✨ 所有题目都已配对成功！点击“重置游戏”继续挑战 ✨';
+                    sceneContainerRef.current.appendChild(emptyMsg);
+                }
+            };
+            
+            // 初始化Sortable实现拖拽配对到槽位，且限制每个槽位只能有一个卡片？不对，每个槽位可以收集多个正确配对，但我们要实现“配对成功即消除卡片”的效果
+            // 使用 Sortable 的 onEnd 事件，检测拖拽的目标区域，并判断配对是否正确。
+            // 更稳健的方式：不使用Sortable自动移动，而是手动监听拖拽完成，实现配对逻辑并移除卡片（或移动至成功区域消失）
+            // 但基于 Sortable 可以轻松实现跨容器拖拽，并且在拖拽后我们验证配对正确性，如果正确则删除被拖拽卡片并在槽位显示成功标记（不放卡片），如果不正确则弹回并提示。
+            // 实现方案：让场景卡片可以拖拽到两个槽位容器中，但我们不希望卡片停留在槽位里，而是配对成功就让卡片消失并增加配对计数。如果配对失败则让卡片回到原容器。
+            // 使用 Sortable 的 group 并设置 pull/put，同时 onEnd 里判断拖拽的目标元素是否在槽位内，然后基于 data-属性进行验证。
+            const initSortableDrag = () => {
+                if (!sceneContainerRef.current || !propSlotRef.current || !invSlotRef.current) return;
+                if (sortableScene) sortableScene.destroy();
+                if (sortableProp) sortableProp.destroy();
+                if (sortableInv) sortableInv.destroy();
+                
+                // 公共 group 配置，允许移动
+                const groupConfig = {
+                    name: 'ratioGroup',
+                    pull: true,   // 可以从任何容器拉取
+                    revertClone: false,
+                    put: true
+                };
+                
+                // 场景容器（可拖出，也可接收被拒绝的卡片）
+                sortableScene = new Sortable(sceneContainerRef.current, {
+                    group: groupConfig,
+                    animation: 200,
+                    sort: true,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    onEnd: () => {} // 不做额外处理，在槽位里处理配对
+                });
+                
+                // 正比例槽位: 接收拖拽，验证配对，正确则删除卡片；错误则弹回并提示
+                sortableProp = new Sortable(propSlotRef.current, {
+                    group: {
+                        name: 'ratioGroup',
+                        pull: false,   // 不允许从槽位拉走卡片（避免混乱）
+                        put: function(to, from, drag) {
+                            // 允许放入
+                            return true;
+                        }
+                    },
+                    animation: 200,
+                    onAdd: (evt) => {
+                        // 当卡片被放入正比例槽位时，验证配对
+                        const draggedEl = evt.item;
+                        const sceneId = parseInt(draggedEl.getAttribute('data-id'), 10);
+                        const correctType = draggedEl.getAttribute('data-type');
+                        const sceneObj = pendingScenes.find(s => s.id === sceneId);
+                        if (sceneObj && correctType === "正比例") {
+                            // 配对正确
+                            setMatchedIds(prev => new Set(prev).add(sceneId));
+                            setFeedback(`✅ 正确！${sceneObj.scene} 属于正比例 (比值一定)。`);
+                            // 从DOM中移除该卡片（配对成功，卡片消失）
+                            draggedEl.remove();
+                            // 更新 pendingScenes 状态，剔除已配对的
+                            setPendingScenes(prev => prev.filter(s => s.id !== sceneId));
+                        } else {
+                            // 配对错误
+                            setFeedback(`❌ 配对错误！${sceneObj ? sceneObj.scene : '这个场景'} 不属于正比例。再试试看~  ${sceneObj && sceneObj.correctType === '反比例' ? ' 它应该是反比例关系 (乘积一定)' : '请思考比值或乘积是否一定'}`);
+                            // 将卡片移回原场景容器
+                            if (sceneContainerRef.current) {
+                                sceneContainerRef.current.appendChild(draggedEl);
+                            } else {
+                                draggedEl.remove();
+                            }
+                        }
+                        // 清理槽位中临时出现的任何残留（实际上卡片已经被移除或移走，确保槽位为空）
+                        const propChildren = propSlotRef.current.querySelectorAll('.drag-card');
+                        propChildren.forEach(child => child.remove());
+                    }
+                });
+                
+                // 反比例槽位
+                sortableInv = new Sortable(invSlotRef.current, {
+                    group: {
+                        name: 'ratioGroup',
+                        pull: false,
+                        put: function(to, from, drag) { return true; }
+                    },
+                    animation: 200,
+                    onAdd: (evt) => {
+                        const draggedEl = evt.item;
+                        const sceneId = parseInt(draggedEl.getAttribute('data-id'), 10);
+                        const correctType = draggedEl.getAttribute('data-type');
+                        const sceneObj = pendingScenes.find(s => s.id === sceneId);
+                        if (sceneObj && correctType === "反比例") {
+                            setMatchedIds(prev => new Set(prev).add(sceneId));
+                            setFeedback(`✅ 正确！${sceneObj.scene} 属于反比例 (乘积一定)。`);
+                            draggedEl.remove();
+                            setPendingScenes(prev => prev.filter(s => s.id !== sceneId));
+                        } else {
+                            setFeedback(`❌ 配对错误！${sceneObj ? sceneObj.scene : '这个场景'} 不属于反比例。${sceneObj && sceneObj.correctType === '正比例' ? ' 它应该是正比例关系 (比值一定)' : '再想想变量之间的变化规律'}`);
+                            if (sceneContainerRef.current) {
+                                sceneContainerRef.current.appendChild(draggedEl);
+                            } else {
+                                draggedEl.remove();
+                            }
+                        }
+                        const invChildren = invSlotRef.current.querySelectorAll('.drag-card');
+                        invChildren.forEach(child => child.remove());
+                    }
+                });
+            };
+            
+            // 当pendingScenes变化时重新构建卡片DOM (因为需要更新未配对的可视列表)
+            React.useEffect(() => {
+                buildSceneCards();
+                // 重建Sortable (因为DOM变化需要重新绑定，但Sortable实例绑定到容器，子元素改变不影响，但需保持拖拽功能)
+                if (sceneContainerRef.current && propSlotRef.current && invSlotRef.current) {
+                    initSortableDrag();
+                }
+            }, [pendingScenes, matchedIds, gameKey]);
+            
+            // 重置游戏UI
+            const handleReset = () => {
+                initGame();
+                setGameKey(prev => prev + 1);
+                setFeedback('');
+                setAllMatched(false);
+                // 清空槽位内残留
+                if (propSlotRef.current) propSlotRef.current.innerHTML = '';
+                if (invSlotRef.current) invSlotRef.current.innerHTML = '';
+                // 重建场景卡片
+                buildSceneCards();
+                setTimeout(() => initSortableDrag(), 30);
+            };
+            
+            // 手动换一题功能（实质是重新洗牌一组新题目，但题库固定可随机抽取其中一部分？为了“换一题”简单实现：重置当前游戏并打乱顺序）
+            const handleRefresh = () => {
+                handleReset();
+                setFeedback('✨ 已经为你刷新题目，继续挑战吧！');
+            };
+            
+            // 统计进度
+            const totalCount = PAIR_DATA.length;
+            const matchedCount = matchedIds.size;
+            
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🎯</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">比例判断·拖拽配对</h2>
+                        </div>
+                        <button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base flex items-center gap-1">
+                            🔄 换一题
+                        </button>
+                    </div>
+                    
+                    <p className="text-gray-600 text-sm mb-3 bg-purple-50 p-2 rounded-xl">
+                        🎮 <strong>玩法：</strong> 将左侧的场景卡片，<strong>拖拽</strong> 到正确的“正比例”或“反比例”区域，配对正确卡片会自动消失！全部正确即获胜。
+                    </p>
+                    
+                    <div className="flex flex-col lg:flex-row gap-5 flex-1">
+                        {/* 左侧：待分类场景卡片列表 */}
+                        <div className="flex-1 bg-purple-50 rounded-2xl p-3 min-h-[360px]">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg flex items-center justify-center gap-1">📋 场景卡片 (拖拽配对)</h3>
+                            <div 
+                                ref={sceneContainerRef} 
+                                className="space-y-2 overflow-y-auto max-h-[450px] pr-1"
+                            >
+                                {/* 动态生成的场景卡片 */}
+                            </div>
+                            <div className="mt-2 text-center text-xs text-gray-500">👉 按住卡片拖拽到右侧对应区域</div>
+                        </div>
+                        
+                        {/* 右侧：两个分类槽位 */}
+                        <div className="flex-1 flex flex-col gap-4">
+                            {/* 正比例槽位 */}
+                            <div 
+                                ref={propSlotRef}
+                                className={`${CATEGORIES[0].color} rounded-2xl border-2 ${CATEGORIES[0].border} p-4 min-h-[180px] transition-all drop-zone`}
+                            >
+                                <div className="flex items-center gap-2 font-bold text-xl text-green-800">
+                                    <span>{CATEGORIES[0].icon}</span>
+                                    <span>{CATEGORIES[0].type}</span>
+                                    <span className="text-sm font-normal text-gray-600">({CATEGORIES[0].description})</span>
+                                </div>
+                                <div className="mt-2 text-sm text-gray-600">将属于正比例的卡片拖拽至此区域</div>
+                                <div className="mt-2 flex flex-wrap gap-2 items-center min-h-[60px]">
+                                    {/* 配对成功的卡片不会留在这里，只会消失 */}
+                                </div>
+                            </div>
+                            
+                            {/* 反比例槽位 */}
+                            <div 
+                                ref={invSlotRef}
+                                className={`${CATEGORIES[1].color} rounded-2xl border-2 ${CATEGORIES[1].border} p-4 min-h-[180px] transition-all drop-zone`}
+                            >
+                                <div className="flex items-center gap-2 font-bold text-xl text-amber-800">
+                                    <span>{CATEGORIES[1].icon}</span>
+                                    <span>{CATEGORIES[1].type}</span>
+                                    <span className="text-sm font-normal text-gray-600">({CATEGORIES[1].description})</span>
+                                </div>
+                                <div className="mt-2 text-sm text-gray-600">将属于反比例的卡片拖拽至此区域</div>
+                                <div className="mt-2 flex flex-wrap gap-2 items-center min-h-[60px]"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 进度条与反馈 */}
+                    <div className="mt-5">
+                        <div className="flex justify-between text-sm text-purple-700 mb-1">
+                            <span>配对进度</span>
+                            <span>{matchedCount} / {totalCount}</span>
+                        </div>
+                        <div className="w-full bg-purple-200 rounded-full h-2.5 overflow-hidden">
+                            <div className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(matchedCount / totalCount) * 100}%` }}></div>
+                        </div>
+                    </div>
+                    
+                    {feedback && (
+                        <div className={`mt-3 text-center text-sm font-medium rounded-xl p-2 ${allMatched ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
+                            {feedback}
+                        </div>
+                    )}
+                    
+                    <div className="flex justify-center gap-4 mt-4">
+                        <button onClick={handleReset} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition">🔄 重置游戏</button>
+                    </div>
+                    
+                    <div className="mt-3 text-center text-xs text-purple-500 bg-purple-50 p-2 rounded-xl">
+                        💡 判断技巧：如果两个量“越乘越相等” → 反比例；如果“越除越相等” → 正比例。行程/工程/购物都适用。
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============================ 主页面 ============================
+        const MainApp = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="flex-1"><KnowledgeBase /></div>
+                    <div className="flex-1"><MatchGame /></div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>

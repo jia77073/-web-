@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>长方体和正方体的容积 | 数学小课堂</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义全局样式：淡紫色主题 + 大字体 + 拖拽优化 -->
+    <style>
+        /* 主题色淡紫渐变 */
+        body {
+            background: linear-gradient(145deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Poppins', system-ui, sans-serif;
+        }
+        /* 滚动条可爱风格 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f0e2f7;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a67cac;
+            border-radius: 20px;
+        }
+        /* 拖拽卡片时的半透明效果 */
+        .drag-card-active {
+            opacity: 0.5;
+            cursor: grabbing !important;
+        }
+        /* 放置区高亮 */
+        .drop-highlight {
+            background-color: #f9ebff !important;
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px #b38fcc;
+            transition: all 0.1s ease;
+        }
+        /* 配对成功动画 */
+        .matched-pulse {
+            animation: matchGlow 0.4s ease;
+        }
+        @keyframes matchGlow {
+            0% { background-color: #c8e6c9; border-color: #81c784; }
+            100% { background-color: #e8f5e9; border-color: #a5d6a7; }
+        }
+        /* 胜利彩蛋跳动 */
+        @keyframes bounceWin {
+            0%,100%{ transform: translateY(0); }
+            50%{ transform: translateY(-6px); }
+        }
+        .win-bounce {
+            animation: bounceWin 0.5s ease;
+        }
+        /* 全局字体加大（约6号字效果） */
+        body {
+            font-size: 1.2rem;
+        }
+        .text-lg-custom {
+            font-size: 1.4rem;
+            line-height: 1.8rem;
+        }
+        @media (min-width: 768px) {
+            body {
+                font-size: 1.25rem;
+            }
+            .text-lg-custom {
+                font-size: 1.6rem;
+                line-height: 2rem;
+            }
+        }
+        /* 移动端拖拽优化 */
+        .drag-card, .drop-zone {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="p-3 md:p-6 min-h-screen flex items-center justify-center">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+    // 容积课程组件：知识点 + 拖拽配对游戏（扭蛋机风格）
+    const { useState, useEffect, useCallback } = React;
+
+    // ---------- 游戏数据：容积挑战题目 ----------
+    const questionsData = [
+        { 
+            id: 0, 
+            title: "📦 长方体鱼缸",
+            desc: "一个长方体鱼缸，从内部测量，长50cm，宽30cm，高40cm。它的容积是多少升？",
+            correctAnswer: "60 L", 
+            hint: "先算立方厘米 → 除以1000得升",
+            formula: "50×30×40 = 60000 cm³ = 60 L",
+            emoji: "🐠"
+        },
+        { 
+            id: 1, 
+            title: "🧊 正方体水箱",
+            desc: "一个正方体水箱，内部棱长8分米。它的容积是多少升？",
+            correctAnswer: "512 L", 
+            hint: "正方体容积 = 棱长³，1 dm³ = 1 L",
+            formula: "8×8×8 = 512 dm³ = 512 L",
+            emoji: "💧"
+        },
+        { 
+            id: 2, 
+            title: "🥛 牛奶盒",
+            desc: "一个长方体牛奶盒，内部长6cm，宽4cm，高15cm。它的容积是多少毫升？",
+            correctAnswer: "360 mL", 
+            hint: "1 cm³ = 1 mL",
+            formula: "6×4×15 = 360 cm³ = 360 mL",
+            emoji: "🥛"
+        },
+        { 
+            id: 3, 
+            title: "📏 单位换算",
+            desc: "一个水箱的容积是2.5 m³，相当于多少升？",
+            correctAnswer: "2500 L", 
+            hint: "1 m³ = 1000 L",
+            formula: "2.5 × 1000 = 2500 L",
+            emoji: "🔄"
+        }
+    ];
+
+    // 答案卡片数据 (包含正确配对和干扰项)
+    const cardsDataRaw = [
+        { id: 0, label: "60 L", matchId: 0, emoji: "🐟" },
+        { id: 1, label: "512 L", matchId: 1, emoji: "💎" },
+        { id: 2, label: "360 mL", matchId: 2, emoji: "🥛" },
+        { id: 3, label: "2500 L", matchId: 3, emoji: "📊" },
+        // 干扰项：增加一个常见错误选项
+        { id: 4, label: "6000 L", matchId: -1, emoji: "❌", isDistractor: true },
+        { id: 5, label: "64 L", matchId: -1, emoji: "⚠️", isDistractor: true }
+    ];
+
+    // 主组件
+    const VolumeCapacityGame = () => {
+        // 每个问题是否已配对
+        const [matchedQuestions, setMatchedQuestions] = useState({});
+        // 剩余可拖拽卡片列表 (打乱顺序，排除已配对)
+        const [remainingCards, setRemainingCards] = useState([]);
+        // 游戏胜利标志
+        const [gameWin, setGameWin] = useState(false);
+        // 反馈消息
+        const [feedbackMsg, setFeedbackMsg] = useState("🐣 将右边正确的容积卡片拖到左边对应的题目框！试试看～");
+        // 高亮放置区id
+        const [highlightZoneId, setHighlightZoneId] = useState(null);
+        
+        // 初始化 / 重置游戏
+        const initGame = useCallback(() => {
+            const initialMatched = {};
+            questionsData.forEach(q => { initialMatched[q.id] = false; });
+            setMatchedQuestions(initialMatched);
+            // 打乱卡片顺序（包括干扰项）
+            const shuffled = [...cardsDataRaw];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setRemainingCards(shuffled);
+            setGameWin(false);
+            setFeedbackMsg("✨ 新的一局！把正确答案拖拽到对应的容积问题框，巩固知识 ✨");
+            setHighlightZoneId(null);
+        }, []);
+        
+        // 检查是否全部配对成功 (所有问题matched为true)
+        useEffect(() => {
+            const allMatched = Object.values(matchedQuestions).every(v => v === true);
+            if (allMatched && !gameWin) {
+                setGameWin(true);
+                setFeedbackMsg("🎉 完美通关！你已经是容积小专家啦！🎉");
+            }
+        }, [matchedQuestions, gameWin]);
+        
+        // ----- 拖拽事件处理 -----
+        const handleDragStart = (e, card) => {
+            // 检查卡片是否还在剩余卡片中（未被配对）
+            if (!remainingCards.some(c => c.id === card.id)) {
+                e.preventDefault();
+                e.dataTransfer.effectAllowed = "none";
+                setFeedbackMsg("⛔ 这张卡片已经配对过了！不能重复拖拽 ⛔");
+                return false;
+            }
+            e.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.id, matchId: card.matchId, label: card.label }));
+            e.dataTransfer.effectAllowed = "copy";
+            // 自定义拖拽图像
+            const dragIcon = document.createElement('div');
+            dragIcon.textContent = `${card.emoji} ${card.label}`;
+            dragIcon.style.position = "absolute";
+            dragIcon.style.top = "-1000px";
+            dragIcon.style.background = "#a17bb5";
+            dragIcon.style.padding = "8px 16px";
+            dragIcon.style.borderRadius = "30px";
+            dragIcon.style.color = "white";
+            dragIcon.style.fontWeight = "bold";
+            dragIcon.style.fontSize = "1.2rem";
+            document.body.appendChild(dragIcon);
+            e.dataTransfer.setDragImage(dragIcon, 0, 0);
+            setTimeout(() => document.body.removeChild(dragIcon), 0);
+            if (e.target && e.target.classList) {
+                e.target.classList.add('drag-card-active');
+            }
+        };
+        
+        const handleDragEnd = (e) => {
+            if (e.target && e.target.classList) {
+                e.target.classList.remove('drag-card-active');
+            }
+            setHighlightZoneId(null);
+        };
+        
+        // 放置区高亮
+        const handleDragOver = (e, zoneId) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (highlightZoneId !== zoneId) {
+                setHighlightZoneId(zoneId);
+            }
+        };
+        
+        const handleDragLeave = () => {
+            setHighlightZoneId(null);
+        };
+        
+        // 放置配对逻辑
+        const handleDrop = (e, targetQuestion) => {
+            e.preventDefault();
+            setHighlightZoneId(null);
+            // 如果该问题已经配对，不能再放
+            if (matchedQuestions[targetQuestion.id]) {
+                setFeedbackMsg(`🔁 问题“${targetQuestion.title}”已经配对成功！不用重复哦 🔁`);
+                return;
+            }
+            
+            let dragData;
+            try {
+                const raw = e.dataTransfer.getData("text/plain");
+                dragData = JSON.parse(raw);
+            } catch(err) {
+                setFeedbackMsg("拖拽出了一点小问题，再试一次~");
+                return;
+            }
+            if (!dragData) return;
+            
+            const { cardId, matchId, label } = dragData;
+            // 验证卡片是否还在剩余中
+            const cardExists = remainingCards.some(c => c.id === cardId);
+            if (!cardExists) {
+                setFeedbackMsg("这张卡片已经被配对过了！请使用其他卡片。");
+                return;
+            }
+            
+            // 判断配对是否正确 (卡片matchId === 问题id)
+            const isCorrect = (matchId === targetQuestion.id);
+            if (isCorrect) {
+                // 配对成功！
+                setMatchedQuestions(prev => ({ ...prev, [targetQuestion.id]: true }));
+                // 从剩余卡片中移除该卡片
+                const newRemaining = remainingCards.filter(c => c.id !== cardId);
+                setRemainingCards(newRemaining);
+                setFeedbackMsg(`🎈 正确！ ${targetQuestion.desc} → 容积 = ${label} ，${targetQuestion.hint} 🎈`);
+                // 动画效果
+                const zoneEl = document.getElementById(`qzone-${targetQuestion.id}`);
+                if (zoneEl) {
+                    zoneEl.classList.add('matched-pulse');
+                    setTimeout(() => zoneEl.classList.remove('matched-pulse'), 400);
+                }
+            } else {
+                // 配对错误：给出正确答案提示
+                const correctAns = questionsData.find(q => q.id === targetQuestion.id)?.correctAnswer || "???";
+                setFeedbackMsg(`❌ 配对错误！ “${targetQuestion.desc}” 正确答案是 ${correctAns} ，再仔细算一算容积吧！❌`);
+            }
+        };
+        
+        // 重置游戏
+        const resetGame = () => {
+            initGame();
+        };
+        
+        // 初始化
+        useEffect(() => {
+            initGame();
+        }, [initGame]);
+        
+        const totalQuestions = questionsData.length;
+        const matchedCount = Object.values(matchedQuestions).filter(v => v === true).length;
+        
+        return (
+            <div className="w-full rounded-3xl shadow-2xl p-4 md:p-5 bg-white/30 backdrop-blur-sm border border-white/40">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* ========= 左侧知识点区域：容积概念、单位、计算 ========= */}
+                    <div className="lg:w-2/5 bg-white/85 rounded-2xl p-5 md:p-6 shadow-xl backdrop-blur-sm border border-purple-100 overflow-y-auto max-h-[85vh] lg:max-h-none">
+                        <div className="border-l-8 border-[#a67cac] pl-4 mb-4">
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-[#5e3a63]">📦 容积大揭秘</h1>
+                            <p className="text-xl text-gray-700 mt-1 font-semibold">长方体和正方体的容积 · 生活中的数学</p>
+                        </div>
+                        
+                        {/* 1. 容积的意义 */}
+                        <div className="bg-gradient-to-r from-[#f7effb] to-white p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800 flex items-center gap-2">🧃 什么是容积？</h2>
+                            <p className="text-lg mt-2 leading-relaxed">容器所能容纳物体的体积，叫做它的<strong className="text-purple-700">容积</strong>。比如水桶能装多少水，油箱能装多少油。</p>
+                            <div className="mt-3 flex justify-around text-center">
+                                <div className="bg-purple-50 p-2 rounded-xl">🥤 杯子<br/>容积≈250mL</div>
+                                <div className="bg-purple-50 p-2 rounded-xl">📦 快递箱<br/>容积≈30L</div>
+                                <div className="bg-purple-50 p-2 rounded-xl">🚰 水箱<br/>容积≈200L</div>
+                            </div>
+                        </div>
+                        
+                        {/* 2. 容积单位与换算 */}
+                        <div className="bg-white/80 p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📏 常用容积单位</h2>
+                            <div className="grid grid-cols-2 gap-3 mt-3 text-center">
+                                <div className="bg-amber-50 rounded-xl p-3">
+                                    <p className="font-black text-xl">升 (L)</p>
+                                    <p className="text-lg">1 L = 1 dm³</p>
+                                    <p className="text-sm">粉笔盒大小</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3">
+                                    <p className="font-black text-xl">毫升 (mL)</p>
+                                    <p className="text-lg">1 mL = 1 cm³</p>
+                                    <p className="text-sm">药水瓶大小</p>
+                                </div>
+                            </div>
+                            <div className="mt-3 bg-purple-50 p-2 rounded-lg text-center">
+                                <p className="font-bold">✨ 重要换算 ✨</p>
+                                <p>1 L = 1000 mL &nbsp;&nbsp;|&nbsp;&nbsp; 1 m³ = 1000 L</p>
+                            </div>
+                        </div>
+                        
+                        {/* 3. 容积计算方法 */}
+                        <div className="bg-[#faf0ff] p-4 rounded-xl mb-5 shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📐 容积计算公式</h2>
+                            <p className="text-lg mt-1">容积的计算方法与体积相同，但要从<strong className="text-red-600">容器内部</strong>测量长、宽、高。</p>
+                            <div className="mt-2 space-y-2">
+                                <div className="bg-white rounded-lg p-2 text-center">
+                                    <p className="font-mono text-xl">长方体容积 = 长 × 宽 × 高</p>
+                                    <p className="text-sm">(内部尺寸)</p>
+                                </div>
+                                <div className="bg-white rounded-lg p-2 text-center">
+                                    <p className="font-mono text-xl">正方体容积 = 棱长³</p>
+                                    <p className="text-sm">(内部棱长)</p>
+                                </div>
+                            </div>
+                            <div className="mt-3 bg-yellow-50 p-2 rounded-lg text-center">
+                                💡 注意：计算后单位要转换，1 cm³ = 1 mL，1 dm³ = 1 L。
+                            </div>
+                        </div>
+                        
+                        {/* 4. 例题演示 & 易错点 */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm">
+                            <h2 className="text-2xl font-black text-purple-800">📝 经典例题</h2>
+                            <div className="space-y-3 mt-2">
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例1</span> 一个长方体鱼缸，内部长6dm、宽4dm、高5dm，能装多少升水？</p>
+                                    <p className="text-purple-700">解：6×4×5 = 120 dm³ = 120 L</p>
+                                </div>
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例2</span> 正方体油箱内部棱长0.5m，容积是多少升？</p>
+                                    <p className="text-purple-700">解：0.5×0.5×0.5 = 0.125 m³ = 125 L</p>
+                                </div>
+                                <div className="border-l-4 border-purple-400 pl-3">
+                                    <p><span className="font-bold">例3</span> 一个牛奶盒内部长6cm、宽4cm、高12cm，能装多少毫升？</p>
+                                    <p className="text-purple-700">解：6×4×12 = 288 cm³ = 288 mL</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-4 text-sm text-center text-purple-600 bg-white/60 rounded-full py-2">✨ 容积 = 内部空间，单位记得换算 ✨</div>
+                    </div>
+                    
+                    {/* ========= 右侧互动游戏区域：拖拽配对（扭蛋机风格） ========= */}
+                    <div className="lg:w-3/5 bg-[#faf3ff]/95 rounded-2xl p-5 md:p-6 shadow-lg border-2 border-[#CBAACB] flex flex-col">
+                        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+                            <h2 className="text-2xl md:text-3xl font-black text-[#6b3f74] flex items-center gap-2">
+                                🎮 容积扭蛋机·拖拽配对 <span className="text-lg bg-white/70 px-3 py-1 rounded-full">答案配对</span>
+                            </h2>
+                            <button 
+                                onClick={resetGame}
+                                className="bg-gradient-to-r from-[#a17bb5] to-[#cba3db] hover:from-[#8f68a3] hover:to-[#b887cf] text-white font-bold py-2 px-5 rounded-full shadow-md transition transform active:scale-95 text-lg"
+                            >
+                                🔄 新的一局
+                            </button>
+                        </div>
+                        
+                        {/* 反馈消息条 */}
+                        <div className={`mb-4 p-3 rounded-xl text-center font-bold text-lg transition-all ${feedbackMsg.includes('正确') || feedbackMsg.includes('🎈') ? 'bg-green-100 text-green-800 border border-green-300' : (feedbackMsg.includes('错误') || feedbackMsg.includes('⛔') ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')}`}>
+                            {feedbackMsg}
+                        </div>
+                        
+                        {/* 进度条 */}
+                        <div className="w-full bg-purple-200 rounded-full h-3 mb-3">
+                            <div className="bg-purple-600 h-3 rounded-full transition-all duration-300" style={{ width: `${(matchedCount / totalQuestions) * 100}%` }}></div>
+                        </div>
+                        <p className="text-right text-purple-700 text-sm font-medium">配对进度: {matchedCount}/{totalQuestions}</p>
+                        
+                        {/* 挑战问题区域 (放置区) */}
+                        <div className="space-y-4 mb-6 mt-2 max-h-[460px] overflow-y-auto pr-1">
+                            {questionsData.map(q => {
+                                const isMatched = matchedQuestions[q.id];
+                                const isHighlight = highlightZoneId === q.id;
+                                return (
+                                    <div
+                                        key={q.id}
+                                        id={`qzone-${q.id}`}
+                                        className={`drop-zone relative bg-white rounded-2xl p-4 border-2 transition-all ${isMatched ? 'border-green-400 bg-green-50/90' : (isHighlight ? 'border-purple-500 bg-purple-50 drop-highlight' : 'border-purple-200')}`}
+                                        onDragOver={(e) => handleDragOver(e, q.id)}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, q)}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="text-xl font-black text-purple-800 flex items-center gap-2 flex-wrap">
+                                                    <span className="text-2xl">{q.emoji}</span>
+                                                    <span>{q.title}</span>
+                                                    {!isMatched && <span className="text-sm bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">待配对</span>}
+                                                    {isMatched && <span className="text-sm bg-green-200 text-green-800 px-2 py-0.5 rounded-full">✓ 已配对</span>}
+                                                </div>
+                                                <p className="text-base md:text-lg text-gray-700 mt-1">{q.desc}</p>
+                                                <div className="mt-2 text-sm text-purple-600 bg-purple-50 inline-block px-2 py-1 rounded-full">
+                                                    💡 提示：{q.hint}
+                                                </div>
+                                                {isMatched && (
+                                                    <div className="mt-2 inline-flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
+                                                        ✅ 容积：{q.correctAnswer}
+                                                    </div>
+                                                )}
+                                                {!isMatched && (
+                                                    <div className="mt-2 text-xs text-purple-400">
+                                                        👆 将正确卡片拖拽至此
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-3xl ml-2">🎯</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 可拖拽卡片区（答案扭蛋 + 干扰项） */}
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <p className="text-xl font-bold text-purple-800 flex items-center gap-2">🎴 答案扭蛋 (拖拽配对)</p>
+                                <span className="bg-purple-200 rounded-full px-3 py-1 text-sm font-bold">剩余: {remainingCards.length}</span>
+                            </div>
+                            
+                            {remainingCards.length === 0 && !gameWin && (
+                                <div className="text-center py-6 bg-yellow-50 rounded-2xl border border-yellow-300 text-yellow-700 font-bold text-xl">
+                                    ✨ 太棒啦！所有题目都配对正确！点击[新的一局]继续挑战 ✨
+                                </div>
+                            )}
+                            
+                            {remainingCards.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {remainingCards.map(card => (
+                                        <div
+                                            key={card.id}
+                                            draggable="true"
+                                            onDragStart={(e) => handleDragStart(e, card)}
+                                            onDragEnd={handleDragEnd}
+                                            className={`drag-card bg-gradient-to-br from-[#e8d3fc] to-white rounded-2xl p-3 text-center shadow-md cursor-grab active:cursor-grabbing border-2 ${card.matchId === -1 ? 'border-red-300 bg-red-50/80' : 'border-purple-300'} hover:shadow-xl transform transition hover:-translate-y-1`}
+                                        >
+                                            <div className="text-3xl mb-1">{card.emoji}</div>
+                                            <div className="font-black text-xl md:text-2xl text-purple-800">{card.label}</div>
+                                            <div className="text-xs text-purple-500 mt-1">✨ 拖拽配对 ✨</div>
+                                            {card.matchId === -1 && <div className="text-xs text-red-500 mt-0.5">干扰项</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 拖拉拽玩法详细说明 */}
+                            <div className="mt-5 bg-[#e9d4f0] rounded-xl p-3 text-center text-purple-800 text-base flex flex-wrap justify-center gap-2 items-center">
+                                <span className="font-bold">🐣 如何拖拉拽互动：</span>
+                                <span>👉 手指长按右边卡片 → 拖到左边对应的题目区域 → 松开配对！</span>
+                                <span className="text-sm bg-white rounded-full px-2 py-0.5">练习容积计算与单位换算</span>
+                            </div>
+                        </div>
+                        
+                        {/* 胜利彩蛋 */}
+                        {gameWin && (
+                            <div className="mt-5 p-4 bg-gradient-to-r from-green-200 to-emerald-200 rounded-2xl text-center win-bounce">
+                                <div className="text-5xl mb-2">🏆📦💧🎉</div>
+                                <p className="font-extrabold text-2xl text-emerald-800">容积小英雄！计算准确，单位换算全对！</p>
+                                <button onClick={resetGame} className="mt-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow">🏅 再玩一局 🏅</button>
+                            </div>
+                        )}
+                        
+                        {/* 底部知识关联 */}
+                        <div className="mt-3 text-right text-sm text-purple-600 flex justify-end items-center gap-1">
+                            <span>📌 容积 = 内部长×宽×高 &nbsp;|&nbsp; 1 L = 1 dm³ &nbsp;|&nbsp; 1 mL = 1 cm³</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-center mt-5 text-sm text-purple-900/80 bg-white/30 rounded-full py-2 px-4 mx-auto w-fit">
+                    🌟 容积就是容器内部能装多少，记得用内部尺寸计算，单位换算要细心！ 🌟
+                </div>
+            </div>
+        );
+    };
+    
+    // 渲染根组件
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<VolumeCapacityGame />);
+</script>
+</body>
+</html>

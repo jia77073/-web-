@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>溶液浓度·思维特训营 | 溶质溶剂混合 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 拖拽样式辅助 */
+        .dragging {
+            opacity: 0.4;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3;
+            border: 2px dashed #a855f7 !important;
+            transition: all 0.1s;
+        }
+        .question-card {
+            transition: all 0.2s;
+        }
+        .matched-card {
+            background-color: #bbf7d0 !important;
+            border-left: 6px solid #22c55e !important;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+        .answer-card {
+            cursor: grab;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .answer-card:active {
+            cursor: grabbing;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2rem !important;
+            }
+            .question-card, .answer-card {
+                font-size: 0.85rem;
+                padding: 0.5rem;
+            }
+        }
+        /* 绿色背景 + 紫色主题 */
+        body {
+            background: linear-gradient(145deg, #c8e6b5 0%, #a9d48e 100%);
+            font-family: 'Segoe UI', 'Comic Neue', system-ui, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 浓度问题拓展题库（稀释、浓缩、混合、反求质量等）--------------------------------
+        const CONCENTRATION_PROBLEMS = [
+            { id: 1, text: "🧂 有200克浓度为20%的盐水，需要加入多少克盐才能变成浓度为30%的盐水？", answer: "28.57克（≈28.6克）", hint: "设加盐x克，溶质=200×20%+x，溶液=200+x，浓度=(40+x)/(200+x)=0.3 → x≈28.57。", numericHint: "28.57" },
+            { id: 2, text: "💧 一种含盐25%的盐水400克，加水稀释成含盐20%的盐水，需要加水多少克？", answer: "100克", hint: "溶质不变：400×25%=100克，稀释后溶液=100÷20%=500克，加水=100克。" },
+            { id: 3, text: "🧪 将浓度为30%的糖水与浓度为10%的糖水混合，配成浓度为18%的糖水300克，两种糖水各需多少克？", answer: "120克和180克", hint: "设30%需x克，则10%需(300-x)克；方程：0.3x+0.1(300-x)=0.18×300 → x=120，另为180克。" },
+            { id: 4, text: "🔥 一杯浓度为15%的盐水500克，蒸发掉多少克水后浓度变成20%？", answer: "125克", hint: "溶质不变=500×15%=75克，浓缩后溶液=75÷20%=375克，蒸发水=125克。" },
+            { id: 5, text: "🥣 在200克浓度为40%的酒精溶液中，加入300克水，新溶液的浓度是多少？", answer: "16%", hint: "溶质=200×40%=80克，溶液变为500克，浓度=80÷500=16%。" },
+            { id: 6, text: "⚖️ 有浓度为5%的盐水80克，要使其浓度变成8%，需要蒸发多少克水？", answer: "30克", hint: "溶质=80×5%=4克，浓缩后溶液=4÷8%=50克，蒸发水=30克。" },
+            { id: 7, text: "🧴 甲杯含盐10%的盐水100克，乙杯含盐20%的盐水200克，混合后浓度是多少？", answer: "16.7%", hint: "总溶质=100×10%+200×20%=10+40=50克，总溶液=300克，浓度=50÷300≈16.67%。" },
+            { id: 8, text: "🧫 从含盐18%的盐水中倒出30克，再加水30克，此时浓度变为15%，原来盐水有多少克？", answer: "75克", hint: "设原溶液x克，倒出30克后溶质剩下18%×(x-30)，加30克水后浓度=[0.18(x-30)]/x=0.15 → 0.18(x-30)=0.15x → x=75克。" }
+        ];
+        
+        // ----------------------------- 左侧知识讲解组件 (溶液浓度核心) ------------------------------------
+        const KnowledgeBase = () => {
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">🧪</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 main-title">溶液浓度·思维特训营</h1>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200">
+                        <h2 className="text-2xl font-bold text-purple-800 flex items-center gap-2">🧠 核心公式·浓度三要素</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong className="text-purple-800">溶液质量 = 溶质质量 + 溶剂质量</strong></p>
+                            <p>✨ <strong className="text-purple-800">浓度 = 溶质质量 ÷ 溶液质量 × 100%</strong></p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 浓度问题三大经典模型：</p>
+                                <p>🔹 <strong>稀释/加水</strong>：溶质不变，溶液增加 → 新浓度 = 原溶质 ÷ (原溶液+加水)</p>
+                                <p>🔹 <strong>浓缩/蒸发</strong>：溶质不变，溶液减少 → 新浓度 = 原溶质 ÷ (原溶液-蒸发水)</p>
+                                <p>🔹 <strong>加盐增浓</strong>：溶质和溶液都增加 → 设未知数列方程</p>
+                                <p>🔹 <strong>混合溶液</strong>：总溶质 = 各溶质和，总溶液 = 各溶液和 → 混合浓度 = 总溶质/总溶液</p>
+                            </div>
+                            <p>⚡ <strong className="text-purple-800">解题法宝</strong>：抓住<strong>不变量</strong>（稀释/浓缩抓住溶质不变；混合抓住总溶质/总溶液）</p>
+                            <p>🎯 <strong>拔高题型</strong>：多次倒出倒入、十字交叉法、已知浓度和质量反求配比。</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">📖 浓度十字交叉法</h3>
+                        <div className="mt-2 space-y-2 text-gray-700 text-sm md:text-base">
+                            <p>🔁 将两种不同浓度的溶液混合，求配比：</p>
+                            <p className="font-mono bg-white p-1 rounded">(高浓度 - 混合浓度) : (混合浓度 - 低浓度) = 低质量 : 高质量</p>
+                            <p>📌 例：30%和10%配成18%，比例 = (30-18):(18-10)=12:8=3:2，即30%溶液与10%溶液质量比3:2。</p>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 右侧小游戏 → 将正确答案卡片拖拽到对应的问题上，掌握浓度计算技巧！
+                    </div>
+                </div>
+            );
+        };
+        
+        // ----------------------------- 右侧拖拽配对游戏 (溶液浓度题目配对) 使用原生拖拽+React状态管理--------------------------------
+        const ConcentrationGame = () => {
+            // 当前展示的题目列表（随机4-5道，保持界面清爽）
+            const [questions, setQuestions] = React.useState([]);
+            // 答案卡片列表（正确答案+干扰项）
+            const [answerCards, setAnswerCards] = React.useState([]);
+            // 已配对的题目id集合
+            const [matchedIds, setMatchedIds] = React.useState(new Set());
+            // 反馈消息
+            const [feedback, setFeedback] = React.useState('');
+            // 是否全部完成
+            const [allCompleted, setAllCompleted] = React.useState(false);
+            // 高亮当前拖拽的目标问题id
+            const [dropTargetId, setDropTargetId] = React.useState(null);
+            
+            // 随机抽取题目 (4~5道)
+            const loadRandomQuestions = () => {
+                const shuffled = [...CONCENTRATION_PROBLEMS];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                const selected = shuffled.slice(0, 5);
+                setQuestions(selected);
+                
+                // 生成答案卡片：每个题目的正确答案 + 2~3个干扰项（从其他题目答案筛选）
+                const correctItems = selected.map(q => ({ id: q.id, label: q.answer, type: 'correct' }));
+                // 收集所有答案（去重）
+                const allAnswers = [...new Set(CONCENTRATION_PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                // 随机取3个干扰项
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                // 打乱顺序
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedback('');
+                setAllCompleted(false);
+                setDropTargetId(null);
+            };
+            
+            React.useEffect(() => {
+                loadRandomQuestions();
+            }, []);
+            
+            // 监听配对完成状态
+            React.useEffect(() => {
+                if (questions.length > 0 && matchedIds.size === questions.length) {
+                    setAllCompleted(true);
+                    setFeedback("🎉 完美！所有浓度问题都配对成功！你已是浓度高手！ 🎉");
+                }
+            }, [matchedIds, questions]);
+            
+            // 拖拽开始：记录答案数据
+            const handleDragStart = (e, answerLabel, answerType, correctQid) => {
+                if (allCompleted) {
+                    e.preventDefault();
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ answerLabel, answerType, correctQid }));
+                e.dataTransfer.effectAllowed = "copy";
+                e.target.classList.add('dragging');
+            };
+            
+            const handleDragEnd = (e) => {
+                e.target.classList.remove('dragging');
+                setDropTargetId(null);
+            };
+            
+            const handleDragOver = (e, questionId) => {
+                e.preventDefault();
+                if (!allCompleted && !matchedIds.has(questionId)) {
+                    setDropTargetId(questionId);
+                }
+            };
+            
+            const handleDragLeave = () => {
+                setDropTargetId(null);
+            };
+            
+            const handleDrop = (e, questionId, correctAnswer, questionHint) => {
+                e.preventDefault();
+                setDropTargetId(null);
+                if (allCompleted) return;
+                if (matchedIds.has(questionId)) {
+                    setFeedback("这道题已经配对成功啦！");
+                    return;
+                }
+                const rawData = e.dataTransfer.getData("text/plain");
+                if (!rawData) return;
+                const { answerLabel, answerType } = JSON.parse(rawData);
+                
+                // 匹配验证
+                if (answerLabel === correctAnswer) {
+                    // 配对成功
+                    setMatchedIds(prev => new Set(prev).add(questionId));
+                    // 从答案卡片中移除该正确答案（避免重复使用）
+                    setAnswerCards(prev => prev.filter(card => !(card.type === 'correct' && card.label === answerLabel)));
+                    setFeedback(`✅ 正确！答案：${correctAnswer}，恭喜！`);
+                } else {
+                    setFeedback(`❌ 配对错误！正确答案是 “${correctAnswer}”。提示：${questionHint}`);
+                }
+            };
+            
+            // 重置当前配对（不换题，仅重置配对状态）
+            const resetCurrentMatch = () => {
+                // 重新生成当前题目的答案卡片（保留正确答案+新干扰）
+                const correctItems = questions.map(q => ({ id: q.id, label: q.answer, type: 'correct' }));
+                const allAnswers = [...new Set(CONCENTRATION_PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedback("配对已重置，可以重新挑战！");
+                setAllCompleted(false);
+            };
+            
+            // 换一题（完全刷新题库）
+            const handleRefresh = () => {
+                loadRandomQuestions();
+            };
+            
+            return (
+                <div className="glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-400 h-full flex flex-col">
+                    <div className="flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🧪</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">浓度实验室·拖拽配对</h2>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={resetCurrentMatch} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-2xl shadow-md transition text-sm">🔄 重置配对</button>
+                            <button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base">🔄 换一题</button>
+                        </div>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-3 bg-purple-50 p-2 rounded-xl">
+                        🎮 <strong>玩法：</strong> 将右侧「答案卡片」<strong>拖拽</strong> 到左侧对应的问题卡片上，配对正确两者都会消失！全部配对即获胜。
+                    </p>
+                    <div className="flex flex-col lg:flex-row gap-5 flex-1">
+                        {/* 左侧问题区（接收拖拽） */}
+                        <div className="flex-1 bg-purple-50 rounded-2xl p-3 min-h-[400px]">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg">🧪 浓度难题（拖放答案区）</h3>
+                            <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
+                                {questions.map(q => {
+                                    const isMatched = matchedIds.has(q.id);
+                                    const isDropActive = dropTargetId === q.id && !isMatched && !allCompleted;
+                                    return (
+                                        <div
+                                            key={q.id}
+                                            onDragOver={(e) => handleDragOver(e, q.id)}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDrop(e, q.id, q.answer, q.hint)}
+                                            className={`question-card p-3 rounded-xl border-2 transition-all ${isMatched ? 'matched-card bg-green-100 border-green-400' : 'bg-white border-purple-300 hover:shadow-md'} ${isDropActive ? 'drop-zone-active' : ''}`}
+                                        >
+                                            <div className="font-medium text-gray-800">{q.text}</div>
+                                            {!isMatched && <div className="text-xs text-purple-500 mt-1">⬅️ 将正确答案拖拽至此区域</div>}
+                                            {isMatched && <div className="text-green-600 text-sm font-bold mt-1">✓ 已配对 {q.answer}</div>}
+                                        </div>
+                                    );
+                                })}
+                                {questions.length === 0 && <div className="text-center text-gray-400 py-8">加载题目中...</div>}
+                            </div>
+                        </div>
+                        
+                        {/* 右侧答案卡片区（可拖拽） */}
+                        <div className="flex-1 bg-amber-50 rounded-2xl p-3">
+                            <h3 className="font-bold text-purple-700 text-center mb-2 text-lg">🎴 答案卡片（可拖拽）</h3>
+                            <div className="flex flex-wrap gap-3 justify-center min-h-[200px]">
+                                {answerCards.map((card, idx) => (
+                                    <div
+                                        key={idx}
+                                        draggable={!allCompleted}
+                                        onDragStart={(e) => handleDragStart(e, card.label, card.type, card.id)}
+                                        onDragEnd={handleDragEnd}
+                                        className="answer-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-4 py-3 text-center font-bold text-lg cursor-grab select-none hover:scale-105 transition flex items-center justify-center"
+                                    >
+                                        {card.label}
+                                    </div>
+                                ))}
+                                {answerCards.length === 0 && !allCompleted && <div className="text-green-600 font-bold">✨ 完美！所有答案配对完毕 ✨</div>}
+                                {allCompleted && <div className="text-green-700 font-bold text-center">🏆 浓度大师！点击「换一题」继续挑战</div>}
+                            </div>
+                            <p className="text-xs text-center text-gray-500 mt-3">💡 提示：只有正确答案能配对成功，干扰项可拖拽但会提示错误~</p>
+                        </div>
+                    </div>
+                    
+                    {/* 反馈消息区域 */}
+                    {feedback && (
+                        <div className={`mt-4 text-center text-base font-medium rounded-xl p-3 ${allCompleted ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-purple-100 text-purple-700 border border-purple-200'}`}>
+                            {feedback}
+                        </div>
+                    )}
+                    
+                    {/* 进度条 */}
+                    <div className="mt-3">
+                        <div className="flex justify-between text-sm text-purple-700 mb-1">
+                            <span>配对进度</span>
+                            <span>{matchedIds.size} / {questions.length}</span>
+                        </div>
+                        <div className="w-full bg-purple-200 rounded-full h-2.5 overflow-hidden">
+                            <div className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(matchedIds.size / questions.length) * 100}%` }}></div>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-3 text-center text-xs text-purple-500 bg-purple-50/80 rounded-xl p-2">
+                        🌟 浓度 = 溶质÷溶液；稀释/浓缩抓溶质不变；混合溶液抓总溶质/总溶液。十字交叉法求配比更快捷！
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============================ 主页面 ============================
+        const MainApp = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="flex-1"><KnowledgeBase /></div>
+                    <div className="flex-1"><ConcentrationGame /></div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>

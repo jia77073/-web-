@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🧸 除数是一位数 · 竖式小英雄</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: linear-gradient(145deg, #f9f7f3 0%, #fff5e9 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', 'Quicksand', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+      padding: 16px;
+      margin: 0;
+    }
+
+    .course-card {
+      max-width: 1280px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 48px 48px 40px 40px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05), 0 6px 12px rgba(233, 186, 143, 0.15);
+      border: 1px solid #fff8f0;
+      overflow: hidden;
+      padding: 24px 24px 30px;
+    }
+
+    h1 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 1.9rem;
+      color: #5e4b3a;
+      margin: 0 0 8px 10px;
+      letter-spacing: -0.01em;
+    }
+
+    h1 span {
+      background: #fde6d2;
+      padding: 6px 18px;
+      border-radius: 60px;
+      font-size: 1rem;
+      color: #8b6f50;
+      margin-left: 8px;
+      font-weight: 500;
+    }
+
+    .split-layout {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    /* 左侧知识点 */
+    .knowledge-panel {
+      flex: 1 1 340px;
+      background: #fffbf6;
+      border-radius: 36px;
+      padding: 24px 20px;
+      box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.8), 0 10px 18px -8px rgba(160, 120, 80, 0.12);
+      border: 1px solid #ffe9da;
+    }
+
+    .knowledge-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: #ad7a4c;
+      margin-bottom: 22px;
+      padding-bottom: 12px;
+      border-bottom: 3px dotted #fadbc8;
+    }
+
+    .step-list {
+      list-style: none;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 20px;
+      background: #fff9f2;
+      padding: 14px 16px;
+      border-radius: 28px;
+      box-shadow: 0 4px 8px #f1e2d4;
+      border: 1px solid #ffede1;
+    }
+
+    .step-emoji {
+      background: #fee1c7;
+      width: 44px;
+      height: 44px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #7b5e44;
+      flex-shrink: 0;
+    }
+
+    .step-text {
+      font-size: 1.05rem;
+      color: #4e3e2e;
+      line-height: 1.4;
+    }
+
+    .step-text strong {
+      color: #bc6c25;
+      font-weight: 700;
+    }
+
+    .example-box {
+      margin-top: 28px;
+      background: #f7ede1;
+      border-radius: 32px;
+      padding: 20px 16px;
+      border: 2px dashed #ddb594;
+    }
+
+    .example-title {
+      font-weight: 600;
+      color: #936e4b;
+      margin-bottom: 20px;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ---------- 新竖式：基于网格对齐 ---------- */
+    .ld-container {
+      background: #fffbf3;
+      padding: 16px 8px 16px 12px;
+      border-radius: 28px;
+      box-shadow: inset 0 1px 4px #efe0d3, 0 6px 0 #dbbc9b;
+      border: 1px solid #e6cfbc;
+      display: inline-block;
+      font-family: 'Courier New', 'Consolas', 'Monaco', 'SF Mono', monospace;
+      font-weight: 700;
+      color: #3f2e1f;
+    }
+
+    /* 每一行都是flex，左侧占位宽度 = 除数宽度 */
+    .ld-row {
+      display: flex;
+      align-items: flex-end;
+      min-height: 2.8rem;
+    }
+
+    /* 左侧占位 (对齐除数) */
+    .ld-divisor-placeholder {
+      width: 52px;          /* 与除数宽度一致 */
+      flex-shrink: 0;
+    }
+
+    .ld-divisor-cell {
+      width: 52px;
+      flex-shrink: 0;
+      font-size: 2.5rem;
+      text-align: right;
+      padding-right: 12px;
+      color: #bc6c25;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+
+    /* 数位行容器：每个数位格子宽度一致 */
+    .ld-digits-row {
+      display: flex;
+    }
+
+    .digit {
+      width: 2.8rem;           /* 固定宽度保证对齐 */
+      text-align: center;
+      font-size: 2.4rem;
+      line-height: 1.3;
+      font-weight: 700;
+      color: #3f2e1f;
+    }
+
+    /* 商行颜色特殊 */
+    .ld-quotient-row .digit {
+      color: #2c5f2d;
+    }
+
+    /* 厂字框部分 */
+    .ld-bracket-col {
+      display: flex;
+      flex-direction: column;
+      border-left: 3px solid #a77b58;   /* 左侧竖线 */
+    }
+
+    .ld-top-line {
+      width: 100%;
+      height: 3px;
+      background: #a77b58;
+      margin-bottom: 4px;
+    }
+
+    .dividend-row .digit {
+      font-weight: 800;
+    }
+
+    /* 步骤中的横线 */
+    .ld-line-row {
+      min-height: auto;
+    }
+
+    .ld-step-line {
+      height: 2px;
+      background: #9f7e63;
+      margin: 2px 0 4px 0;
+      width: calc(2.8rem * 2);   /* 两个格子宽度 */
+      border-radius: 2px;
+    }
+
+    /* 余数行 */
+    .ld-remainder-digit {
+      color: #a5481e;
+    }
+
+    /* 适配移动端：缩小宽度 */
+    @media (max-width: 700px) {
+      .digit { width: 2.2rem; font-size: 1.9rem; }
+      .ld-divisor-cell { width: 42px; font-size: 2rem; }
+      .ld-divisor-placeholder { width: 42px; }
+      .ld-step-line { width: calc(2.2rem * 2); }
+    }
+
+    @media (max-width: 480px) {
+      .digit { width: 1.9rem; font-size: 1.6rem; }
+      .ld-divisor-cell { width: 36px; font-size: 1.8rem; padding-right: 6px; }
+      .ld-divisor-placeholder { width: 36px; }
+      .ld-step-line { width: calc(1.9rem * 2); }
+    }
+
+    .tip-note {
+      margin-top: 18px;
+      color: #7c6350;
+      background: #fffbee;
+      border-radius: 24px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+    }
+
+    /* 右侧游戏区 (保持不变) */
+    .game-panel {
+      flex: 2 1 420px;
+      background: #fefaf5;
+      border-radius: 40px;
+      padding: 20px 20px 26px;
+      box-shadow: 0 10px 18px -6px rgba(180, 130, 90, 0.12);
+      border: 1px solid #ffdcc4;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .game-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .game-header h2 {
+      font-size: 1.7rem;
+      font-weight: 650;
+      color: #a47148;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .score-area {
+      background: #e6d5c0;
+      padding: 10px 18px;
+      border-radius: 60px;
+      color: #4f3a28;
+      font-weight: 700;
+      font-size: 1.4rem;
+      box-shadow: inset 0 2px 5px #f6e6d8, 0 4px 6px rgba(0,0,0,0.02);
+    }
+
+    .drag-instruction {
+      background: #f9e7d9;
+      border-radius: 30px;
+      padding: 8px 18px;
+      margin: 6px 0 16px;
+      color: #6e4f35;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .questions-area {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin: 10px 0 20px;
+    }
+
+    .question-card {
+      background: #ffffffdb;
+      backdrop-filter: blur(4px);
+      border-radius: 50px;
+      padding: 8px 16px 8px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 8px 0 #dbbc9b, 0 6px 12px rgba(165, 120, 80, 0.08);
+      border: 1px solid #f7d7bd;
+    }
+
+    .question-equation {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: #533e2b;
+    }
+
+    .drop-zone {
+      min-width: 110px;
+      height: 80px;
+      background: #faeadc;
+      border-radius: 36px;
+      border: 3px dashed #d6a87f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.1rem;
+      font-weight: 700;
+      color: #7b5a3e;
+      box-shadow: inset 0 3px 8px #e9cdb6;
+      transition: 0.2s;
+      padding: 0 10px;
+    }
+
+    .drop-zone.filled {
+      background: #cbe6d9;
+      border: 3px solid #6f9e7c;
+      color: #2d5e3c;
+      box-shadow: inset 0 2px 8px #b3d6c2;
+      font-size: 2.3rem;
+    }
+
+    .drop-zone .placeholder {
+      font-size: 1rem;
+      color: #ab8a6e;
+      font-weight: 400;
+    }
+
+    .drag-deck {
+      margin: 10px 0 20px;
+    }
+
+    .deck-title {
+      font-size: 1.2rem;
+      margin-bottom: 14px;
+      color: #7b5f47;
+      font-weight: 600;
+    }
+
+    .cards-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+    }
+
+    .drag-item {
+      width: 100px;
+      height: 100px;
+      background: #ffdbb5;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.6rem;
+      font-weight: 800;
+      color: #4d311b;
+      box-shadow: 0 9px 0 #b68b65, 0 8px 16px rgba(160, 110, 60, 0.15);
+      border: 2px solid #fdebd9;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      will-change: transform;
+      z-index: 10;
+    }
+
+    .drag-item:active {
+      cursor: grabbing;
+      box-shadow: 0 5px 0 #9e7653, 0 10px 18px rgba(0,0,0,0.1);
+    }
+
+    .drag-item.disabled-drag {
+      opacity: 0.4;
+      pointer-events: none;
+      box-shadow: 0 5px 0 #9e7653;
+      filter: grayscale(0.3);
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: #f3dfcc;
+      border: none;
+      padding: 16px 24px;
+      border-radius: 50px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #594b3c;
+      box-shadow: 0 6px 0 #c7aa8f, 0 4px 8px rgba(0,0,0,0.05);
+      border: 1px solid #ffe5d3;
+      cursor: pointer;
+      transition: 0.08s;
+      flex: 1 0 130px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      touch-action: manipulation;
+    }
+
+    .btn:active {
+      transform: translateY(5px);
+      box-shadow: 0 2px 0 #b29278, 0 4px 8px rgba(0,0,0,0.05);
+    }
+
+    .win-message {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #bb6b2e;
+      min-height: 2.4rem;
+    }
+
+    .dragging {
+      opacity: 0.8;
+      z-index: 9999 !important;
+      box-shadow: 0 12px 0 #9e7653, 0 15px 25px rgba(0,0,0,0.2);
+      transform: scale(1.05);
+      cursor: grabbing;
+    }
+  </style>
+</head>
+<body>
+<div class="course-card">
+  <h1>🧸 除数是一位数 · 笔算 <span>竖式小行家</span></h1>
+  <div class="split-layout">
+    <!-- 左侧知识点：精确对齐的厂字竖式 -->
+    <div class="knowledge-panel">
+      <div class="knowledge-title">
+        <span>📘</span> 笔算小锦囊
+      </div>
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-emoji">1️⃣</div>
+          <div class="step-text"><strong>从高位除起</strong><br>先看被除数的最高位，够除就商。</div>
+        </li>
+        <li class="step-item">
+          <div class="step-emoji">2️⃣</div>
+          <div class="step-text"><strong>商写在哪一位</strong><br>除到被除数哪一位，商就写在那一位上面。</div>
+        </li>
+        <li class="step-item">
+          <div class="step-emoji">3️⃣</div>
+          <div class="step-text"><strong>余数要比除数小</strong><br>每次除后余数必须比除数小。</div>
+        </li>
+      </ul>
+      <div class="example-box">
+        <div class="example-title">✨ 标准竖式 · 84 ÷ 4 = 21</div>
+        <!-- 网格对齐竖式 -->
+        <div class="ld-container">
+          <!-- 商 -->
+          <div class="ld-row ld-quotient-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row">
+              <div class="digit">2</div>
+              <div class="digit">1</div>
+            </div>
+          </div>
+          <!-- 除数和厂字框 -->
+          <div class="ld-row ld-main-row">
+            <div class="ld-divisor-cell">4</div>
+            <div class="ld-bracket-col">
+              <div class="ld-top-line"></div>
+              <div class="ld-digits-row dividend-row">
+                <div class="digit">8</div>
+                <div class="digit">4</div>
+              </div>
+            </div>
+          </div>
+          <!-- 第一步乘积: 8 (对齐十位) -->
+          <div class="ld-row ld-step-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row">
+              <div class="digit">8</div>
+              <div class="digit"></div>   <!-- 个位留空 -->
+            </div>
+          </div>
+          <!-- 横线 -->
+          <div class="ld-row ld-line-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row"><div class="ld-step-line"></div></div>
+          </div>
+          <!-- 落下4 (对齐个位) -->
+          <div class="ld-row ld-step-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row">
+              <div class="digit"></div>
+              <div class="digit">4</div>
+            </div>
+          </div>
+          <!-- 第二步乘积: 4 (对齐个位) -->
+          <div class="ld-row ld-step-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row">
+              <div class="digit"></div>
+              <div class="digit">4</div>
+            </div>
+          </div>
+          <!-- 横线 -->
+          <div class="ld-row ld-line-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row"><div class="ld-step-line"></div></div>
+          </div>
+          <!-- 余数0 (对齐个位) -->
+          <div class="ld-row ld-step-row">
+            <div class="ld-divisor-placeholder"></div>
+            <div class="ld-digits-row">
+              <div class="digit"></div>
+              <div class="digit" style="color:#a5481e;">0</div>
+            </div>
+          </div>
+        </div>
+        <div class="tip-note">
+          💡 小口诀：除数一位看一位，一位不够看两位，除到哪位商哪位，余数要比除数小。
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧游戏区：拖拖乐 -->
+    <div class="game-panel">
+      <div class="game-header">
+        <h2>🐼 拖拖乐 · 配对 <span style="font-size:1.8rem;">🧩</span></h2>
+        <div class="score-area">⭐ <span id="scoreDisplay">0</span></div>
+      </div>
+      <div class="drag-instruction">
+        <i>👉👆</i> 把下面的数字卡片 <strong>拖到</strong> 算式右边的框框里！
+      </div>
+      <div class="questions-area" id="questionsArea"></div>
+      <div class="drag-deck">
+        <div class="deck-title">🎴 拖动数字卡片</div>
+        <div class="cards-container" id="dragContainer"></div>
+      </div>
+      <div class="action-buttons">
+        <button class="btn" id="newGameBtn">🔄 新 一 题</button>
+        <button class="btn" id="resetBtn">✨ 重 置</button>
+      </div>
+      <div id="winMessage" class="win-message"></div>
+      <div style="font-size:0.9rem; margin-top: 10px; color:#aa8b72; text-align:center;">
+        💭 拖动卡片到算式框内，答对得分！
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    "use strict";
+
+    const questionsArea = document.getElementById('questionsArea');
+    const dragContainer = document.getElementById('dragContainer');
+    const scoreSpan = document.getElementById('scoreDisplay');
+    const winMessageDiv = document.getElementById('winMessage');
+
+    let currentScore = 0;
+    let questions = [];           
+    let answerCards = [];         
+    let correctCount = 0;
+    const TOTAL_QUESTIONS = 3;
+
+    let dragActive = false;
+    let dragValue = null;          
+    let dragSourceCard = null;     
+    let dragClone = null;          
+    let dropZones = [];
+
+    function getRandomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function generateDivision() {
+      const divisor = getRandomInt(2, 9);
+      let quotient = getRandomInt(3, 12); 
+      let dividend = divisor * quotient;
+      while (dividend < 10 || dividend > 99) {
+        quotient = getRandomInt(3, 12);
+        dividend = divisor * quotient;
+      }
+      return { dividend, divisor, quotient };
+    }
+
+    function generateQuestionSet() {
+      return Array.from({ length: TOTAL_QUESTIONS }, (_, i) => {
+        const { dividend, divisor, quotient } = generateDivision();
+        return { id: i, dividend, divisor, quotient, isCorrect: false };
+      });
+    }
+
+    function generateAnswerCardsFromQuestions(questionsArray) {
+      const answers = questionsArray.map(q => q.quotient);
+      let cards = [...new Set(answers)];
+      while (cards.length < 5) {
+        let fake = getRandomInt(2, 20);
+        if (!answers.includes(fake) && !cards.includes(fake)) cards.push(fake);
+      }
+      return cards.sort(() => Math.random() - 0.5);
+    }
+
+    function renderGame() {
+      questionsArea.innerHTML = questions.map(q => `
+        <div class="question-card" data-qid="${q.id}">
+          <div class="question-equation">${q.dividend} <span class="eq-sign">÷</span> ${q.divisor} = ?</div>
+          <div class="drop-zone" id="dropZone${q.id}" data-qid="${q.id}">
+            ${q.isCorrect ? q.quotient : '<span class="placeholder">⬅️ 拖这里</span>'}
+          </div>
+        </div>
+      `).join('');
+
+      questions.forEach(q => {
+        q.element = document.querySelector(`.question-card[data-qid="${q.id}"]`);
+        q.dropZone = document.getElementById(`dropZone${q.id}`);
+        if (q.isCorrect) q.dropZone.classList.add('filled');
+        else q.dropZone.classList.remove('filled');
+      });
+
+      const usedCorrect = questions.filter(q => q.isCorrect).map(q => q.quotient);
+      dragContainer.innerHTML = answerCards.map(val => {
+        const disabled = usedCorrect.includes(val) ? 'disabled-drag' : '';
+        return `<div class="drag-item ${disabled}" data-value="${val}">${val}</div>`;
+      }).join('');
+
+      document.querySelectorAll('.drag-item:not(.disabled-drag)').forEach(card => bindDragEvents(card));
+
+      scoreSpan.textContent = currentScore;
+      winMessageDiv.textContent = correctCount === TOTAL_QUESTIONS ? '🎉 太棒啦！全部正确！  🎉' : '';
+      dropZones = questions.map(q => ({ id: q.id, element: q.dropZone, quotient: q.quotient, isFilled: q.isCorrect }));
+    }
+
+    function bindDragEvents(el) {
+      el.addEventListener('pointerdown', onDragStart);
+      el.addEventListener('touchstart', onDragStart, { passive: false });
+    }
+
+    function onDragStart(e) {
+      e.preventDefault();
+      if (dragActive) return;
+      const card = e.currentTarget;
+      if (card.classList.contains('disabled-drag')) return;
+      dragValue = parseInt(card.dataset.value, 10);
+      dragSourceCard = card;
+      const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+      const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+      dragClone = card.cloneNode(true);
+      dragClone.classList.add('dragging');
+      dragClone.style.cssText = `position:fixed; left:${x-50}px; top:${y-50}px; width:100px; height:100px; pointer-events:none; z-index:9999;`;
+      document.body.appendChild(dragClone);
+      card.style.opacity = '0.4';
+      dragActive = true;
+      window.addEventListener('pointermove', onDragMove);
+      window.addEventListener('pointerup', onDragEnd);
+      window.addEventListener('touchmove', onDragMove, { passive: false });
+      window.addEventListener('touchend', onDragEnd);
+      window.addEventListener('touchcancel', onDragEnd);
+    }
+
+    function onDragMove(e) {
+      if (!dragActive || !dragClone) return;
+      e.preventDefault();
+      const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+      const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+      dragClone.style.left = (x - 50) + 'px';
+      dragClone.style.top = (y - 50) + 'px';
+    }
+
+    function onDragEnd(e) {
+      if (!dragActive) return;
+      e.preventDefault();
+      const x = e.clientX || (e.changedTouches ? e.changedTouches[0].clientX : 0);
+      const y = e.clientY || (e.changedTouches ? e.changedTouches[0].clientY : 0);
+      let targetZone = null;
+      for (let z of dropZones) {
+        const rect = z.element.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          targetZone = z; break;
+        }
+      }
+      if (targetZone && !targetZone.isFilled && dragValue === targetZone.quotient) {
+        const q = questions.find(q => q.id === targetZone.id);
+        if (q && !q.isCorrect) { q.isCorrect = true; correctCount++; currentScore += 10; }
+      }
+      if (dragSourceCard) dragSourceCard.style.opacity = '';
+      if (dragClone) dragClone.remove();
+      renderGame();
+      cleanDrag();
+    }
+
+    function cleanDrag() {
+      dragActive = false; dragValue = null; dragSourceCard = null; dragClone = null;
+      window.removeEventListener('pointermove', onDragMove);
+      window.removeEventListener('pointerup', onDragEnd);
+      window.removeEventListener('touchmove', onDragMove);
+      window.removeEventListener('touchend', onDragEnd);
+      window.removeEventListener('touchcancel', onDragEnd);
+    }
+
+    function newGame() {
+      questions = generateQuestionSet();
+      correctCount = 0; currentScore = 0;
+      answerCards = generateAnswerCardsFromQuestions(questions);
+      renderGame();
+    }
+
+    function resetCurrentGame() {
+      questions.forEach(q => q.isCorrect = false);
+      correctCount = 0; currentScore = 0;
+      answerCards = generateAnswerCardsFromQuestions(questions);
+      renderGame();
+    }
+
+    document.getElementById('newGameBtn').addEventListener('click', newGame);
+    document.getElementById('resetBtn').addEventListener('click', resetCurrentGame);
+    window.addEventListener('touchmove', e => { if (dragActive) e.preventDefault(); }, { passive: false });
+
+    // 初始化
+    questions = generateQuestionSet();
+    answerCards = generateAnswerCardsFromQuestions(questions);
+    renderGame();
+  })();
+</script>
+</body>
+</html>

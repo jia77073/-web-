@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>📐 方程的意义 · 薰衣草代数工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号（比原有基础再增大） */
+    body {
+      font-size: 1.2rem;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+      font-size: 1.35rem;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(180, 130, 220, 0.2);
+      border: 2px dashed #b77ce0;
+    }
+    .drop-slot.drag-over {
+      background-color: #c89ef0;
+      border-color: #efd5ff;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #a86fd6;
+      border: 2px solid #e7c6ff;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .lavender-bg {
+      background-image: radial-gradient(circle at 20% 35%, rgba(170, 120, 210, 0.15) 2.2%, transparent 2.6%);
+      background-size: 52px 52px;
+    }
+    .card-value {
+      font-size: 1.4rem;
+      font-weight: bold;
+    }
+    .slot-value {
+      font-size: 1.55rem;
+      font-weight: bold;
+    }
+    .equation-expression {
+      font-size: 1.35rem;
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#D9C8F0] to-[#C2A8E6] min-h-screen flex items-center justify-center p-4 font-sans lavender-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数 ----------
+  const areEqual = (val1, val2) => val1 === val2;
+
+  // ---------- 题库：方程的意义 · 分类挑战 ----------
+  // 每个式子需要判断是否为方程（含有未知数的等式）
+  const MASTER_EXPRESSIONS = [
+    { id: "exp1", expression: "3x + 5 = 14", correctLabel: "方程", hint: "含有未知数 x，并且是等式，所以是方程。" },
+    { id: "exp2", expression: "7 + 8 = 15", correctLabel: "不是方程", hint: "虽然是等式，但不含有未知数，所以不是方程。" },
+    { id: "exp3", expression: "2y - 6 = 0", correctLabel: "方程", hint: "含有未知数 y，且是等式，符合方程定义。" },
+    { id: "exp4", expression: "5 > 3", correctLabel: "不是方程", hint: "不是等式，是不等式，因此不是方程。" },
+    { id: "exp5", expression: "4a + 2", correctLabel: "不是方程", hint: "不是等式（没有等号），是代数式，所以不是方程。" },
+    { id: "exp6", expression: "x - 4 = 9", correctLabel: "方程", hint: "含有未知数 x 且是等式，典型的方程。" },
+    { id: "exp7", expression: "6 + 9 = 15", correctLabel: "不是方程", hint: "没有未知数，只是数值等式，不是方程。" },
+    { id: "exp8", expression: "7x < 21", correctLabel: "不是方程", hint: "是不等式，不是等式，所以不是方程。" },
+    { id: "exp9", expression: "3(m + 2) = 12", correctLabel: "方程", hint: "含有未知数 m 且是等式，因此是方程。" },
+    { id: "exp10", expression: "2b", correctLabel: "不是方程", hint: "没有等号，是代数式，不是方程。" },
+    { id: "exp11", expression: "5k - 3 = 2k + 7", correctLabel: "方程", hint: "含有未知数 k 并且是等式，是方程。" },
+    { id: "exp12", expression: "9 = 9", correctLabel: "不是方程", hint: "没有未知数，是恒等式但不是方程。" }
+  ];
+
+  // 随机抽取不重复题目（默认5道）
+  const selectRandomExpressions = (count = 5) => {
+    const shuffled = [...MASTER_EXPRESSIONS];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, count).map(exp => ({
+      id: `${exp.id}-${Date.now()}-${Math.random()}`,
+      expression: exp.expression,
+      correctLabel: exp.correctLabel,
+      hint: exp.hint,
+      matched: false,
+      matchedValue: null
+    }));
+  };
+
+  // 干扰卡片池（不可匹配任何式子的值）
+  const DISTRACTOR_POOL = ["代数式", "不等式", "恒等式", "方程的解", "未知数", "等式", "含有未知数的式子"];
+
+  // 生成答案卡片池：为每个题目生成一张专属正确卡片（值 = correctLabel，绑定该题目id）
+  // 额外添加2~3个干扰卡片（不绑定任何题目）
+  const generateAnswerCards = (challenges) => {
+    let cards = [];
+    
+    // 1. 为每个题目生成一个专属正确卡片
+    challenges.forEach(challenge => {
+      cards.push({
+        id: `correct-card-${challenge.id}-${Math.random()}`,
+        value: challenge.correctLabel,
+        used: false,
+        forChallenge: challenge.id,      // 只允许匹配对应题目
+        type: "correct"
+      });
+    });
+    
+    // 2. 添加干扰卡片 (随机从干扰池选3个不同且不与"方程""不是方程"混淆的值)
+    const usedDistractors = new Set();
+    const distractorCount = Math.min(3, DISTRACTOR_POOL.length);
+    const shuffledDist = [...DISTRACTOR_POOL];
+    for (let i = shuffledDist.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+    }
+    for (let i = 0; i < distractorCount; i++) {
+      let distValue = shuffledDist[i % shuffledDist.length];
+      // 确保干扰值不是 "方程" 或 "不是方程"，避免误匹配
+      if (distValue === "方程" || distValue === "不是方程") distValue = "代数式";
+      cards.push({
+        id: `distractor-${Date.now()}-${i}-${Math.random()}`,
+        value: distValue,
+        used: false,
+        forChallenge: null,
+        type: "distractor"
+      });
+    }
+    
+    // 洗牌打乱顺序
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    
+    return cards;
+  };
+
+  // ---------- 左侧知识点卡片：方程的意义 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#F0E6FF]/95 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#C59BF0] h-full text-[#3C2260]">
+        <div className="flex items-center gap-2 border-b-2 border-[#C59BF0] pb-3 mb-4">
+          <span className="text-5xl">📐</span>
+          <h2 className="text-3xl font-extrabold tracking-wide">方程的意义<br/><span className="text-base font-normal text-[#6A3E9A]">含有未知数的等式</span></h2>
+        </div>
+        <div className="space-y-5">
+          <div className="bg-[#E6D9F7] rounded-2xl p-4 border border-[#D4B0F0]">
+            <p className="font-bold text-[#4A2670] text-xl flex items-center gap-2">✨ 核心定义</p>
+            <p className="text-lg mt-2 leading-relaxed"><strong>方程</strong>是指 <span className="bg-[#DCCEF5] px-2 py-0.5 rounded-lg font-bold">含有未知数的等式</span>。</p>
+            <p className="text-base mt-2">两个关键要素：<br/>🔹 必须是 <strong>等式</strong>（含有等号“=”）<br/>🔹 必须含有 <strong>未知数</strong>（如 x, y, a, b 等字母）</p>
+          </div>
+          <div className="bg-[#E6D9F7] rounded-2xl p-4 border border-[#D4B0F0]">
+            <p className="font-bold text-[#4A2670] text-lg">✨ 举例对比</p>
+            <ul className="text-base mt-2 space-y-2 list-disc pl-5">
+              <li><span className="font-mono font-bold">3x+2=8</span> ✅ 方程（有未知数且等式）</li>
+              <li><span className="font-mono font-bold">5+7=12</span> ❌ 不是方程（无未知数）</li>
+              <li><span className="font-mono font-bold">2y-5</span> ❌ 不是方程（不是等式）</li>
+              <li><span className="font-mono font-bold">x &gt; 10</span> ❌ 不是方程（不等式）</li>
+            </ul>
+          </div>
+          <div className="bg-[#DCCEF5] rounded-2xl p-4 text-center text-base border border-[#C59BF0]">
+            🧩 挑战规则：<br/>
+            每个数学式子，请判断它是“方程”还是“不是方程”。<br/>
+            📌 将右侧正确的分类卡片拖拽到对应式子的空白槽位中，每个卡片只能用一次！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：方程的意义 · 拖拽分类 ----------
+  const EquationMeaningGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => selectRandomExpressions(5));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    // 根据当前题目生成卡片池
+    const initCards = (currentChallenges) => generateAnswerCards(currentChallenges);
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.matched === true);
+      if (allFilled && !isVictory) setIsVictory(true);
+      else if (!allFilled && isVictory) setIsVictory(false);
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    // 全新挑战：换一批题目
+    const resetGame = () => {
+      const newChallenges = selectRandomExpressions(5);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    // 监听外部重置（全新挑战时触发）
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片逻辑
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value, forChallenge: card.forChallenge }));
+      e.dataTransfer.effectAllowed = 'copy';
+      if (e.target) e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到槽位：验证分类是否正确
+    const onDropToSlot = (e, challengeId) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      
+      let draggedCardId, draggedValue, draggedForChallenge;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+        draggedForChallenge = parsed.forChallenge;
+      } catch (err) {
+        return;
+      }
+      
+      // 查找卡片
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('📘 这张卡片已经使用过了！每个分类卡片只能匹配一次。');
+        setTimeout(() => setErrorMsg(''), 1500);
+        return;
+      }
+      
+      // 查找题目
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      if (targetChallenge.matched) {
+        setErrorMsg('⚖️ 这个式子的分类已经填写过了！');
+        setTimeout(() => setErrorMsg(''), 1500);
+        return;
+      }
+      
+      // 关键验证：卡片必须专门匹配此题目（forChallenge匹配） 且 卡片的值等于题目的正确分类
+      const isCorrectBinding = (targetCard.forChallenge === targetChallenge.id) && 
+                                areEqual(draggedValue, targetChallenge.correctLabel);
+      
+      if (!isCorrectBinding) {
+        // 提供友好的错误提示：显示出正确分类应该是什么
+        const expected = targetChallenge.correctLabel;
+        setErrorMsg(`❌ 不正确！ “${targetChallenge.expression}” 的正确分类是 “${expected}”。${targetChallenge.hint} 再试试看～`);
+        setTimeout(() => setErrorMsg(''), 2500);
+        return;
+      }
+      
+      // 正确匹配 ✅
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].matched = true;
+      newChallenges[challengeIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度（清空所有匹配，卡片重置为未使用，但题目不变）
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        matched: false,
+        matchedValue: null
+      }));
+      // 重置所有卡片的used状态，并保持原有id和绑定关系
+      let resetCards = answerCards.map(card => ({ ...card, used: false }));
+      // 打乱卡片顺序增加新鲜感
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    const totalCount = challenges.length;
+    const filledCount = challenges.filter(ch => ch.matched).length;
+    const progressPercent = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-[#C69DF0] to-[#AE7AE0] rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#E9D2FF]">
+        <div className="text-2xl font-bold text-white">🎉 方程小天才！全部正确 🎉</div>
+        <div className="text-base text-[#F7F0FF] font-semibold">你已完全掌握方程的意义：含有未知数的等式。继续挑战巩固吧～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#EDE0FA]/80 backdrop-blur-sm rounded-2xl px-5 py-3 shadow-md border border-[#C59BF0]">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl">📐</span>
+            <span className="font-bold text-[#4A2670] text-xl">学习进度</span>
+            <span className="text-xl font-black text-[#7D44B5]">{filledCount} / {totalCount}</span>
+          </div>
+          <div className="w-48 bg-[#DCCEF5] rounded-full h-3">
+            <div className="bg-[#B47DE0] h-3 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-base bg-[#E6D9F7] px-3 py-1 rounded-full text-[#4A2670] border border-[#C59BF0]">🎯 拖拽分类 放入槽位</div>
+        </div>
+        
+        {/* 挑战区域：每个式子展示 + 填空槽位 */}
+        <div className="bg-[#F9F2FF]/80 rounded-2xl p-5 backdrop-blur-sm border border-[#C59BF0]">
+          <div className="text-center text-lg font-semibold text-[#5A2D82] mb-4">✏️ 判断下列式子是否为“方程”？将正确卡片拖入对应槽位</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-white/90 rounded-xl p-4 border border-[#DCCEF5] shadow-sm hover:shadow-md transition">
+                <div className="mb-2">
+                  <div className="text-base font-bold text-[#5F2E8A] bg-[#F0E4FA] inline-block px-3 py-1 rounded-full">📌 式子</div>
+                  <div className="equation-expression text-gray-800 mt-3 bg-[#FCF7FF] p-3 rounded-lg text-center">
+                    {challenge.expression}
+                  </div>
+                  {!challenge.matched && (
+                    <div className="text-sm text-[#885FB0] mt-2 italic">💡 提示：{challenge.hint}</div>
+                  )}
+                </div>
+                <div className="mt-3">
+                  <div
+                    className={`drop-slot rounded-xl p-3 text-center transition-all ${challenge.matched ? 'filled-slot' : ''}`}
+                    onDragOver={onDragOverSlot}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, challenge.id)}
+                  >
+                    <div className="text-base font-semibold text-[#5A2D82]">📥 分类槽位</div>
+                    {challenge.matched ? (
+                      <div className="slot-value text-white mt-1">{challenge.matchedValue}</div>
+                    ) : (
+                      <div className="text-base text-[#7D4BAA] mt-1 border-t border-dashed border-[#C09BDF] pt-1">⬅️ 拖拽正确分类至此</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域：分类卡片（方程/不是方程/干扰） */}
+        <div className="bg-[#F9F2FF]/80 rounded-2xl p-5 border border-[#C59BF0]">
+          <div className="text-center text-lg font-semibold text-[#5A2D82] mb-3">🎴 分类卡片库（拖拽到上方槽位）</div>
+          <div className="flex flex-wrap justify-center gap-4">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-32 h-28 rounded-xl shadow-md flex items-center justify-center font-mono transition-all ${
+                  card.used 
+                    ? 'bg-gray-400/60 cursor-default border-2 border-gray-300 text-gray-200' 
+                    : 'bg-gradient-to-br from-[#D2ABF0] to-[#B888E0] cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-[#F0DFFF] text-white'
+                }`}
+              >
+                <span className="card-value text-center">{card.used ? '✓ 已用' : card.value}</span>
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-[#7D3EAC] text-base">加载卡片中...</div>}
+          </div>
+          <div className="text-base text-center text-[#694D8A] mt-3">💡 每个卡片只能用一次，根据方程的定义（含有未知数的等式）选择正确分类。</div>
+        </div>
+        
+        {/* 错误提示区域 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FEEBC8]/90 text-[#A45A1A] font-bold p-3 rounded-xl border-l-8 border-[#F6AD55] backdrop-blur-sm animate-pulse shadow text-base">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-4 mt-2">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#C29AF0] hover:bg-[#B07CDE] text-white font-bold py-3 rounded-full transition shadow-md text-xl active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#9B6AD4] hover:bg-[#8657B8] text-white font-bold py-3 rounded-full transition shadow-md text-xl active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批式子）
+          </button>
+        </div>
+        <div className="text-base text-center text-[#5D3E82] bg-[#EADCF9]/70 rounded-full py-2 px-3 backdrop-blur-sm">
+          📖 小贴士：方程必须同时满足“等式”和“含有未知数”两个条件。判断时先看等号，再找字母！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用入口 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#F9F2FF]/90 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#C59BF0]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-2xl lg:text-3xl font-bold text-[#4A2368] flex items-center gap-2">
+                <span className="text-5xl">📐</span>
+                方程的意义 · 分类工坊
+              </h3>
+              <span className="text-base bg-[#E6D9F7] px-3 py-1 rounded-full text-[#4A2368] border border-[#C59BF0]">🎯 拖拽卡片 判断方程</span>
+            </div>
+            <EquationMeaningGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

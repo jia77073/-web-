@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>周期规律·思维特训营 | 循环排列 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM (UMD版本，稳定) -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <style>
+        /* 拖拽辅助样式 */
+        .drag-active { opacity: 0.4; }
+        .drop-zone-active { background-color: #fef9c3; border: 2px dashed #a855f7 !important; transition: all 0.1s; }
+        .question-card { transition: all 0.2s; }
+        .matched-card { background-color: #bbf7d0 !important; border-left: 6px solid #22c55e !important; text-decoration: line-through; opacity: 0.7; }
+        .answer-card { cursor: grab; transition: all 0.15s; user-select: none; }
+        .answer-card:active { cursor: grabbing; }
+        button:active { transform: scale(0.96); }
+        @media (max-width: 768px) {
+            .main-title { font-size: 2rem !important; }
+            .question-card, .answer-card { font-size: 0.85rem; padding: 0.5rem; }
+        }
+        body {
+            background: linear-gradient(145deg, #c8e6b5 0%, #a9d48e 100%);
+            font-family: 'Segoe UI', 'Comic Neue', system-ui, sans-serif;
+            margin: 0;
+            padding: 1rem;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(2px);
+            border-radius: 1.5rem;
+        }
+        #root { width: 100%; max-width: 1280px; margin: 0 auto; }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+    <div id="root"></div>
+
+    <script>
+        // 使用原生React.createElement避免Babel转换问题，确保立即渲染
+        const { useState, useEffect } = React;
+
+        // ---------- 周期规律题库 ----------
+        const CYCLE_PROBLEMS = [
+            { id: 1, text: "🔴🔵🟢 按红、蓝、绿重复排列，第20个是什么颜色？", answer: "蓝色", hint: "周期长度3，20÷3=6余2，余2对应第二个颜色蓝色。" },
+            { id: 2, text: "🔢 数列：2, 5, 8, 2, 5, 8,... 第30个数是多少？", answer: "8", hint: "周期3，30÷3=10余0，余0对应周期最后一个数8。" },
+            { id: 3, text: "📅 2023年5月1日是星期一，那么5月31日是星期几？", answer: "星期三", hint: "5月1日周一，5月31日相差30天，30÷7=4余2，周一+2=周三。" },
+            { id: 4, text: "🎈 气球按红、黄、蓝三种颜色重复悬挂，第25个气球是什么颜色？", answer: "红色", hint: "周期3，25÷3=8余1，余1对应红色。" },
+            { id: 5, text: "🕹️ 数字序列：1,3,5,7,1,3,5,7,... 第52个数字是多少？", answer: "7", hint: "周期4，52÷4=13余0，余0对应最后一个数字7。" },
+            { id: 6, text: "🌟🔸🔹 按星星、菱形、圆点重复，第39个图案是什么？", answer: "圆点", hint: "周期3，39÷3=13余0，余0对应第三个图案圆点。" }
+        ];
+
+        // ---------- 左侧知识组件 ----------
+        const KnowledgeBase = () => {
+            return React.createElement('div', { className: "glass-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-400 h-full flex flex-col" },
+                React.createElement('div', { className: "border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2" },
+                    React.createElement('span', { className: "text-5xl" }, "🔄"),
+                    React.createElement('h1', { className: "text-4xl md:text-5xl font-extrabold text-gray-800 main-title" }, "周期规律·思维特训营")
+                ),
+                React.createElement('div', { className: "bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200" },
+                    React.createElement('h2', { className: "text-2xl font-bold text-purple-800 flex items-center gap-2" }, "🧠 核心秘籍·周期问题"),
+                    React.createElement('div', { className: "mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed" },
+                        React.createElement('p', null, "✨ ", React.createElement('strong', { className: "text-purple-800" }, "周期问题"), "：按一定规律重复出现的现象，每组称为一个周期。"),
+                        React.createElement('p', null, "✨ ", React.createElement('strong', { className: "text-purple-800" }, "解题步骤"), "：① 找出周期长度T；② 用总数÷T → 看余数；③ 余数为几，就是周期中的第几个；余数为0，则是最后一个。"),
+                        React.createElement('div', { className: "bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2" },
+                            React.createElement('p', { className: "font-bold" }, "📐 周期规律四大应用："),
+                            React.createElement('p', null, "🔹 ", React.createElement('strong', null, "图形/颜色周期"), "：一组图形重复出现，求第n个图形。"),
+                            React.createElement('p', null, "🔹 ", React.createElement('strong', null, "数字周期"), "：数字循环序列，求指定位置的数值。"),
+                            React.createElement('p', null, "🔹 ", React.createElement('strong', null, "星期/日期周期"), "：星期每7天重复，相隔天数推算星期。"),
+                            React.createElement('p', null, "🔹 ", React.createElement('strong', null, "循环排列"), "：按固定顺序循环，确定某个位置的元素。")
+                        ),
+                        React.createElement('p', null, "⚡ ", React.createElement('strong', { className: "text-purple-800" }, "关键技巧"), "：利用", React.createElement('strong', null, "有余数除法"), "，余数决定答案，整除时取周期末尾。")
+                    )
+                ),
+                React.createElement('div', { className: "bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3" },
+                    React.createElement('h3', { className: "text-xl font-bold text-purple-800 flex items-center gap-1" }, "📖 学霸锦囊"),
+                    React.createElement('div', { className: "mt-2 space-y-2 text-gray-700 text-sm md:text-base" },
+                        React.createElement('p', null, "📌 ", React.createElement('strong', null, "余数法口诀"), "：总数 ÷ 周期 = 商……余数，余几对应第几个，没余数就是最后一个。"),
+                        React.createElement('p', null, "📆 ", React.createElement('strong', null, "星期推算"), "：相差天数 ÷ 7，看余数推算星期几。")
+                    )
+                ),
+                React.createElement('div', { className: "mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2" }, "💡 右侧小游戏 → 将正确答案拖拽到对应问题卡片上，配对成功消除！")
+            );
+        };
+
+        // ---------- 右侧游戏组件 ----------
+        const CycleGame = () => {
+            const [questions, setQuestions] = React.useState([]);
+            const [answerCards, setAnswerCards] = React.useState([]);
+            const [matchedIds, setMatchedIds] = React.useState(new Set());
+            const [feedback, setFeedback] = React.useState('');
+            const [allCompleted, setAllCompleted] = React.useState(false);
+            const [dropTargetId, setDropTargetId] = React.useState(null);
+
+            const loadRandomQuestions = () => {
+                const shuffled = [...CYCLE_PROBLEMS];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                const selected = shuffled.slice(0, 5);
+                setQuestions(selected);
+
+                const correctItems = selected.map(q => ({ id: q.id, label: q.answer, type: 'correct' }));
+                const allAnswers = [...new Set(CYCLE_PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedback('');
+                setAllCompleted(false);
+                setDropTargetId(null);
+            };
+
+            useEffect(() => { loadRandomQuestions(); }, []);
+
+            useEffect(() => {
+                if (questions.length > 0 && matchedIds.size === questions.length) {
+                    setAllCompleted(true);
+                    setFeedback("🎉 完美！所有周期问题配对成功！你已掌握周期规律！ 🎉");
+                }
+            }, [matchedIds, questions]);
+
+            const handleDragStart = (e, answerLabel) => {
+                if (allCompleted) { e.preventDefault(); return false; }
+                e.dataTransfer.setData("text/plain", answerLabel);
+                e.dataTransfer.effectAllowed = "copy";
+                e.target.classList.add('drag-active');
+            };
+            const handleDragEnd = (e) => { e.target.classList.remove('drag-active'); setDropTargetId(null); };
+            const handleDragOver = (e, qid) => { e.preventDefault(); if (!allCompleted && !matchedIds.has(qid)) setDropTargetId(qid); };
+            const handleDragLeave = () => { setDropTargetId(null); };
+            const handleDrop = (e, qid, correctAnswer, hint) => {
+                e.preventDefault();
+                setDropTargetId(null);
+                if (allCompleted) return;
+                if (matchedIds.has(qid)) { setFeedback("这道题已经配对成功啦！"); return; }
+                const dragged = e.dataTransfer.getData("text/plain");
+                if (!dragged) return;
+                if (dragged.trim() === correctAnswer.trim()) {
+                    setMatchedIds(prev => new Set(prev).add(qid));
+                    setAnswerCards(prev => prev.filter(card => !(card.type === 'correct' && card.label === dragged)));
+                    setFeedback(`✅ 正确！答案：${correctAnswer}，周期规律运用很棒！`);
+                } else {
+                    setFeedback(`❌ 配对错误！正确答案是 “${correctAnswer}”。提示：${hint}`);
+                }
+            };
+
+            const resetMatch = () => {
+                const correctItems = questions.map(q => ({ id: q.id, label: q.answer, type: 'correct' }));
+                const allAnswers = [...new Set(CYCLE_PROBLEMS.map(p => p.answer))];
+                const correctLabels = new Set(correctItems.map(c => c.label));
+                const distractorCandidates = allAnswers.filter(ans => !correctLabels.has(ans));
+                const shuffledDist = [...distractorCandidates];
+                for (let i = shuffledDist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledDist[i], shuffledDist[j]] = [shuffledDist[j], shuffledDist[i]];
+                }
+                const selectedDistractors = shuffledDist.slice(0, 3).map(label => ({ id: null, label, type: 'distractor' }));
+                let combined = [...correctItems, ...selectedDistractors];
+                for (let i = combined.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [combined[i], combined[j]] = [combined[j], combined[i]];
+                }
+                setAnswerCards(combined);
+                setMatchedIds(new Set());
+                setFeedback("配对已重置，可以重新挑战！");
+                setAllCompleted(false);
+            };
+
+            const handleRefresh = () => { loadRandomQuestions(); };
+
+            return React.createElement('div', { className: "glass-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-400 h-full flex flex-col" },
+                React.createElement('div', { className: "flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3" },
+                    React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement('span', { className: "text-4xl" }, "♻️"),
+                        React.createElement('h2', { className: "text-2xl md:text-3xl font-bold text-purple-800" }, "周期侦探·拖拽配对")
+                    ),
+                    React.createElement('div', { className: "flex gap-2" },
+                        React.createElement('button', { onClick: resetMatch, className: "bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-2xl shadow-md transition text-sm" }, "🔄 重置配对"),
+                        React.createElement('button', { onClick: handleRefresh, className: "bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base" }, "🔄 换一题")
+                    )
+                ),
+                React.createElement('p', { className: "text-gray-600 text-sm mb-3 bg-purple-50 p-2 rounded-xl" }, "🎮 ", React.createElement('strong', null, "玩法："), " 将右侧「答案卡片」", React.createElement('strong', null, "拖拽"), " 到左侧对应的问题卡片上，配对正确两者都会消失！全部配对即获胜。"),
+                React.createElement('div', { className: "flex flex-col lg:flex-row gap-5 flex-1" },
+                    React.createElement('div', { className: "flex-1 bg-purple-50 rounded-2xl p-3 min-h-[400px]" },
+                        React.createElement('h3', { className: "font-bold text-purple-700 text-center mb-2 text-lg" }, "🔄 周期谜题（拖放答案）"),
+                        React.createElement('div', { className: "space-y-3 overflow-y-auto max-h-[500px] pr-1" },
+                            questions.map(q => {
+                                const isMatched = matchedIds.has(q.id);
+                                const isDropActive = dropTargetId === q.id && !isMatched && !allCompleted;
+                                return React.createElement('div', {
+                                    key: q.id,
+                                    onDragOver: (e) => handleDragOver(e, q.id),
+                                    onDragLeave: handleDragLeave,
+                                    onDrop: (e) => handleDrop(e, q.id, q.answer, q.hint),
+                                    className: `question-card p-3 rounded-xl border-2 transition-all ${isMatched ? 'matched-card bg-green-100 border-green-400' : 'bg-white border-purple-300 hover:shadow-md'} ${isDropActive ? 'drop-zone-active' : ''}`
+                                },
+                                    React.createElement('div', { className: "font-medium text-gray-800" }, q.text),
+                                    !isMatched && React.createElement('div', { className: "text-xs text-purple-500 mt-1" }, "⬅️ 将正确答案拖拽至此区域"),
+                                    isMatched && React.createElement('div', { className: "text-green-600 text-sm font-bold mt-1" }, "✓ 已配对 ", q.answer)
+                                );
+                            }),
+                            questions.length === 0 && React.createElement('div', { className: "text-center text-gray-400 py-8" }, "加载题目中...")
+                        )
+                    ),
+                    React.createElement('div', { className: "flex-1 bg-amber-50 rounded-2xl p-3" },
+                        React.createElement('h3', { className: "font-bold text-purple-700 text-center mb-2 text-lg" }, "🎴 答案卡片（可拖拽）"),
+                        React.createElement('div', { className: "flex flex-wrap gap-3 justify-center min-h-[200px]" },
+                            answerCards.map((card, idx) => React.createElement('div', {
+                                key: idx,
+                                draggable: !allCompleted,
+                                onDragStart: (e) => handleDragStart(e, card.label),
+                                onDragEnd: handleDragEnd,
+                                className: "answer-card bg-gradient-to-br from-amber-200 to-yellow-300 rounded-xl shadow-md px-4 py-3 text-center font-bold text-lg cursor-grab select-none hover:scale-105 transition flex items-center justify-center"
+                            }, card.label)),
+                            answerCards.length === 0 && !allCompleted && React.createElement('div', { className: "text-green-600 font-bold" }, "✨ 完美！所有答案配对完毕 ✨"),
+                            allCompleted && React.createElement('div', { className: "text-green-700 font-bold text-center" }, "🏆 周期规律大师！点击「换一题」继续挑战")
+                        ),
+                        React.createElement('p', { className: "text-xs text-center text-gray-500 mt-3" }, "💡 提示：只有正确答案能配对成功，干扰项可拖拽但会提示错误~")
+                    )
+                ),
+                feedback && React.createElement('div', { className: `mt-4 text-center text-base font-medium rounded-xl p-3 ${allCompleted ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-purple-100 text-purple-700 border border-purple-200'}` }, feedback),
+                React.createElement('div', { className: "mt-3" },
+                    React.createElement('div', { className: "flex justify-between text-sm text-purple-700 mb-1" },
+                        React.createElement('span', null, "配对进度"),
+                        React.createElement('span', null, matchedIds.size, " / ", questions.length)
+                    ),
+                    React.createElement('div', { className: "w-full bg-purple-200 rounded-full h-2.5 overflow-hidden" },
+                        React.createElement('div', { className: "bg-purple-600 h-2.5 rounded-full transition-all duration-300", style: { width: `${(matchedIds.size / questions.length) * 100}%` } })
+                    )
+                ),
+                React.createElement('div', { className: "mt-3 text-center text-xs text-purple-500 bg-purple-50/80 rounded-xl p-2" }, "🌟 周期问题核心：找周期长度 → 总数 ÷ 周期看余数 → 余数定位置，整除取末位。星期问题看天数差÷7。")
+            );
+        };
+
+        // ---------- 主页面 ----------
+        const MainApp = () => {
+            return React.createElement('div', { className: "flex flex-col lg:flex-row gap-6 w-full" },
+                React.createElement('div', { className: "flex-1" }, React.createElement(KnowledgeBase, null)),
+                React.createElement('div', { className: "flex-1" }, React.createElement(CycleGame, null))
+            );
+        };
+
+        // 渲染根节点
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            const root = ReactDOM.createRoot(rootElement);
+            root.render(React.createElement(MainApp, null));
+        } else {
+            console.error("Root element not found");
+            document.body.innerHTML = '<div style="color:red;padding:20px">错误：无法找到根容器</div>';
+        }
+    </script>
+</body>
+</html>

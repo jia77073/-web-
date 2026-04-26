@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小侦探：推理 | 拖拖乐逻辑配对</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 大5号字体但标题改为3号 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',
+                        '6xl': '3.75rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 拖拽优化 & 移动端适配 */
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        /* 配对成功动画 */
+        @keyframes matchSuccess {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-animation {
+            animation: matchSuccess 0.4s ease-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        /* 禁止移动端长按菜单 */
+        .no-tap-highlight {
+            -webkit-touch-callout: none;
+        }
+        /* 放置区样式 */
+        .drop-slot {
+            min-height: 70px;
+            transition: all 0.2s;
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 推理（二年级）—— 拖拽配对逻辑推理游戏
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 推理题库 ----------
+        // 每组题目包含: 人物列表, 物品列表, 正确映射(人物->物品), 条件文本
+        const REASONING_QUESTIONS = [
+            {
+                id: 1,
+                title: "水果猜猜乐",
+                persons: ["小明", "小红", "小丽"],
+                items: ["🍎 苹果", "🍌 香蕉", "🍓 草莓"],
+                correctMap: {
+                    "小明": "🍎 苹果",
+                    "小红": "🍓 草莓",
+                    "小丽": "🍌 香蕉"
+                },
+                conditionText: "🔍 推理条件：\n1️⃣ 小红喜欢吃草莓。\n2️⃣ 小明不喜欢吃香蕉。\n3️⃣ 小丽喜欢吃香蕉。\n（根据条件，把每个人拖到对应的水果下面吧！）",
+                hint: "用排除法：小红→草莓，小丽→香蕉，剩下的苹果就是小明的。"
+            },
+            {
+                id: 2,
+                title: "动物小侦探",
+                persons: ["乐乐", "欢欢", "笑笑"],
+                items: ["🐶 小狗", "🐱 小猫", "🐭 小老鼠"],
+                correctMap: {
+                    "乐乐": "🐱 小猫",
+                    "欢欢": "🐶 小狗",
+                    "笑笑": "🐭 小老鼠"
+                },
+                conditionText: "🔍 推理条件：\n1️⃣ 乐乐不喜欢小狗，也不喜欢小老鼠。\n2️⃣ 欢欢喜欢小狗。\n3️⃣ 笑笑不喜欢小猫。\n（把正确的名字拖到动物下面！）",
+                hint: "乐乐不喜欢狗和老鼠→只能是小猫；欢欢喜欢狗→小狗；剩下小老鼠就是笑笑的。"
+            },
+            {
+                id: 3,
+                title: "运动小健将",
+                persons: ["小强", "小美", "小刚"],
+                items: ["⚽ 足球", "🏀 篮球", "🎾 网球"],
+                correctMap: {
+                    "小强": "⚽ 足球",
+                    "小美": "🎾 网球",
+                    "小刚": "🏀 篮球"
+                },
+                conditionText: "🔍 推理条件：\n1️⃣ 小强喜欢踢足球。\n2️⃣ 小美不喜欢篮球。\n3️⃣ 小刚不喜欢网球。\n（把每个人拖到对应的运动下面！）",
+                hint: "小强→足球；小美不喜欢篮球，也不可能是足球（已有），所以小美→网球；剩下小刚→篮球。"
+            },
+            {
+                id: 4,
+                title: "文具大猜想",
+                persons: ["丁丁", "兰兰", "华华"],
+                items: ["✏️ 铅笔", "📏 尺子", "✂️ 剪刀"],
+                correctMap: {
+                    "丁丁": "✏️ 铅笔",
+                    "兰兰": "📏 尺子",
+                    "华华": "✂️ 剪刀"
+                },
+                conditionText: "🔍 推理条件：\n1️⃣ 丁丁用的不是尺子。\n2️⃣ 兰兰用的是尺子。\n3️⃣ 华华不用铅笔。\n（把名字拖到对应的文具下面！）",
+                hint: "兰兰→尺子；华华不用铅笔，也不能是尺子，所以华华→剪刀；剩下丁丁→铅笔。"
+            },
+            {
+                id: 5,
+                title: "魔法颜色",
+                persons: ["红红", "蓝蓝", "绿绿"],
+                items: ["🔴 红色", "🔵 蓝色", "🟢 绿色"],
+                correctMap: {
+                    "红红": "🔴 红色",
+                    "蓝蓝": "🔵 蓝色",
+                    "绿绿": "🟢 绿色"
+                },
+                conditionText: "🔍 推理条件：\n1️⃣ 红红不喜欢蓝色。\n2️⃣ 蓝蓝喜欢蓝色。\n3️⃣ 绿绿不喜欢红色。\n（把名字拖到正确的颜色下面！）",
+                hint: "蓝蓝→蓝色；红红不喜欢蓝色，又不能是蓝色，可能红色或绿色；绿绿不喜欢红色，绿绿只能绿色或蓝色，但蓝色已被占，所以绿绿→绿色；剩下红红→红色。"
+            }
+        ];
+
+        // ---------- 主游戏组件: 拖拽配对推理 ----------
+        const ReasoningGame = () => {
+            // 当前题目对象
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            // 配对状态: 每个物品对应的配对人物 (物品索引 -> 人物名 或 null)
+            const [itemMatches, setItemMatches] = useState([]);
+            // 剩余可用人物列表（未配对的人物名字）
+            const [availablePersons, setAvailablePersons] = useState([]);
+            // 全局消息反馈
+            const [message, setMessage] = useState("🐣 根据上面的条件，把人物拖拽到对应的物品下面吧！");
+            // 高亮放置区索引
+            const [highlightSlotIndex, setHighlightSlotIndex] = useState(null);
+            // 特效标志
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            // 是否全部配对完成
+            const [allMatched, setAllMatched] = useState(false);
+            
+            // 加载题目: 根据题目重置状态
+            const loadQuestion = (question) => {
+                if (!question) return;
+                setCurrentQuestion(question);
+                // 初始化物品配对数组，全部为空
+                const initialMatches = new Array(question.items.length).fill(null);
+                setItemMatches(initialMatches);
+                // 可用人物列表为全部人物
+                setAvailablePersons([...question.persons]);
+                setAllMatched(false);
+                setMessage("✨ 新题目！仔细阅读条件，把正确的人物拖到物品下面 ✨");
+                setHighlightSlotIndex(null);
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 随机选择一个题目（换一题）
+            const pickRandomQuestion = () => {
+                const randomIndex = Math.floor(Math.random() * REASONING_QUESTIONS.length);
+                return { ...REASONING_QUESTIONS[randomIndex] };
+            };
+            
+            // 换一题按钮处理
+            const handleChangeQuestion = () => {
+                const newQuestion = pickRandomQuestion();
+                loadQuestion(newQuestion);
+            };
+            
+            // 初始化
+            useEffect(() => {
+                const initialQuestion = pickRandomQuestion();
+                loadQuestion(initialQuestion);
+            }, []);
+            
+            // 监听是否全部配对完成
+            useEffect(() => {
+                if (!currentQuestion) return;
+                const totalItems = currentQuestion.items.length;
+                const matchedCount = itemMatches.filter(m => m !== null).length;
+                if (matchedCount === totalItems && totalItems > 0 && !allMatched) {
+                    setAllMatched(true);
+                    setMessage("🎉 太棒了！全部配对正确！你已经是推理小侦探啦！ 🎉");
+                    // 播放全屏动画
+                    const gameArea = document.getElementById('game-area');
+                    if (gameArea) gameArea.classList.add('match-animation');
+                    setTimeout(() => gameArea?.classList.remove('match-animation'), 500);
+                }
+            }, [itemMatches, currentQuestion, allMatched]);
+            
+            // 处理拖拽放置到某个物品槽
+            const handleDropOnSlot = (e, itemIndex) => {
+                e.preventDefault();
+                setHighlightSlotIndex(null);
+                if (!currentQuestion) return;
+                // 如果当前物品已经配对成功，不允许覆盖
+                if (itemMatches[itemIndex] !== null) {
+                    setMessage("❌ 这个物品已经有人配对啦！不能修改，试试其他物品吧～");
+                    return;
+                }
+                let draggedPerson;
+                try {
+                    const rawData = e.dataTransfer.getData("text/plain");
+                    if (!rawData) return;
+                    draggedPerson = JSON.parse(rawData).person;
+                } catch(err) {
+                    setMessage("请从右侧人物卡片上拖拽～");
+                    return;
+                }
+                if (!draggedPerson) return;
+                // 检查这个人是否还在可用列表中
+                if (!availablePersons.includes(draggedPerson)) {
+                    setMessage(`⚠️ ${draggedPerson} 已经配对过了！每个人物只能配对一次哟。`);
+                    return;
+                }
+                // 获取当前物品名称
+                const targetItem = currentQuestion.items[itemIndex];
+                // 根据正确映射判断是否匹配
+                const correctItemForPerson = currentQuestion.correctMap[draggedPerson];
+                if (correctItemForPerson === targetItem) {
+                    // 配对正确
+                    const newMatches = [...itemMatches];
+                    newMatches[itemIndex] = draggedPerson;
+                    setItemMatches(newMatches);
+                    setAvailablePersons(prev => prev.filter(p => p !== draggedPerson));
+                    setMessage(`✅ 配对成功！ ${draggedPerson} 对应 ${targetItem} ，推理正确！ +1分 🎈`);
+                    setEffectTrigger(prev => prev+1);
+                    const slotElem = document.getElementById(`slot-${itemIndex}`);
+                    if (slotElem) {
+                        slotElem.classList.add('match-animation');
+                        setTimeout(() => slotElem.classList.remove('match-animation'), 400);
+                    }
+                } else {
+                    setMessage(`❌ 配对错误！ ${draggedPerson} 不喜欢 ${targetItem}，再仔细读读条件吧～ 试试其他物品。`);
+                    const slotElem = document.getElementById(`slot-${itemIndex}`);
+                    if (slotElem) {
+                        slotElem.style.backgroundColor = "#fee2e2";
+                        setTimeout(() => slotElem.style.backgroundColor = "", 400);
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterSlot = (idx) => {
+                if (itemMatches[idx] === null) setHighlightSlotIndex(idx);
+            };
+            const onDragLeaveSlot = () => setHighlightSlotIndex(null);
+            
+            const onPersonDragStart = (e, person) => {
+                if (!availablePersons.includes(person)) {
+                    e.preventDefault();
+                    setMessage(`${person} 已经配对过了，不能重复拖拽～`);
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ person }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onPersonDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            const resetCurrent = () => {
+                if (!currentQuestion) return;
+                const initialMatches = new Array(currentQuestion.items.length).fill(null);
+                setItemMatches(initialMatches);
+                setAvailablePersons([...currentQuestion.persons]);
+                setAllMatched(false);
+                setMessage("🧹 已重置配对，可以重新拖拽挑战啦！");
+                setHighlightSlotIndex(null);
+            };
+            
+            if (!currentQuestion) return <div className="text-white text-2xl">加载推理题目中...</div>;
+            
+            const matchedCount = itemMatches.filter(m => m !== null).length;
+            const totalItems = currentQuestion.items.length;
+            const progressPercent = totalItems > 0 ? (matchedCount / totalItems) * 100 : 0;
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                🕵️ 推理小课堂
+                                <span className="text-lg bg-amber-200 px-3 py-0.5 rounded-full">数学广角</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-4 text-lg md:text-xl text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">🧠</span>
+                                <span><strong className="text-purple-700">推理</strong> 就是根据已知的条件，一步一步推出正确的答案。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 推理小妙招</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>✨ <strong>排除法</strong>：不是这个，就可能是那个。</li>
+                                    <li>✨ <strong>连线法</strong>：用线把条件和结果连起来。</li>
+                                    <li>✨ <strong>列表法</strong>：画一张表格，打✅打❌。</li>
+                                </ul>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p>💡 解题步骤：<br/>1️⃣ 读条件，找确定信息。<br/>2️⃣ 用排除法缩小范围。<br/>3️⃣ 最后剩下的就是答案。</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🎯 二年级推理例子：</p>
+                                <p>三个小朋友分别喜欢三种水果。已知：小红喜欢草莓，小明不喜欢香蕉，小丽喜欢香蕉。可以推出：小明喜欢苹果，小丽喜欢香蕉，小红喜欢草莓。</p>
+                                <p className="text-sm mt-1">👉 试试右边的拖拽游戏，把每个人物拖到正确的物品下面！</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 右边有<strong>推理条件</strong>，下方有物品和可拖拽的人物卡片。把人物拖到对应物品下方的放置区，配对正确就会锁定！全部配对成功就通关～
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧游戏互动区 */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5" id="game-area">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 推理大挑战 · 拖拖乐
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽配对</span>
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={resetCurrent}
+                                    className="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-full shadow transition transform hover:scale-105 text-sm"
+                                >
+                                    🔄 重置本题
+                                </button>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-lg"
+                                >
+                                    🔀 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 进度条和计数 */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-sm md:text-base font-semibold text-purple-800">
+                                <span>⭐ 配对进度: {matchedCount} / {totalItems}</span>
+                                <span>🎯 推理目标: 全部配对</span>
+                            </div>
+                            <div className="bg-gray-200 rounded-full h-5 overflow-hidden">
+                                <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-500" style={{width: `${progressPercent}%`}}></div>
+                            </div>
+                        </div>
+                        
+                        {/* 推理条件展示区 */}
+                        <div className="bg-purple-100/90 rounded-xl p-3 text-purple-800 font-medium text-sm md:text-base shadow-inner whitespace-pre-line">
+                            {currentQuestion.conditionText}
+                            <div className="text-xs text-purple-600 mt-1 border-t border-purple-200 pt-1">
+                                💡 小提示：{currentQuestion.hint}
+                            </div>
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-amber-50 rounded-xl p-2 text-center text-amber-800 font-medium text-sm shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 物品列表与放置区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-3 flex items-center gap-2">📦 物品区（拖拽人物到这里）</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {currentQuestion.items.map((item, idx) => {
+                                    const matchedPerson = itemMatches[idx];
+                                    const isHighlight = highlightSlotIndex === idx && !matchedPerson;
+                                    return (
+                                        <div
+                                            key={idx}
+                                            id={`slot-${idx}`}
+                                            onDragOver={onDragOver}
+                                            onDrop={(e) => handleDropOnSlot(e, idx)}
+                                            onDragEnter={() => onDragEnterSlot(idx)}
+                                            onDragLeave={onDragLeaveSlot}
+                                            className={`drop-slot rounded-2xl border-4 border-dashed transition-all duration-200 p-3 flex flex-col items-center ${
+                                                isHighlight ? 'drop-zone-active bg-yellow-50' : 'bg-white/50'
+                                            } ${matchedPerson ? 'bg-green-100 border-green-400' : 'border-purple-300'}`}
+                                        >
+                                            <span className="text-5xl md:text-6xl">{item.split(' ')[0]}</span>
+                                            <span className="text-lg font-bold text-purple-800 mt-1">{item}</span>
+                                            <div className="mt-3 w-full text-center min-h-[60px]">
+                                                {matchedPerson ? (
+                                                    <div className="bg-green-200 rounded-full px-3 py-1 inline-flex items-center gap-1 shadow">
+                                                        <span className="text-lg">✅</span>
+                                                        <span className="font-bold text-green-800">{matchedPerson}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-gray-400 text-sm border-2 border-dashed border-gray-300 rounded-full px-3 py-1 inline-block">
+                                                        ⬅️ 拖拽人物到这里
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        
+                        {/* 可拖拽人物卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">🎭 人物卡片（拖拽到上方物品区）</h4>
+                            <div className="flex flex-wrap gap-3 justify-start items-center min-h-[120px] bg-white/40 rounded-2xl p-4 custom-scroll overflow-x-auto">
+                                {availablePersons.length === 0 ? (
+                                    <div className="w-full text-center py-4 text-green-700 font-bold text-xl">🎉 所有人物都配对成功啦！点击「换一题」继续挑战 🎉</div>
+                                ) : (
+                                    availablePersons.map(person => (
+                                        <div 
+                                            key={person}
+                                            draggable="true"
+                                            onDragStart={(e) => onPersonDragStart(e, person)}
+                                            onDragEnd={onPersonDragEnd}
+                                            className="bg-gradient-to-br from-amber-200 to-orange-300 w-28 h-28 rounded-2xl flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing transition hover:scale-105 select-none"
+                                        >
+                                            <span className="text-5xl mb-1">🧸</span>
+                                            <span className="text-xl font-black text-purple-900">{person}</span>
+                                            <span className="text-[10px] text-gray-700 mt-1">拖拽配对</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 按住或长按人物卡片，拖到上方对应的物品放置区，松手就会判断对错！</p>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：从人物卡片拖到物品下方的虚线框内，配对正确会自动锁定。</span>
+                            <button onClick={() => setMessage("💡 提示：先找到确定的条件（比如谁喜欢什么），再用排除法，把剩下的配对。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {allMatched && (
+                            <div className="mt-2 text-center text-2xl font-bold text-green-700 bg-green-100 rounded-2xl p-3 animate-bounce">
+                                🏆 完美通关！ 你已经是推理小侦探啦！ 🏆
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        // ---------- 根组件（标题字号3号）----------
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🕵️‍♀️ 逻辑推理大冒险 · 小小侦探家 🧸
+                        </h1>
+                        <p className="text-white/90 text-lg md:text-xl mt-2 font-medium">拖拽人物卡片，根据条件推理，找出正确的搭配！</p>
+                    </div>
+                    <ReasoningGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 根据上面的推理条件，把右边的人物卡片拖到对应的物品下面～ 全部配对成功就能获得侦探勋章！点击【换一题】挑战更多推理 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        // 渲染
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

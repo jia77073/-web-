@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>盈亏问题·思维拓展 | 分配差额·总差额 | 拖拽排序 + 应用题闯关</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (移动端完美支持) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 6px 0 #a569bd;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #e9d4ff;
+            box-shadow: 0 0 10px rgba(165, 105, 189, 0.3);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(165, 105, 189, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 盈亏问题（一盈一亏、双盈、双亏、一盈一尽等）
+        const profitLossQuestions = [
+            {
+                text: "📦 把一些苹果分给小朋友，如果每人分4个，则多9个；如果每人分5个，则少6个。问有多少个小朋友？",
+                answer: 15,
+                solution: "🎯 一盈一亏公式：人数 = (盈+亏) ÷ 两次分配差 = (9+6)÷(5-4)=15人，苹果数=4×15+9=69个。"
+            },
+            {
+                text: "🍬 老师给小朋友分糖果，如果每人分6颗，则多8颗；如果每人分8颗，则少12颗。小朋友有多少人？",
+                answer: 10,
+                solution: "🎯 一盈一亏：人数 = (8+12)÷(8-6)=20÷2=10人。"
+            },
+            {
+                text: "📚 学校给住宿生分配宿舍，如果每间住6人，则多12人；如果每间住8人，则正好住满。问有多少间宿舍？",
+                answer: 6,
+                solution: "🎯 一盈一尽：盈(多人)÷两次分配差=12÷(8-6)=6间。"
+            },
+            {
+                text: "🚗 乘车去春游，如果每辆车坐40人，则有10人没座位；如果每辆车坐45人，则多出一辆车。一共有多少人？",
+                answer: 450,
+                solution: "🎯 双亏转化：多出一辆车相当于缺少45人。一盈一亏：车数=(10+45)÷(45-40)=55÷5=11辆，人数=40×11+10=450人。"
+            },
+            {
+                text: "🍎 把橘子分给小朋友，如果每人分3个，剩8个；如果每人分5个，则少4个。有几个小朋友？",
+                answer: 6,
+                solution: "🎯 一盈一亏：人数=(8+4)÷(5-3)=12÷2=6人。"
+            },
+            {
+                text: "📏 用绳子测量井深，把绳子三折来量，井外余4米；把绳子四折来量，井外余1米。求井深和绳长。（回答井深）",
+                answer: 8,
+                solution: "🎯 盈亏转化：三折余4米→井外总余4×3=12米；四折余1米→余1×4=4米。井深不变，绳长固定。一盈一亏：每折差(12-4)=8米对应每折长度差(4-3)=1折？更简单：设井深x，绳长3(x+4)=4(x+1)→3x+12=4x+4→x=8米。"
+            },
+            {
+                text: "🏠 用一条长绳测量井深，把绳子对折来量，井外余2米；把绳子三折来量，离井口还差1米。井深多少米？",
+                answer: 7,
+                solution: "🎯 绳长固定：对折时井外2米→绳长=2×(井深+2)；三折时差1米→绳长=3×(井深-1)。方程：2×(井深+2)=3×(井深-1)→2x+4=3x-3→x=7。"
+            }
+        ];
+
+        // 左侧盈亏问题应用题组件
+        const ProfitLossApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * profitLossQuestions.length);
+                const newQ = { ...profitLossQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (profitLossQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                const answerNum = parseFloat(userAnswer.trim());
+                if (isNaN(answerNum)) {
+                    setFeedback("❓ 请输入数字答案哟～");
+                    setShowSolution('');
+                    setIsCorrect(false);
+                    return;
+                }
+                const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                if (isAnsCorrect) {
+                    setFeedback("🎉 完全正确！盈亏问题掌握得非常棒！ 🧮 分配小天才！");
+                    setIsCorrect(true);
+                    setShowSolution(currentQ.solution);
+                } else {
+                    setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。看看盈亏公式吧～`);
+                    setIsCorrect(false);
+                    setShowSolution(currentQ.solution);
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载盈亏题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-300 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-400 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">📊</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">盈亏问题·分配差额营</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 mb-5 shadow-inner border border-purple-200">
+                        <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">盈·亏·总差额</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>📐 <span className="font-semibold">一盈一亏</span>：份数 = (盈 + 亏) ÷ 两次分配差；物品数 = 每份数×份数 + 盈（或 - 亏）。</li>
+                            <li>🔄 <span className="font-semibold">双盈</span>：份数 = (大盈 - 小盈) ÷ 两次分配差。</li>
+                            <li>📉 <span className="font-semibold">双亏</span>：份数 = (大亏 - 小亏) ÷ 两次分配差。</li>
+                            <li>⚖️ <span className="font-semibold">一盈一尽 / 一亏一尽</span>：盈(亏) ÷ 两次分配差 = 份数。</li>
+                            <li>🎯 <span className="font-semibold">解题步骤</span>：① 判断盈亏类型；② 求份数（人数/间数等）；③ 求物品总数。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目卡片 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-purple-500 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 盈亏挑战</span>
+                            <button onClick={handleNext} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="number" 
+                                step="any"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入答案 (数字)"
+                                className="answer-input w-full sm:w-48 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈区 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 盈亏公式解法</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-purple-600 text-sm italic">💡 提示：总差额 ÷ 每份差 = 份数。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        📊 总差额 ÷ 分配差 = 份数 | 盈+亏 / 盈-盈 / 亏-亏
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏：盈亏问题解题步骤拖拽排序 (各类盈亏模型)
+        const stepsChallenges = [
+            {
+                title: "📦 挑战1：一盈一亏",
+                description: "分苹果，每人4个多9个，每人5个少6个，求人数。",
+                correctSteps: [
+                    "① 判断题型：一盈一亏（盈9，亏6）。",
+                    "② 两次分配差 = 5 - 4 = 1 (个)。",
+                    "③ 总差额 = 盈 + 亏 = 9 + 6 = 15。",
+                    "④ 人数 = 总差额 ÷ 分配差 = 15 ÷ 1 = 15 (人)。",
+                    "⑤ 答：有15个小朋友。"
+                ]
+            },
+            {
+                title: "📚 挑战2：双盈",
+                description: "分铅笔，每人7支多10支，每人9支多2支，求人数。",
+                correctSteps: [
+                    "① 判断题型：双盈（盈10，盈2）。",
+                    "② 两次分配差 = 9 - 7 = 2。",
+                    "③ 总差额 = 大盈 - 小盈 = 10 - 2 = 8。",
+                    "④ 人数 = 总差额 ÷ 分配差 = 8 ÷ 2 = 4 (人)。",
+                    "⑤ 答：有4人。"
+                ]
+            },
+            {
+                title: "🚗 挑战3：一盈一尽",
+                description: "住宿舍，每间6人多12人，每间8人正好住满，求宿舍数。",
+                correctSteps: [
+                    "① 判断题型：一盈一尽（盈12人，亏0）。",
+                    "② 两次分配差 = 8 - 6 = 2。",
+                    "③ 总差额 = 盈 - 0 = 12。",
+                    "④ 宿舍数 = 12 ÷ 2 = 6 (间)。",
+                    "⑤ 答：有6间宿舍。"
+                ]
+            },
+            {
+                title: "🎣 挑战4：双亏转化",
+                description: "乘车，每车40人多10人，每车45人多出一辆车，求人数。",
+                correctSteps: [
+                    "① 多出一辆车意味着缺少45人→亏45。",
+                    "② 题型变为一盈一亏：盈10，亏45。",
+                    "③ 分配差 = 45 - 40 = 5。",
+                    "④ 车数 = (10 + 45) ÷ 5 = 55 ÷ 5 = 11 (辆)。",
+                    "⑤ 人数 = 40 × 11 + 10 = 450 (人)。",
+                    "⑥ 答：共有450人。"
+                ]
+            }
+        ];
+
+        // 右侧拖拽排序组件
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                const stepsCopy = [...newChallenge.correctSteps];
+                // Fisher-Yates 打乱顺序
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确的盈亏问题解题步骤顺序排列！(从上到下)');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 每当 shuffledSteps 变化，重新初始化 Sortable 实例
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) sortableRef.current.destroy();
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => { /* 无额外动作 */ }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美排序！盈亏问题解题逻辑完全正确！成为分配高手！🏅');
+                    setCheckStyle('success');
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想盈亏解题流程：判断类型→求总差额→求份数→求总量→作答。重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载趣味排序游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-300 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-400 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎮</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·盈亏特工队</h2>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-purple-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下逻辑递进）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[320px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-purple-500 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-purple-500">
+                        💡 拖拽卡片调整顺序，排序正确即掌握盈亏解题四步骤（类型→总差额→份数→作答）。
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 拖拽排序小游戏融合盈亏思维：盈·亏·总差额·分配差，在排序中强化逻辑模型！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件：左右布局
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 盈亏应用题训练 */}
+                    <div className="flex-1">
+                        <ProfitLossApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

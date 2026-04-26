@@ -1,35 +1,453 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <title>认识图形(一)</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; color: #333; }
-        h1 { color: #2196f3; }
-        .shape-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px; }
-        .shape { border: 2px solid #eee; border-radius: 15px; padding: 15px; text-align: center; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>长方体和正方体的认识 · 形状侦探 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大6号（2.8rem），淡紫色主题背景 */
+    body {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.2s ease;
+      border: 2px dashed #6b8c42;
+      background-color: #f0f7e6;
+    }
+    .drag-over {
+      background-color: #d9e6c3;
+      transform: scale(1.02);
+      border: 2px solid #4a6e2c;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.2);
+      background: #c0d6a8;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    @media (max-width: 768px) {
+      body {
+        font-size: 1.8rem;
+      }
+      .drag-card, .drop-zone {
+        font-size: 1.2rem;
+      }
+    }
+    .shape-icon {
+      background: white;
+      border-radius: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.1);
+    }
+  </style>
 </head>
-<body>
-    <h1>认识图形(一)</h1>
-    <p>在我们的生活中，到处都可以看到各种各样的形状。让我们一起来认识它们吧！</p>
-    <div class="shape-grid">
-        <div class="shape">
-            <h3>长方体</h3>
-            <p>像火柴盒、砖头那样的形状。</p>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 长方体和正方体的认识 =======================
+  // 知识点：长方体有6个面（相对面相同），12条棱（相对的棱长度相等），8个顶点；
+  // 正方体是特殊的长方体，6个面都是正方形，12条棱长度都相等。
+  
+  // ---------- 游戏数据：8张特征卡片（4个长方体特征，4个正方体特征）----------
+  const featureCardsData = [
+    { id: 1, text: "6个面都是长方形（特殊情况下可能有2个正方形）", target: "cuboid", desc: "长方体" },
+    { id: 2, text: "相对的面完全相同", target: "cuboid", desc: "长方体" },
+    { id: 3, text: "有长、宽、高三个不同的尺寸", target: "cuboid", desc: "长方体" },
+    { id: 4, text: "相对的棱长度相等", target: "cuboid", desc: "长方体" },
+    { id: 5, text: "6个面都是完全相同的正方形", target: "cube", desc: "正方体" },
+    { id: 6, text: "12条棱长度都相等", target: "cube", desc: "正方体" },
+    { id: 7, text: "长、宽、高都相等（统称为棱长）", target: "cube", desc: "正方体" },
+    { id: 8, text: "任意一个面的面积都相等", target: "cube", desc: "正方体" }
+  ];
+  
+  // 生成可拖拽卡片数组（初始顺序打乱）
+  const generateCards = () => {
+    let cards = featureCardsData.map(card => ({
+      id: card.id,
+      text: card.text,
+      target: card.target,
+      matched: false
+    }));
+    // 打乱顺序
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    return cards;
+  };
+  
+  // 游戏组件：拖拽配对（将特征卡片拖拽到长方体或正方体区域）
+  const MatchingGame = () => {
+    const [cards, setCards] = React.useState(() => generateCards());
+    // 两个放置区域已配对卡片的记录
+    const [cuboidMatched, setCuboidMatched] = React.useState([]);
+    const [cubeMatched, setCubeMatched] = React.useState([]);
+    const [dragOverZone, setDragOverZone] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    const [gameWin, setGameWin] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    
+    const totalCards = cards.length;
+    const matchedCount = cards.filter(c => c.matched).length;
+    
+    const checkVictory = () => {
+      if (matchedCount === totalCards && !gameWin) {
+        setGameWin(true);
+        setFeedbackMsg("🎉 完美！所有特征都找到了自己的家！你已是立体图形小专家！ 🎉");
+      }
+    };
+    
+    // 拖拽卡片
+    const onDragStart = (e, cardId, targetType) => {
+      const card = cards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ cardId, targetType, cardText: card.text }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    const onDragOverZone = (e, zoneId) => {
+      e.preventDefault();
+      setDragOverZone(zoneId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveZone = () => setDragOverZone(null);
+    
+    const onDropToZone = (e, zoneId) => {
+      e.preventDefault();
+      setDragOverZone(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      const { cardId, targetType, cardText } = dragData;
+      
+      const sourceCard = cards.find(c => c.id === cardId);
+      if (!sourceCard || sourceCard.matched) {
+        setFeedbackMsg("⏳ 这张卡片已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证目标区域是否匹配卡片的target
+      let isValid = false;
+      if (zoneId === "cuboid" && targetType === "cuboid") isValid = true;
+      if (zoneId === "cube" && targetType === "cube") isValid = true;
+      
+      if (!isValid) {
+        const correctZone = targetType === "cuboid" ? "长方体" : "正方体";
+        setFeedbackMsg(`❌ 配对错误！“${cardText}” 属于 ${correctZone}，不能放在${zoneId === "cuboid" ? "长方体" : "正方体"}区域。`);
+        setTimeout(() => setFeedbackMsg(""), 2000);
+        return;
+      }
+      
+      // 配对成功
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+      if (zoneId === "cuboid") {
+        setCuboidMatched(prev => [...prev, { id: cardId, text: cardText }]);
+      } else {
+        setCubeMatched(prev => [...prev, { id: cardId, text: cardText }]);
+      }
+      setScore(prev => prev + 1);
+      setFeedbackMsg(`✅ 正确！“${cardText}” 配对成功！`);
+      setTimeout(() => setFeedbackMsg(""), 1200);
+      checkVictory();
+    };
+    
+    const resetGame = () => {
+      setCards(generateCards());
+      setCuboidMatched([]);
+      setCubeMatched([]);
+      setGameWin(false);
+      setScore(0);
+      setFeedbackMsg("✨ 新的一局！把特征卡片拖拽到正确的立体图形区域吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    // 未配对的卡片
+    const unmatchedCards = cards.filter(c => !c.matched);
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#8bc34a] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-green-800">🧩 特征配对 · 拖拽连连看</h3>
+          <div className="flex gap-2">
+            <span className="bg-emerald-200 px-3 py-1 rounded-full text-base font-bold">🏆 配对 {score}/{totalCards}</span>
+            <button onClick={resetGame} className="bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+          </div>
         </div>
-        <div class="shape">
-            <h3>正方体</h3>
-            <p>像魔方、骰子那样的形状。</p>
+        <p className="text-sm text-green-700 bg-green-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将下面的<strong>特征卡片</strong>拖拽到上方正确的立体图形区域（长方体或正方体）。全部配对正确即可获胜！
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* 长方体区域 */}
+          <div 
+            onDragOver={(e) => onDragOverZone(e, "cuboid")}
+            onDragLeave={onDragLeaveZone}
+            onDrop={(e) => onDropToZone(e, "cuboid")}
+            className={`drop-zone rounded-2xl p-3 text-center transition-all ${dragOverZone === "cuboid" ? 'drag-over' : ''}`}
+          >
+            <div className="flex justify-center mb-2">
+              <div className="shape-icon p-2">
+                <svg width="80" height="80" viewBox="0 0 100 100">
+                  <rect x="20" y="30" width="60" height="40" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2.5" />
+                  <polygon points="20,30 40,15 100,15 80,30" fill="#a5d6a7" stroke="#2e7d32" strokeWidth="2" />
+                  <line x1="80" y1="30" x2="100" y2="15" stroke="#2e7d32" strokeWidth="2" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-xl font-bold text-green-800 mb-2">📦 长方体</div>
+            <div className="min-h-[100px] bg-white/50 rounded-xl p-2">
+              {cuboidMatched.length === 0 ? (
+                <div className="text-gray-500 text-sm">⬅️ 把长方体特征拖到这里</div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {cuboidMatched.map(item => (
+                    <div key={item.id} className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-800">{item.text}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* 正方体区域 */}
+          <div 
+            onDragOver={(e) => onDragOverZone(e, "cube")}
+            onDragLeave={onDragLeaveZone}
+            onDrop={(e) => onDropToZone(e, "cube")}
+            className={`drop-zone rounded-2xl p-3 text-center transition-all ${dragOverZone === "cube" ? 'drag-over' : ''}`}
+          >
+            <div className="flex justify-center mb-2">
+              <div className="shape-icon p-2">
+                <svg width="80" height="80" viewBox="0 0 100 100">
+                  <rect x="20" y="30" width="60" height="40" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2.5" />
+                  <polygon points="20,30 40,15 100,15 80,30" fill="#a5d6a7" stroke="#2e7d32" strokeWidth="2" />
+                  <line x1="80" y1="30" x2="100" y2="15" stroke="#2e7d32" strokeWidth="2" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-xl font-bold text-green-800 mb-2">🧊 正方体</div>
+            <div className="min-h-[100px] bg-white/50 rounded-xl p-2">
+              {cubeMatched.length === 0 ? (
+                <div className="text-gray-500 text-sm">⬅️ 把正方体特征拖到这里</div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {cubeMatched.map(item => (
+                    <div key={item.id} className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-800">{item.text}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div class="shape">
-            <h3>圆柱</h3>
-            <p>像易拉罐、铅笔那样的形状。</p>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-amber-50/60 rounded-2xl p-3">
+          <div className="font-bold text-amber-800 text-center mb-2">🎲 特征卡片 (拖拽我)</div>
+          <div className="flex flex-wrap justify-center gap-3 max-h-[300px] overflow-y-auto">
+            {unmatchedCards.map(card => (
+              <div 
+                key={card.id}
+                draggable={!card.matched}
+                onDragStart={(e) => onDragStart(e, card.id, card.target)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-64 p-3 rounded-xl shadow-md flex items-center justify-center text-center font-bold transition ${card.matched ? 'bg-gray-400/60 cursor-default text-gray-300' : 'bg-gradient-to-br from-amber-400 to-orange-500 cursor-grab hover:scale-105 text-white'}`}
+              >
+                <span className="text-sm px-1">{card.matched ? "✓ 已用" : card.text}</span>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-center text-amber-700 mt-2">💡 每个卡片只能用一次，拖拽到正确的立体图形区域。</div>
         </div>
-        <div class="shape">
-            <h3>球</h3>
-            <p>像足球、篮球那样的形状。</p>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-green-100 p-2 rounded-xl text-green-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {gameWin && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 形状侦探！你已完全掌握长方体和正方体的特征！ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-green-600 bg-green-50 p-2 rounded-full">
+          💡 长方体：6个面（相对面相同），12条棱（相对棱相等），8个顶点。正方体是特殊的长方体，6个面都是正方形，12条棱都相等。
         </div>
-    </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：长方体和正方体的认识 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] rounded-3xl p-5 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📦</span>
+          <h2 className="text-3xl font-extrabold text-green-900">长方体和正方体的认识</h2>
+        </div>
+        <div className="space-y-4 text-base text-green-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 长方体</p>
+            <p>长方体有<strong>6个面</strong>（相对的面完全相同），<strong>12条棱</strong>（相对的棱长度相等），<strong>8个顶点</strong>。</p>
+            <p>相交于一个顶点的三条棱分别叫做<strong>长、宽、高</strong>。</p>
+            <div className="mt-2 flex justify-center">
+              <svg width="100" height="80" viewBox="0 0 120 90">
+                <rect x="15" y="25" width="70" height="45" fill="#c8e6c9" stroke="#2e7d32" strokeWidth="2" />
+                <polygon points="15,25 35,10 105,10 85,25" fill="#a5d6a7" stroke="#2e7d32" strokeWidth="2" />
+                <line x1="85" y1="25" x2="105" y2="10" stroke="#2e7d32" strokeWidth="2" />
+              </svg>
+            </div>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">🧊 正方体</p>
+            <p>正方体是<strong>特殊的长方体</strong>，它的长、宽、高都相等，叫做<strong>棱长</strong>。</p>
+            <p>正方体有<strong>6个完全相同的正方形面</strong>，<strong>12条长度相等的棱</strong>，<strong>8个顶点</strong>。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔍 对比记忆</p>
+            <div className="grid grid-cols-2 gap-2 text-center text-sm mt-2">
+              <div className="bg-green-100 p-2 rounded">长方体<br/>对面相等<br/>相对棱相等</div>
+              <div className="bg-green-100 p-2 rounded">正方体<br/>所有面相等<br/>所有棱相等</div>
+            </div>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>长方体有（ ）个面，（ ）条棱，（ ）个顶点；正方体每个面都是（ ）形。</p>
+            <p className="text-sm text-green-700">（答案：6，12，8，正方）</p>
+          </div>
+          <div className="bg-green-100 p-3 rounded-xl text-center text-sm">
+            💡 小口诀：“长方体六面两两同，十二条棱四四等；正方体六面都一样，十二条棱全相等。”
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 快速小练习：判断特征属于哪个图形 ----------
+  const QuickQuiz = () => {
+    const [question, setQuestion] = React.useState({ text: "相对的面完全相同", options: ["长方体", "正方体", "两者都有"], correct: "长方体" });
+    const [userChoice, setUserChoice] = React.useState(null);
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { text: "相对的面完全相同", options: ["长方体", "正方体", "两者都有"], correct: "长方体" },
+      { text: "所有面都是正方形", options: ["长方体", "正方体", "两者都有"], correct: "正方体" },
+      { text: "12条棱长度都相等", options: ["长方体", "正方体", "两者都有"], correct: "正方体" },
+      { text: "有长、宽、高三个不同的尺寸", options: ["长方体", "正方体", "两者都有"], correct: "长方体" },
+      { text: "8个顶点", options: ["长方体", "正方体", "两者都有"], correct: "两者都有" },
+      { text: "所有面面积相等", options: ["长方体", "正方体", "两者都有"], correct: "正方体" }
+    ];
+    const [idx, setIdx] = React.useState(0);
+    
+    const loadQuestion = (index) => {
+      setQuestion(questionsBank[index % questionsBank.length]);
+      setUserChoice(null);
+      setFeedback("");
+    };
+    
+    const nextQuiz = () => {
+      const newIdx = idx + 1;
+      setIdx(newIdx);
+      loadQuestion(newIdx);
+    };
+    
+    const checkAnswer = (choice) => {
+      setUserChoice(choice);
+      const isCorrect = (choice === question.correct);
+      if (isCorrect) {
+        setFeedback(`✅ 正确！${question.text} 属于 ${question.correct}。`);
+      } else {
+        setFeedback(`❌ 不对哦，${question.text} 正确答案是 ${question.correct}。再复习一下特征～`);
+      }
+    };
+    
+    React.useEffect(() => {
+      loadQuestion(0);
+    }, []);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#8bc34a]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-xl font-extrabold text-green-800">快问快答 · 特征判断</h3>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3 text-center">
+          <p className="font-bold text-xl">{question.text}</p>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {question.options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => checkAnswer(opt)}
+                className={`px-4 py-2 rounded-full font-bold transition ${userChoice === opt ? (opt === question.correct ? 'bg-green-500 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+            <button onClick={nextQuiz} className="bg-emerald-400 hover:bg-emerald-500 text-white px-4 py-2 rounded-full text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-green-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 快问快答 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickQuiz />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-green-700 text-sm border border-green-200">
+            🌈 长方体和正方体是生活中最常见的立体图形：盒子、砖块、魔方…… 认识它们，探索立体世界的奥秘！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
 </body>
 </html>

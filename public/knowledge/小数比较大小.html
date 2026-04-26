@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>⚖️ 小数比较大小 · 数学游乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .compare-btn {
+      transition: all 0.15s ease;
+    }
+    .compare-btn:active {
+      transform: scale(0.96);
+    }
+    .fade-enter {
+      opacity: 0;
+    }
+    .fade-enter-active {
+      opacity: 1;
+      transition: opacity 200ms;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#d9eaff] to-[#b8d9ff] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 知识点卡片组件（小数比较大小）----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-white/40 h-full">
+        <div className="flex items-center gap-2 border-b-2 border-[#7ab3c8] pb-3 mb-4">
+          <span className="text-3xl">⚖️</span>
+          <h2 className="text-2xl font-extrabold text-[#2c5f6e]">小数比较大小<br/><span className="text-sm font-normal">从高位比起，数位对齐更清晰</span></h2>
+        </div>
+        <div className="space-y-4 text-[#2c5f6e]">
+          <div className="bg-[#e6f4fa] rounded-2xl p-4">
+            <p className="font-bold text-[#1e7a8c] flex items-center gap-2">📏 比较规则：</p>
+            <p className="text-sm mt-1">1️⃣ 先比较<span className="font-bold text-blue-700">整数部分</span>，整数部分大的数就大。<br/>
+            2️⃣ 整数部分相同，再比较<span className="font-bold text-blue-700">十分位</span>，十分位大的数就大。<br/>
+            3️⃣ 十分位相同，比较<span className="font-bold text-blue-700">百分位</span>，依次类推……<br/>
+            🌟 注意：比较时要<span className="font-bold">数位对齐</span>，不要被小数位数迷惑！</p>
+          </div>
+          <div className="bg-[#e6f4fa] rounded-2xl p-4">
+            <p className="font-bold text-[#1e7a8c]">📌 经典例子：</p>
+            <ul className="list-disc list-inside space-y-1 mt-1 text-sm">
+              <li><span className="font-mono">3.25</span> ＞ <span className="font-mono">2.98</span> （整数部分3＞2）</li>
+              <li><span className="font-mono">4.7</span> ＞ <span className="font-mono">4.68</span> （整数相同，十分位7＞6）</li>
+              <li><span className="font-mono">0.5</span> = <span className="font-mono">0.50</span> （小数的末尾添0大小不变）</li>
+              <li><span className="font-mono">1.205</span> ＜ <span className="font-mono">1.21</span> （百分位0＜1）</li>
+            </ul>
+          </div>
+          <div className="bg-[#e6f4fa] rounded-2xl p-4">
+            <p className="font-bold text-[#1e7a8c]">💡 记忆技巧：</p>
+            <p className="text-sm">小数比大小，先看整数部；<br/>整数若相同，再看小数部；<br/>一位一位比，直到分出胜负！</p>
+            <div className="flex flex-wrap gap-2 mt-2 justify-center">
+              <span className="bg-[#c2e0f0] px-2 py-1 rounded-full text-xs">0.8 ＞ 0.68</span>
+              <span className="bg-[#c2e0f0] px-2 py-1 rounded-full text-xs">2.35 ＜ 2.4</span>
+              <span className="bg-[#c2e0f0] px-2 py-1 rounded-full text-xs">1.0 = 1</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-center italic text-[#4a7c8c] bg-[#d9eef7] p-2 rounded-xl">
+          🎮 右侧挑战：选择正确的比较符号（＞ ＜ ＝），看看谁更厉害！
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 工具函数：生成随机小数（避免科学计数法，保留合理位数）----------
+  // 生成一个随机小数（范围 0.0 ~ 12.999），整数部分0~12，小数部分随机1~3位
+  const generateRandomDecimal = () => {
+    const intPart = Math.floor(Math.random() * 13); // 0~12
+    // 随机小数位数 1~3 位，让比较更丰富
+    const precision = Math.floor(Math.random() * 3) + 1; // 1,2,3
+    let decPart = 0;
+    if (precision === 1) {
+      decPart = Math.floor(Math.random() * 10); // 0~9
+      // 避免显示 0.0 这种无聊数，但偶尔出现也可以
+      const value = intPart + decPart / 10;
+      return { value, display: value.toString() };
+    } else if (precision === 2) {
+      decPart = Math.floor(Math.random() * 100); // 0~99
+      const value = intPart + decPart / 100;
+      // 去除末尾无效零，保留美感 如 0.5 不显示0.50
+      let display = value.toFixed(2).replace(/\.?0+$/, '');
+      if (display.includes('.') && display.split('.')[1].length === 0) display = display.replace('.', '');
+      return { value, display };
+    } else {
+      decPart = Math.floor(Math.random() * 1000); // 0~999
+      const value = intPart + decPart / 1000;
+      let display = value.toFixed(3).replace(/\.?0+$/, '');
+      if (display.includes('.') && display.split('.')[1].length === 0) display = display.replace('.', '');
+      return { value, display };
+    }
+  };
+
+  // 生成一组题目 (两个小数，以及正确的比较符号)
+  const generateComparisonQuestion = () => {
+    const { value: valA, display: displayA } = generateRandomDecimal();
+    const { value: valB, display: displayB } = generateRandomDecimal();
+    
+    let correctSymbol = '';
+    if (Math.abs(valA - valB) < 1e-9) correctSymbol = '=';
+    else if (valA > valB) correctSymbol = '>';
+    else correctSymbol = '<';
+    
+    return {
+      numA: valA,
+      numB: valB,
+      displayA,
+      displayB,
+      correctSymbol,
+    };
+  };
+
+  // ---------- 比较大小游戏组件 (点击符号/带得分与反馈) ----------
+  const ComparisonGame = ({ resetKey, onNewQuestion }) => {
+    const [question, setQuestion] = React.useState(() => generateComparisonQuestion());
+    const [selectedSymbol, setSelectedSymbol] = React.useState(null);      // 用户选择的符号
+    const [feedback, setFeedback] = React.useState('');
+    const [isLocked, setIsLocked] = React.useState(false);                 // 是否已经答对锁定 (答对后禁止再次点击)
+    const [hasScored, setHasScored] = React.useState(false);               // 当前题目是否已经加过分
+    const [score, setScore] = React.useState(0);                           // 总得分（正确次数）
+    const [attemptCount, setAttemptCount] = React.useState(0);             // 总尝试次数（答对才增加题目计数）
+    
+    // 刷新题目 (保留得分，重置当前题目状态)
+    const refreshQuestion = () => {
+      setQuestion(generateComparisonQuestion());
+      setSelectedSymbol(null);
+      setFeedback('');
+      setIsLocked(false);
+      setHasScored(false);
+    };
+    
+    // 监听外部换题信号 (resetKey 变化)
+    React.useEffect(() => {
+      refreshQuestion();
+    }, [resetKey]);
+    
+    // 处理用户点击比较符号
+    const handleCompare = (symbol) => {
+      // 如果已经锁定（本题答对），不能再选
+      if (isLocked) {
+        setFeedback('🎯 本题已完成！点击“换一题”继续挑战吧！');
+        return;
+      }
+      
+      // 记录选择
+      setSelectedSymbol(symbol);
+      const isCorrect = (symbol === question.correctSymbol);
+      
+      if (isCorrect) {
+        // 正确逻辑：加分（仅一次），锁定，显示正确反馈
+        let newScore = score;
+        let newHasScored = hasScored;
+        if (!hasScored) {
+          newScore = score + 1;
+          setScore(newScore);
+          newHasScored = true;
+          setHasScored(true);
+          setAttemptCount(attemptCount + 1);
+        }
+        setFeedback('🎉 完全正确！ 太棒了！ 🎉');
+        setIsLocked(true);
+      } else {
+        // 错误反馈：告知正确符号是什么，不锁定，不加分，不清空已选但可以继续尝试
+        let correctMsg = '';
+        if (question.correctSymbol === '>') correctMsg = '大于 (＞)';
+        else if (question.correctSymbol === '<') correctMsg = '小于 (＜)';
+        else correctMsg = '等于 (＝)';
+        setFeedback(`❌ 不对哦！这两个数比较应该是 ${correctMsg}，再试试看～`);
+        // 不锁定，用户可以重新选择正确符号
+        // 为了友好，不清空 selectedSymbol，但用户可以再次点击正确符号
+        // 如果之前错误选过一次，再次正确仍会触发正确加分逻辑 (需要确保正确时没有 hasScored 限制)
+        // 注意 hasScored 为 false 时正确才能加分，错误不会改动 hasScored，所以再次正确没问题
+      }
+    };
+    
+    // 重置当前题目（清空选择和反馈，解锁，但是不清除得分也不改变 hasScored 防止刷分？设计：重置后可以重新尝试本题，但如果本题已经得过分数，重置不能再次得分）
+    // 更好的做法：重置后清空用户选择、反馈、解锁，但保留 hasScored 标志，这样即使重新答对也不会再加分，避免刷分。
+    const resetCurrent = () => {
+      if (isLocked) {
+        // 如果已经正确锁定，重置后可以重新尝试本题（但已经加过分，不允许再加）
+        setSelectedSymbol(null);
+        setFeedback('');
+        setIsLocked(false);
+        // hasScored 保持不变，这样就算再选对也不会再加分，公平
+      } else {
+        setSelectedSymbol(null);
+        setFeedback('');
+        // 未锁定时重置，只是清空选择，保留 hasScored 状态（未得分仍是false）
+        // 无额外影响
+      }
+    };
+    
+    // 换一题 (调用父组件刷新 resetKey，并且本地重置得分相关的标志交给 useEffect)
+    const nextQuestion = () => {
+      onNewQuestion();  // 触发父组件 resetKey 更新，useEffect 会 refreshQuestion
+      // 注意：score 保留，hasScored/锁定等会在 refreshQuestion 中重置
+    };
+    
+    // 高亮符号样式
+    const getSymbolClass = (symbol) => {
+      const base = "compare-btn text-4xl font-black w-24 h-20 rounded-2xl shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95 ";
+      if (selectedSymbol === symbol) {
+        if (symbol === question.correctSymbol && isLocked) {
+          return base + "bg-green-500 text-white ring-4 ring-green-300 scale-105";
+        }
+        return base + "bg-blue-400 text-white ring-2 ring-blue-300";
+      }
+      if (isLocked && symbol === question.correctSymbol) {
+        return base + "bg-green-200 text-green-800 border-2 border-green-500 opacity-80";
+      }
+      return base + "bg-white hover:bg-slate-100 text-[#2c5f6e] border border-[#b0d4e8]";
+    };
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 得分栏 + 趣味提示 */}
+        <div className="flex justify-between items-center bg-white/60 rounded-2xl px-4 py-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <span className="font-bold text-[#2c5f6e]">累计得分</span>
+            <span className="text-3xl font-black text-[#1e7a8c]">{score}</span>
+            <span className="text-sm text-stone-600">分</span>
+          </div>
+          <div className="text-xs bg-[#e6f4fa] px-3 py-1 rounded-full text-[#2c5f6e]">
+            💪 每对一题 +1 分
+          </div>
+        </div>
+
+        {/* 比较擂台区 */}
+        <div className="bg-gradient-to-r from-[#eef4fa] to-[#e0f0f8] rounded-2xl p-5 shadow-md border border-white/50">
+          <div className="flex flex-wrap items-center justify-center gap-3 md:gap-8">
+            {/* 左边小数 */}
+            <div className="text-center min-w-[120px]">
+              <div className="text-sm text-[#4a7c8c] font-medium">当前数字</div>
+              <div className="text-5xl md:text-6xl font-mono font-black text-[#1e7a8c] tracking-wide bg-white/60 px-5 py-3 rounded-2xl inline-block shadow-sm">
+                {question.displayA}
+              </div>
+            </div>
+            
+            {/* 比较符号占位 */}
+            <div className="text-5xl font-black text-[#7ab3c8] w-20 text-center">?</div>
+            
+            {/* 右边小数 */}
+            <div className="text-center min-w-[120px]">
+              <div className="text-sm text-[#4a7c8c] font-medium">当前数字</div>
+              <div className="text-5xl md:text-6xl font-mono font-black text-[#1e7a8c] tracking-wide bg-white/60 px-5 py-3 rounded-2xl inline-block shadow-sm">
+                {question.displayB}
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-3 text-center text-sm text-stone-500 bg-white/40 rounded-full py-1 px-2 inline-block mx-auto">
+            🔍 比一比，选符号
+          </div>
+        </div>
+        
+        {/* 三个比较符号按钮（可点击） */}
+        <div className="flex flex-wrap justify-center gap-4 mt-2">
+          <div 
+            className={getSymbolClass('>')}
+            onClick={() => handleCompare('>')}
+          >
+            ＞
+          </div>
+          <div 
+            className={getSymbolClass('<')}
+            onClick={() => handleCompare('<')}
+          >
+            ＜
+          </div>
+          <div 
+            className={getSymbolClass('=')}
+            onClick={() => handleCompare('=')}
+          >
+            ＝
+          </div>
+        </div>
+        
+        {/* 反馈提示区域 */}
+        {feedback && (
+          <div className={`text-center font-bold p-3 rounded-xl ${
+            feedback.includes('正确') || feedback.includes('棒') 
+              ? 'bg-green-200 text-green-800 border-l-8 border-green-500' 
+              : 'bg-amber-100 text-amber-700 border-l-8 border-amber-400'
+          } shadow-sm`}>
+            {feedback}
+          </div>
+        )}
+        
+        {/* 操作按钮组 */}
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={resetCurrent} 
+            className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2.5 rounded-full transition shadow-sm text-base active:scale-[0.98]"
+            disabled={isLocked && !feedback} // 基本不禁用，只是重置功能
+          >
+            🔄 重置本题
+          </button>
+          <button 
+            onClick={nextQuestion} 
+            className="flex-1 bg-[#7ab3c8] hover:bg-[#5a93a8] text-white font-bold py-2.5 rounded-full transition shadow-sm text-base active:scale-[0.98]"
+          >
+            🎲 换一题
+          </button>
+        </div>
+        
+        {/* 小贴士：动态提示比较方法 */}
+        <div className="text-xs text-center text-stone-600 bg-white/40 rounded-full py-1.5 px-3">
+          💡 比较技巧：先看整数部分 → 相同再比小数位，一位一位往下比！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 左侧知识点卡片 */}
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-white/40">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <h3 className="text-xl font-bold text-[#2c5f6e] flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                符号擂台 · 小数比较赛
+              </h3>
+              <span className="text-sm text-stone-600 bg-white/60 px-3 py-1 rounded-full">✨ 点击符号，一决高下 ✨</span>
+            </div>
+            <ComparisonGame resetKey={gameResetKey} onNewQuestion={handleNewGame} />
+          </div>
+          <div className="text-xs text-center text-stone-600 bg-white/50 rounded-full py-2 px-3 flex justify-center gap-3 backdrop-blur-sm">
+            <span>⚡ 规则：选择正确的比较符号（＞  ＜  ＝）</span>
+            <span>🏅 答对得分，换题继续提升小数比较能力！</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

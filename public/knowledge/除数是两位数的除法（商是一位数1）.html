@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🎮 除法冒险岛 · 除数是两位数的除法（商是一位数）</title>
+  <!-- Tailwind + 基础样式 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM & Babel -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 竖式专用样式 (完美对齐，无多余空行，居中) */
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-item-active {
+      opacity: 0.5;
+      cursor: grabbing;
+    }
+    .ld-division {
+      font-family: 'Courier New', 'Consolas', 'Monaco', 'SF Mono', monospace;
+      font-weight: 700;
+      display: inline-block;
+      text-align: left;
+    }
+    .digit-cell {
+      width: 2.8rem;
+      text-align: center;
+      font-size: 2.2rem;
+      line-height: 1.2;
+      font-weight: 700;
+      color: #3f2e1f;
+      display: inline-block;
+    }
+    .ld-divisor-cell {
+      width: 52px;
+      flex-shrink: 0;
+      font-size: 2.2rem;
+      text-align: right;
+      padding-right: 12px;
+      font-weight: 800;
+      color: #bc6c25;
+    }
+    .ld-bracket-col {
+      display: flex;
+      flex-direction: column;
+      border-left: 3px solid #a77b58;
+    }
+    .ld-top-line {
+      width: 100%;
+      height: 3px;
+      background: #a77b58;
+      margin-bottom: 4px;
+    }
+    .ld-step-line {
+      height: 2px;
+      background: #9f7e63;
+      margin: 4px 0;
+      border-radius: 2px;
+      width: 100%;
+    }
+    .ld-row {
+      display: flex;
+      align-items: flex-end;
+      margin: 0;
+      padding: 0;
+      line-height: 1;
+    }
+    .ld-digits-row {
+      display: flex;
+      gap: 0px;
+    }
+    /* 移动端适配竖式格子 */
+    @media (max-width: 640px) {
+      .digit-cell { width: 2rem; font-size: 1.6rem; }
+      .ld-divisor-cell { width: 42px; font-size: 1.8rem; padding-right: 8px; }
+    }
+    @media (max-width: 480px) {
+      .digit-cell { width: 1.7rem; font-size: 1.4rem; }
+      .ld-divisor-cell { width: 36px; font-size: 1.6rem; }
+    }
+    .remainder-digit {
+      color: #a5481e !important;
+    }
+    [draggable=true] {
+      cursor: grab;
+      transition: all 0.1s ease;
+    }
+    [draggable=true]:active {
+      cursor: grabbing;
+    }
+    .drop-target-active {
+      background-color: #e9d4ff !important;
+      border: 2px solid #936e4b !important;
+      transform: scale(1.02);
+    }
+    /* 移除可能的额外间距 */
+    .ld-row + .ld-row {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#D9C2E6] to-[#CBAACB] min-h-screen flex items-center justify-center p-4 font-sans">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 竖式展示组件 (标准版，居中，无多余空行) ----------
+  const DivisionVisual = ({ divisor, dividend, quotient, remainder }) => {
+    const dividendDigits = String(dividend).split('');
+    const product = divisor * quotient;
+    const productDigits = String(product).split('');
+    const remainderStr = remainder !== undefined && remainder !== 0 ? `余 ${remainder}` : '';
+    const padLeft = dividendDigits.length - productDigits.length;
+    
+    return (
+      <div className="flex justify-center w-full">
+        <div className="ld-division bg-[#fffbf3] p-4 rounded-2xl shadow-inner border border-[#e6cfbc]">
+          {/* 商行 */}
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="ld-digits-row">
+              {dividendDigits.map((_, idx) => {
+                const isLast = idx === dividendDigits.length - 1;
+                return (
+                  <div key={`quot-${idx}`} className="digit-cell text-[#2c5f2d] font-extrabold">
+                    {isLast ? quotient : ''}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* 除数 + 被除数主体 */}
+          <div className="ld-row">
+            <div className="ld-divisor-cell">{divisor}</div>
+            <div className="ld-bracket-col flex-1">
+              <div className="ld-top-line"></div>
+              <div className="ld-digits-row dividend-row">
+                {dividendDigits.map((digit, idx) => (
+                  <div key={`divd-${idx}`} className="digit-cell">{digit}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* 乘积行 (除数×商) */}
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="ld-digits-row">
+              {Array(padLeft).fill(null).map((_, idx) => (
+                <div key={`pad-${idx}`} className="digit-cell"></div>
+              ))}
+              {productDigits.map((digit, idx) => (
+                <div key={`prod-${idx}`} className="digit-cell text-[#8B5A2B]">{digit}</div>
+              ))}
+            </div>
+          </div>
+          {/* 横线 */}
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="flex-1"><div className="ld-step-line"></div></div>
+          </div>
+          {/* 余数行 */}
+          <div className="ld-row">
+            <div className="w-[52px] md:w-[52px] sm:w-[42px] flex-shrink-0"></div>
+            <div className="ld-digits-row">
+              {dividendDigits.map((_, idx) => {
+                const isLast = idx === dividendDigits.length - 1;
+                return (
+                  <div key={`rem-${idx}`} className="digit-cell">
+                    {isLast && remainder !== undefined && remainder !== 0 ? 
+                      <span className="remainder-digit font-bold">{remainder}</span> : 
+                      (isLast && remainder === 0 ? '0' : '')}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {remainder !== 0 && (
+            <div className="text-right text-xs text-[#a5481e] mt-1 font-medium pr-2">🎯 余数 {remainder}</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // 题目数据：除数是两位数，商是一位数，部分有余数
+  const QUESTIONS = [
+    { id: 1, divisor: 12, dividend: 84, quotient: 7, remainder: 0, text: "84 ÷ 12" },
+    { id: 2, divisor: 15, dividend: 90, quotient: 6, remainder: 0, text: "90 ÷ 15" },
+    { id: 3, divisor: 24, dividend: 96, quotient: 4, remainder: 0, text: "96 ÷ 24" },
+    { id: 4, divisor: 18, dividend: 75, quotient: 4, remainder: 3, text: "75 ÷ 18" },
+    { id: 5, divisor: 14, dividend: 85, quotient: 6, remainder: 1, text: "85 ÷ 14" }
+  ];
+  const GAME_QUESTIONS = QUESTIONS.slice(0, 3);
+  
+  const getResultLabel = (q) => {
+    if (q.remainder === 0) return `${q.quotient}`;
+    return `${q.quotient} 余 ${q.remainder}`;
+  };
+  
+  // 拖拽配对游戏组件
+  const DragMatchGame = () => {
+    const [matchedStatus, setMatchedStatus] = React.useState({});
+    const [selectedId, setSelectedId] = React.useState(GAME_QUESTIONS[0].id);
+    const [dragFeedback, setDragFeedback] = React.useState("");
+    const successCount = Object.values(matchedStatus).filter(v => v === true).length;
+    const allMatched = successCount === GAME_QUESTIONS.length;
+    const selectedQuestion = GAME_QUESTIONS.find(q => q.id === selectedId) || GAME_QUESTIONS[0];
+    
+    const onDragStart = (e, questionId) => {
+      if (matchedStatus[questionId]) {
+        e.preventDefault();
+        setDragFeedback("🎁 这道题已经配对成功啦！不能重复拖拽～");
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", questionId);
+      e.dataTransfer.effectAllowed = "copy";
+      setDragFeedback(`✨ 拖动算式: ${GAME_QUESTIONS.find(q => q.id === questionId)?.text} ，放到正确的结果盒子里吧！`);
+    };
+    
+    const onDragEnd = (e) => {
+      setTimeout(() => setDragFeedback(""), 800);
+    };
+    
+    const onDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    
+    const onDrop = (e, targetResultValue) => {
+      e.preventDefault();
+      const draggedIdRaw = e.dataTransfer.getData("text/plain");
+      if (!draggedIdRaw) return;
+      const draggedId = parseInt(draggedIdRaw, 10);
+      const question = GAME_QUESTIONS.find(q => q.id === draggedId);
+      if (!question) return;
+      if (matchedStatus[draggedId]) {
+        setDragFeedback("🧸 这个算式已经配对成功啦！不能重复配对哦～");
+        return;
+      }
+      const correctAnswerStr = question.remainder === 0 ? `${question.quotient}` : `${question.quotient}余${question.remainder}`;
+      const targetBoxQuestion = GAME_TARGETS.find(t => t.displayValue === targetResultValue);
+      if (!targetBoxQuestion) return;
+      if (targetBoxQuestion.questionId === question.id) {
+        setMatchedStatus(prev => ({ ...prev, [draggedId]: true }));
+        setDragFeedback(`🎉 太棒了！ ${question.text} = ${correctAnswerStr} 配对正确！ 🎉`);
+        const nextUnmatched = GAME_QUESTIONS.find(q => !matchedStatus[q.id] && q.id !== draggedId);
+        if (nextUnmatched) setSelectedId(nextUnmatched.id);
+      } else {
+        setDragFeedback(`❌ 噢不！ ${question.text} 不等于 ${targetResultValue}，再试试看！ 💪`);
+      }
+    };
+    
+    const resetGame = () => {
+      setMatchedStatus({});
+      setDragFeedback("✨ 游戏已重置，快重新拖拽配对叭！");
+      setSelectedId(GAME_QUESTIONS[0].id);
+    };
+    
+    const GAME_TARGETS = GAME_QUESTIONS.map(q => ({
+      questionId: q.id,
+      displayValue: q.remainder === 0 ? `${q.quotient}` : `${q.quotient}余${q.remainder}`,
+      fullHint: q.remainder === 0 ? `商是 ${q.quotient}` : `商 ${q.quotient} 余 ${q.remainder}`
+    }));
+    
+    return (
+      <div className="flex flex-col gap-4">
+        {/* 动态竖式展示区 */}
+        <div className="bg-[#F7EDE1] rounded-2xl p-3 shadow-md border border-[#ddb594]">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <h3 className="text-[#7B4B2A] font-bold text-lg flex items-center gap-2">📖 当前竖式小课堂 
+              <span className="text-sm bg-[#E9D4C0] px-2 py-1 rounded-full">拖拽算式试试看</span>
+            </h3>
+            <div className="flex gap-2 text-xs">
+              {GAME_QUESTIONS.map(q => (
+                <button 
+                  key={q.id}
+                  onClick={() => setSelectedId(q.id)}
+                  className={`px-3 py-1 rounded-full text-sm font-semibold transition ${selectedId === q.id ? 'bg-[#CBAACB] text-white shadow' : 'bg-white/70 text-[#7B4B2A] border border-[#dcc2aa]'}`}
+                >
+                  {q.text}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DivisionVisual 
+            divisor={selectedQuestion.divisor} 
+            dividend={selectedQuestion.dividend} 
+            quotient={selectedQuestion.quotient}
+            remainder={selectedQuestion.remainder}
+          />
+          <div className="text-sm text-[#936e4b] mt-2 text-center bg-amber-50/60 rounded-xl p-2">
+            💡 计算小诀窍：先看被除数的前两位，如果比除数小就看前三位；商写在个位上，每次乘积要减干净。
+          </div>
+        </div>
+        
+        {/* 游戏区: 拖拽配对区 */}
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-[#E1C9B5]">
+          <div className="flex justify-between items-center mb-3 flex-wrap">
+            <h3 className="font-extrabold text-xl text-[#7B4B2A] flex items-center gap-2">🎣 钓鱼拖拖乐 · 算式配对</h3>
+            <div className="flex items-center gap-2">
+              <span className="bg-[#CBAACB] px-3 py-1 rounded-full text-sm font-bold text-white">🏆 配对 {successCount}/{GAME_QUESTIONS.length}</span>
+              <button onClick={resetGame} className="bg-[#D9C2E6] hover:bg-[#CBAACB] px-4 py-1 rounded-full text-sm font-semibold text-[#4a2e1e] transition shadow">🔄 重置游戏</button>
+            </div>
+          </div>
+          
+          {dragFeedback && (
+            <div className="bg-[#FDF8E7] border-l-8 border-[#CBAACB] p-2 rounded-xl mb-4 text-[#A56B2F] font-medium text-sm animate-pulse">
+              {dragFeedback}
+            </div>
+          )}
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 左侧: 可拖拽的算式卡片 */}
+            <div className="bg-[#FAF3E8] rounded-2xl p-3 shadow-inner">
+              <h4 className="font-bold text-[#936e4b] mb-3 flex items-center gap-1">🐟 把小鱼拖到正确鱼篓 ➡️</h4>
+              <div className="flex flex-col gap-3">
+                {GAME_QUESTIONS.map(question => {
+                  const isMatched = matchedStatus[question.id];
+                  return (
+                    <div 
+                      key={question.id}
+                      draggable={!isMatched}
+                      onDragStart={(e) => onDragStart(e, question.id)}
+                      onDragEnd={onDragEnd}
+                      className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${isMatched ? 'bg-green-100 border-green-400 opacity-70 cursor-default' : 'bg-[#FFF7EF] border-[#ddb594] cursor-grab hover:shadow-md active:cursor-grabbing'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">{isMatched ? '✓✓' : '🐠'}</span>
+                        <span className="font-mono font-bold text-xl text-[#3f2e1f]">{question.text}</span>
+                      </div>
+                      {isMatched && (
+                        <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-bold">已配对 ✓</span>
+                      )}
+                      {!isMatched && <span className="text-sm text-[#bc6c25] animate-pulse">✨ 拖拽我</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 text-center text-xs text-[#AD8B73] bg-white/60 rounded-lg p-1">
+                💬 按住算式卡片，拖拽到右侧正确的结果盒子上
+              </div>
+            </div>
+            
+            {/* 右侧: 放置目标区（鱼篓/结果盒子） */}
+            <div className="bg-[#FAF3E8] rounded-2xl p-3 shadow-inner">
+              <h4 className="font-bold text-[#936e4b] mb-3 flex items-center gap-1">🧺 鱼篓 · 正确结果区</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {GAME_TARGETS.map(target => {
+                  const isMatchedTarget = matchedStatus[target.questionId];
+                  return (
+                    <div
+                      key={target.questionId}
+                      onDragOver={onDragOver}
+                      onDrop={(e) => onDrop(e, target.displayValue)}
+                      className={`drop-zone rounded-xl p-3 text-center transition-all border-2 ${isMatchedTarget ? 'bg-emerald-100 border-emerald-400' : 'bg-[#F1E5D8] border-dashed border-[#C8AA8A] hover:bg-[#EADBCB]'} `}
+                    >
+                      <div className="text-4xl mb-1">{isMatchedTarget ? '🏆' : '🎯'}</div>
+                      <div className="font-mono text-2xl font-extrabold text-[#7B4B2A]">{target.displayValue}</div>
+                      <div className="text-xs text-[#AD8B73] mt-1">{target.fullHint}</div>
+                      {isMatchedTarget && <div className="text-green-700 text-xs mt-1">✅ 已配对</div>}
+                      {!isMatchedTarget && <div className="text-[#b87c4a] text-[11px] mt-1">⬅️ 把算式拖到这里</div>}
+                    </div>
+                  );
+                })}
+              </div>
+              {allMatched && (
+                <div className="mt-4 bg-gradient-to-r from-[#D9C2E6] to-[#CBAACB] text-white font-bold p-2 rounded-xl text-center animate-bounce">
+                  🎉 恭喜你！全部配对正确！成为除法小英雄 🎉
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="text-xs text-center text-[#A0704A] mt-4 bg-[#FFFAF0] p-2 rounded-xl">
+            🌟 玩法：左边小鱼（除法算式）<strong>拖拽</strong>到右边对应的“正确结果鱼篓” → 配对成功会变绿！可以点上方竖式卡片看不同算式的竖式计算过程～
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主页面: 左侧知识点 + 右侧游戏 ----------
+  const App = () => {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* 左侧知识点区域 */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#E6CFBC]">
+          <div className="flex items-center gap-2 border-b-2 border-[#CBAACB] pb-3 mb-4">
+            <span className="text-3xl">📘</span>
+            <h2 className="text-2xl font-extrabold text-[#6B4C3B]">除数是两位数的除法<br/><span className="text-sm font-normal">商是一位数 · 小课堂</span></h2>
+          </div>
+          <div className="space-y-4 text-[#3f2e1f]">
+            <div className="bg-[#FDF5EA] rounded-2xl p-4">
+              <p className="font-bold text-[#B5672E] flex items-center gap-2">🧠 计算口诀：</p>
+              <ul className="list-disc list-inside space-y-1 mt-1 text-sm sm:text-base">
+                <li>① 看：被除数前两位，如果比除数小，看前三位；</li>
+                <li>② 商：想除数乘几接近被除数前几位，商就写在那一位(个位)上；</li>
+                <li>③ 乘：除数×商，乘积对齐被除数；</li>
+                <li>④ 减：相减得余数，余数要比除数小。</li>
+              </ul>
+            </div>
+            <div className="bg-[#FDF5EA] rounded-2xl p-4">
+              <p className="font-bold text-[#B5672E] flex items-center gap-2">✨ 竖式范例：84 ÷ 12 = 7</p>
+              <DivisionVisual divisor={12} dividend={84} quotient={7} remainder={0} />
+              <p className="text-sm mt-2 text-center text-gray-600">👆 商7写在个位，12×7=84，刚好整除。</p>
+            </div>
+            <div className="bg-[#FDF5EA] rounded-2xl p-4">
+              <p className="font-bold text-[#B5672E]">📌 特别注意：</p>
+              <p className="text-sm">除数是两位数，先看被除数前两位，如果前两位不够除，就看前三位。商是一位数，写在个位上。每一次余数必须比除数小！</p>
+              <div className="flex flex-wrap gap-2 mt-3 justify-center">
+                <span className="bg-[#D9C2E6] px-3 py-1 rounded-full text-xs">90÷15=6</span>
+                <span className="bg-[#D9C2E6] px-3 py-1 rounded-full text-xs">96÷24=4</span>
+                <span className="bg-[#D9C2E6] px-3 py-1 rounded-full text-xs">75÷18=4余3</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-center italic text-[#8F6A4C] bg-[#F7EDE1] p-2 rounded-xl">
+            🌈 右侧小游戏：拖拽算式配对，边玩边巩固除法竖式！
+          </div>
+        </div>
+        
+        {/* 右侧互动游戏区 */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#E6CFBC]">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-3xl">🎮</span>
+            <h2 className="text-2xl font-extrabold text-[#6B4C3B]">拖拖乐·算式配对</h2>
+          </div>
+          <DragMatchGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

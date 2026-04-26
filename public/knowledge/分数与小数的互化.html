@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>☀️ 分数与小数的互化 · 暖阳工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drag-card {
+      transition: all 0.1s ease;
+      cursor: grab;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drag-card.disabled-card {
+      cursor: default;
+      opacity: 0.6;
+      filter: grayscale(0.1);
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      background-color: rgba(255, 235, 205, 0.6);
+      border: 2px dashed #f9a95c;
+    }
+    .drop-slot.drag-over {
+      background-color: #ffe2c4;
+      border-color: #f97316;
+      transform: scale(1.02);
+    }
+    .drop-slot.filled-slot {
+      background-color: #ffd9b5;
+      border: 2px solid #ea580c;
+      cursor: default;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .celebration {
+      animation: bounce 0.5s ease-in-out;
+    }
+    .warm-bg {
+      background-image: radial-gradient(circle at 20% 35%, rgba(249, 115, 22, 0.06) 2.5%, transparent 2.8%);
+      background-size: 38px 38px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#FFF2E6] to-[#FFE0C4] min-h-screen flex items-center justify-center p-4 font-sans warm-bg">
+
+<div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+<script type="text/babel">
+  // ---------- 辅助函数：分数转小数（有限小数，保留最多2-3位，但确保匹配）----------
+  const fractionToDecimal = (fractionStr) => {
+    const [num, den] = fractionStr.split('/').map(Number);
+    if (isNaN(num) || isNaN(den) || den === 0) return null;
+    const value = num / den;
+    // 保留最多3位小数，并去除末尾多余的0
+    let decimal = value.toFixed(3).replace(/\.?0+$/, '');
+    if (decimal.endsWith('.')) decimal = decimal.slice(0, -1);
+    // 确保如 "0.5" 而不是 "0.500"
+    if (!decimal.includes('.')) return decimal;
+    // 去除末尾多余的0
+    decimal = decimal.replace(/0+$/, '').replace(/\.$/, '');
+    return decimal;
+  };
+
+  // 小数转分数（要求有限小数，分母限制在2~50之间，得到最简分数）
+  const decimalToFraction = (decimalStr) => {
+    const value = parseFloat(decimalStr);
+    if (isNaN(value)) return null;
+    // 预设常见分母的精度匹配
+    const tolerances = [0.001, 0.005];
+    // 常见分母范围 2~50
+    for (let den = 2; den <= 50; den++) {
+      const num = Math.round(value * den);
+      const approx = num / den;
+      if (Math.abs(approx - value) < 0.0001) {
+        // 约分
+        const gcd = (a, b) => {
+          a = Math.abs(a);
+          b = Math.abs(b);
+          while (b !== 0) { let t = b; b = a % b; a = t; }
+          return a;
+        };
+        const g = gcd(num, den);
+        const simpleNum = num / g;
+        const simpleDen = den / g;
+        return `${simpleNum}/${simpleDen}`;
+      }
+    }
+    // 保底，根据小数位数构造分母
+    const str = decimalStr;
+    const dotIndex = str.indexOf('.');
+    if (dotIndex === -1) return `${value}/1`;
+    const decimalPart = str.slice(dotIndex + 1);
+    const denominator = Math.pow(10, decimalPart.length);
+    let numerator = Math.round(value * denominator);
+    const gcd = (a, b) => {
+      while (b !== 0) { let t = b; b = a % b; a = t; }
+      return a;
+    };
+    const g = gcd(numerator, denominator);
+    numerator /= g;
+    const denom = denominator / g;
+    return `${numerator}/${denom}`;
+  };
+
+  // 检查两个互化结果是否相等 (分数与小数比较)
+  const areEquivalent = (valueA, valueB) => {
+    // 如果一个是分数一个是小数，转化为同一类型比较
+    const isFraction = (s) => s.includes('/');
+    const isDecimal = (s) => !isNaN(parseFloat(s)) && !s.includes('/');
+    if (isFraction(valueA) && isDecimal(valueB)) {
+      const decimalFromFrac = fractionToDecimal(valueA);
+      return Math.abs(parseFloat(decimalFromFrac) - parseFloat(valueB)) < 0.0001;
+    }
+    if (isDecimal(valueA) && isFraction(valueB)) {
+      const decimalFromFrac = fractionToDecimal(valueB);
+      return Math.abs(parseFloat(valueA) - parseFloat(decimalFromFrac)) < 0.0001;
+    }
+    if (isFraction(valueA) && isFraction(valueB)) {
+      const [n1, d1] = valueA.split('/').map(Number);
+      const [n2, d2] = valueB.split('/').map(Number);
+      return n1 * d2 === n2 * d1;
+    }
+    if (isDecimal(valueA) && isDecimal(valueB)) {
+      return Math.abs(parseFloat(valueA) - parseFloat(valueB)) < 0.0001;
+    }
+    return false;
+  };
+
+  // 生成一个随机分数（分母确保能化成有限小数）
+  const getDenominatorSet = () => [2, 4, 5, 8, 10, 16, 20, 25, 40, 50];
+  const generateRandomFraction = () => {
+    const denominators = getDenominatorSet();
+    const den = denominators[Math.floor(Math.random() * denominators.length)];
+    let numerator = Math.floor(Math.random() * (den * 2)) + 1;
+    // 避免出现可约分但无所谓，最后会显示原分数，但匹配时用小数等价，所以没关系
+    return `${numerator}/${den}`;
+  };
+
+  // 生成随机小数（从常见分数转换而来，保证有限）
+  const generateRandomDecimal = () => {
+    const fraction = generateRandomFraction();
+    return fractionToDecimal(fraction);
+  };
+
+  // 生成一组挑战（混合分数化小数 & 小数化分数）
+  const generateChallengeSet = (count = 4) => {
+    let challenges = [];
+    let usedOriginals = new Set();
+    for (let i = 0; i < count; i++) {
+      let type = Math.random() > 0.5 ? 'fracToDec' : 'decToFrac';
+      let original, target;
+      let attempts = 0;
+      do {
+        if (type === 'fracToDec') {
+          original = generateRandomFraction();
+          target = fractionToDecimal(original);
+        } else {
+          original = generateRandomDecimal();
+          target = decimalToFraction(original);
+        }
+        attempts++;
+        if (attempts > 20) break;
+      } while (usedOriginals.has(original) || target === null);
+      usedOriginals.add(original);
+      challenges.push({
+        id: `ch-${Date.now()}-${i}-${Math.random()}`,
+        original: original,
+        target: target,
+        matched: false,
+        matchedValue: null,
+        type: type
+      });
+    }
+    return challenges;
+  };
+
+  // 生成卡片池：包含所有正确target + 干扰项（随机其他互化结果）
+  const generateAnswerCards = (challenges) => {
+    let correctSet = new Set();
+    challenges.forEach(ch => {
+      correctSet.add(ch.target);
+    });
+    let correctArray = Array.from(correctSet);
+    
+    // 干扰池：生成其他分数/小数（不与正确结果相等）
+    let distractorPool = [];
+    let usedDistractors = new Set();
+    for (let i = 0; i < correctArray.length + 2; i++) {
+      let candidate;
+      let attempts = 0;
+      do {
+        // 随机生成一个互化结果（可能是分数或小数）
+        if (Math.random() > 0.5) {
+          candidate = generateRandomFraction();
+        } else {
+          candidate = generateRandomDecimal();
+        }
+        attempts++;
+        if (attempts > 30) break;
+      } while (correctSet.has(candidate) || usedDistractors.has(candidate));
+      if (!correctSet.has(candidate) && !usedDistractors.has(candidate)) {
+        usedDistractors.add(candidate);
+        distractorPool.push(candidate);
+      }
+      if (distractorPool.length >= correctArray.length + 1) break;
+    }
+    // 额外添加常见干扰
+    const extra = ["0.25", "0.5", "0.75", "1/2", "2/3", "3/4", "0.125", "0.375", "1/3", "2/5"];
+    for (let ex of extra) {
+      if (!correctSet.has(ex) && !usedDistractors.has(ex) && distractorPool.length < correctArray.length + 2) {
+        distractorPool.push(ex);
+        usedDistractors.add(ex);
+      }
+    }
+    
+    let allCardValues = [...correctArray, ...distractorPool];
+    // 洗牌
+    for (let i = allCardValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCardValues[i], allCardValues[j]] = [allCardValues[j], allCardValues[i]];
+    }
+    return allCardValues.map((val, idx) => ({
+      id: `card-${Date.now()}-${idx}-${Math.random()}`,
+      value: val,
+      used: false
+    }));
+  };
+
+  // ---------- 左侧知识点卡片：分数与小数的互化 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-[#FFF8F0]/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#FBCDA3] h-full text-[#9B4B00]">
+        <div className="flex items-center gap-2 border-b-2 border-[#F9A95C] pb-3 mb-4">
+          <span className="text-4xl">☀️</span>
+          <h2 className="text-2xl font-extrabold tracking-wide">分数与小数的互化<br/><span className="text-sm font-normal text-[#C4691E]">暖阳课堂 · 灵活转换</span></h2>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-[#FFFAF0] rounded-2xl p-4 border border-[#FFDEB3]">
+            <p className="font-bold text-[#B45309] flex items-center gap-2">✨ 分数化小数</p>
+            <p className="text-sm mt-1">用分子除以分母，得到小数（有限小数或循环小数）。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg inline-block shadow-sm">📖 例：1/2 = 0.5，3/4 = 0.75，1/8 = 0.125</div>
+          </div>
+          <div className="bg-[#FFFAF0] rounded-2xl p-4 border border-[#FFDEB3]">
+            <p className="font-bold text-[#B45309]">⚡ 小数化分数</p>
+            <p className="text-sm mt-1">有限小数：根据小数位数写成分母为10、100…的分数，再约分。</p>
+            <div className="mt-2 text-xs bg-white/70 p-2 rounded-lg">💡 例：0.5 = 5/10 = 1/2，0.25 = 25/100 = 1/4</div>
+          </div>
+          <div className="bg-[#FFF0E0] rounded-2xl p-3 text-center text-sm border border-[#F9C27D]">
+            🎯 挑战规则：将右侧「互化结果卡片」拖拽到对应原始数的槽位中。分数⇄小数，匹配正确即可！
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 主游戏组件：分数与小数互化匹配 ----------
+  const ConversionGame = ({ resetKey, onNewGame }) => {
+    const [challenges, setChallenges] = React.useState(() => generateChallengeSet(4));
+    const [answerCards, setAnswerCards] = React.useState(() => []);
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const [isVictory, setIsVictory] = React.useState(false);
+    
+    const initCards = (currentChallenges) => generateAnswerCards(currentChallenges);
+    
+    React.useEffect(() => {
+      setAnswerCards(initCards(challenges));
+    }, [challenges]);
+    
+    const checkVictory = (currentChallenges) => {
+      const allFilled = currentChallenges.every(ch => ch.matched === true);
+      if (allFilled && !isVictory) setIsVictory(true);
+      else if (!allFilled && isVictory) setIsVictory(false);
+    };
+    
+    const updateChallengesAndCheck = (newChallenges) => {
+      setChallenges(newChallenges);
+      checkVictory(newChallenges);
+    };
+    
+    const resetGame = () => {
+      const newChallenges = generateChallengeSet(4);
+      setChallenges(newChallenges);
+      setAnswerCards(initCards(newChallenges));
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    React.useEffect(() => {
+      resetGame();
+    }, [resetKey]);
+    
+    // 拖拽卡片
+    const onDragStart = (e, card) => {
+      if (card.used) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: card.id, cardValue: card.value }));
+      e.dataTransfer.effectAllowed = 'copy';
+      e.target.style.opacity = '0.6';
+    };
+    const onDragEnd = (e) => {
+      if (e.target) e.target.style.opacity = '';
+    };
+    
+    const onDragOverSlot = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('drag-over');
+    };
+    const onDragLeaveSlot = (e) => {
+      e.currentTarget.classList.remove('drag-over');
+    };
+    
+    // 放置到挑战槽位
+    const onDropToSlot = (e, challengeId) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      let draggedCardId, draggedValue;
+      try {
+        const parsed = JSON.parse(rawData);
+        draggedCardId = parsed.cardId;
+        draggedValue = parsed.cardValue;
+      } catch (err) {
+        return;
+      }
+      
+      const targetCard = answerCards.find(c => c.id === draggedCardId);
+      if (!targetCard || targetCard.used) {
+        setErrorMsg('☀️ 这张卡片已经使用过了！不能重复投放。');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      const challengeIndex = challenges.findIndex(ch => ch.id === challengeId);
+      if (challengeIndex === -1) return;
+      const targetChallenge = challenges[challengeIndex];
+      if (targetChallenge.matched) {
+        setErrorMsg('🌞 这个互化槽位已经匹配完成啦！');
+        setTimeout(() => setErrorMsg(''), 1300);
+        return;
+      }
+      
+      // 验证拖拽的值是否与目标值等价（分数与小数互相比较）
+      const isMatch = areEquivalent(draggedValue, targetChallenge.target);
+      if (!isMatch) {
+        const originalShow = targetChallenge.original;
+        const expected = targetChallenge.target;
+        setErrorMsg(`❌ 互化结果不正确！ ${originalShow} 的互化结果应该是 ${expected}，而不是 ${draggedValue}。再试试看～`);
+        setTimeout(() => setErrorMsg(''), 1900);
+        return;
+      }
+      
+      // 正确匹配
+      setAnswerCards(prevCards =>
+        prevCards.map(card =>
+          card.id === draggedCardId ? { ...card, used: true } : card
+        )
+      );
+      const newChallenges = [...challenges];
+      newChallenges[challengeIndex].matched = true;
+      newChallenges[challengeIndex].matchedValue = draggedValue;
+      updateChallengesAndCheck(newChallenges);
+      setErrorMsg('');
+    };
+    
+    // 重置当前进度（清空槽位，重置卡片使用）
+    const resetProgress = () => {
+      const resetChallenges = challenges.map(ch => ({
+        ...ch,
+        matched: false,
+        matchedValue: null
+      }));
+      const resetCards = answerCards.map(card => ({ ...card, used: false }));
+      // 洗牌
+      for (let i = resetCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resetCards[i], resetCards[j]] = [resetCards[j], resetCards[i]];
+      }
+      setChallenges(resetChallenges);
+      setAnswerCards(resetCards);
+      setIsVictory(false);
+      setErrorMsg('');
+    };
+    
+    const newGameFull = () => {
+      resetGame();
+      if (onNewGame) onNewGame();
+    };
+    
+    const totalCount = challenges.length;
+    const filledCount = challenges.filter(ch => ch.matched).length;
+    const progressPercent = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+    
+    const VictoryMessage = () => (
+      <div className="text-center bg-gradient-to-r from-orange-300 to-amber-400 rounded-2xl p-3 mt-2 animate-bounce shadow-xl border border-[#FFE0B5]">
+        <div className="text-2xl font-bold text-white">🎉 互化大师！全部正确 🎉</div>
+        <div className="text-sm text-orange-100 font-semibold">所有分数与小数都已成功互化！点击「全新挑战」继续练习～</div>
+      </div>
+    );
+    
+    return (
+      <div className="flex flex-col gap-5">
+        {/* 进度条 */}
+        <div className="flex justify-between items-center bg-[#FFF8F0]/80 backdrop-blur-sm rounded-2xl px-5 py-2 shadow-md border border-[#FCD5A5]">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">☀️</span>
+            <span className="font-bold text-[#9B4B00]">互化进度</span>
+            <span className="text-lg font-black text-orange-800">{filledCount} / {totalCount}</span>
+          </div>
+          <div className="w-36 bg-[#FFE0C4] rounded-full h-2.5">
+            <div className="bg-[#F97316] h-2.5 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+          <div className="text-xs bg-[#FFE8D6] px-2 py-1 rounded-full text-orange-800 border border-[#F9B87A]">🔄 拖拽互化结果 放入槽位</div>
+        </div>
+        
+        {/* 挑战区域：每个挑战展示原始数 + 互化结果槽位 */}
+        <div className="bg-[#FFFDF8]/70 rounded-2xl p-4 backdrop-blur-sm border border-[#FCD5A5]">
+          <div className="text-center text-sm font-semibold text-[#9B4B00] mb-3">📌 将右侧正确的互化结果卡片拖拽到对应原始数的槽位中</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="bg-[#FFF9F2] rounded-xl p-4 border border-[#FAD7A8] shadow-sm">
+                <div className="text-center mb-2">
+                  <div className="text-2xl font-black text-orange-800 bg-white/60 inline-block px-6 py-1 rounded-full shadow-sm">
+                    {challenge.original}
+                  </div>
+                  <div className="text-xs text-orange-600 mt-1">
+                    {challenge.type === 'fracToDec' ? '分数 → 小数' : '小数 → 分数'}
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <div
+                    className={`drop-slot rounded-xl p-3 text-center transition-all ${challenge.matched ? 'filled-slot' : ''}`}
+                    onDragOver={onDragOverSlot}
+                    onDragLeave={onDragLeaveSlot}
+                    onDrop={(e) => onDropToSlot(e, challenge.id)}
+                  >
+                    <div className="text-xs font-semibold text-orange-700">✨ 互化结果槽 ✨</div>
+                    {challenge.matched ? (
+                      <div className="text-xl font-bold text-orange-800 mt-1">{challenge.matchedValue}</div>
+                    ) : (
+                      <div className="text-sm text-orange-500 mt-1 border-t border-dashed border-orange-300 pt-1">⬅️ 拖拽卡片至此</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 卡片池区域 */}
+        <div className="bg-[#FFF8F0]/80 rounded-2xl p-4 border border-[#FCD5A5]">
+          <div className="text-center text-sm font-semibold text-[#9B4B00] mb-2">🎴 互化结果卡片库（拖拽到左侧槽位）</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {answerCards.map(card => (
+              <div
+                key={card.id}
+                draggable={!card.used}
+                onDragStart={(e) => onDragStart(e, card)}
+                onDragEnd={onDragEnd}
+                className={`drag-card w-24 h-24 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all ${
+                  card.used 
+                    ? 'bg-gray-300/60 cursor-default border-2 border-gray-400 text-gray-500' 
+                    : 'bg-gradient-to-br from-orange-100 to-amber-100 cursor-grab active:cursor-grabbing hover:scale-105 border-2 border-orange-500 text-orange-900'
+                }`}
+              >
+                {card.used ? '✓ 已用' : card.value}
+              </div>
+            ))}
+            {answerCards.length === 0 && <div className="text-orange-500">加载卡片中...</div>}
+          </div>
+          <div className="text-[11px] text-center text-orange-700 mt-2">💡 每个卡片只能用一次，找到每个原始数对应的互化结果并拖拽匹配</div>
+        </div>
+        
+        {/* 错误提示 */}
+        {errorMsg && (
+          <div className="text-center bg-[#FDE68A]/90 text-orange-800 font-bold p-2.5 rounded-xl border-l-8 border-[#F59E0B] backdrop-blur-sm animate-pulse shadow">
+            {errorMsg}
+          </div>
+        )}
+        
+        {/* 胜利凯旋 */}
+        {isVictory && <VictoryMessage />}
+        
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-1">
+          <button 
+            onClick={resetProgress}
+            className="flex-1 bg-[#FBC27D] hover:bg-[#F9A95C] text-orange-900 font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🔄 重置当前进度（清空槽位）
+          </button>
+          <button 
+            onClick={newGameFull}
+            className="flex-1 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold py-2.5 rounded-full transition shadow-md text-base active:scale-[0.98]"
+          >
+            🧺 全新挑战（换一批互化题）
+          </button>
+        </div>
+        <div className="text-xs text-center text-orange-900 bg-[#FFF0E0]/80 rounded-full py-1.5 px-3 backdrop-blur-sm">
+          💡 互化小技巧：分数化小数用除法，小数化分数看位数再约分。把正确的互化结果拖拽到对应槽位！
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用 ----------
+  const App = () => {
+    const [gameResetKey, setGameResetKey] = React.useState(0);
+    const handleNewGame = () => {
+      setGameResetKey(prev => prev + 1);
+    };
+    return (
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-5/12">
+          <KnowledgeCard />
+        </div>
+        <div className="lg:w-7/12 flex flex-col gap-5">
+          <div className="bg-[#FFFCF5]/80 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-[#FCD5A5]">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h3 className="text-xl font-bold text-[#9B4B00] flex items-center gap-2">
+                <span className="text-3xl">☀️</span>
+                分数⇄小数 · 暖阳工坊
+              </h3>
+              <span className="text-sm bg-[#FFE8D6] px-3 py-1 rounded-full text-orange-800 border border-orange-300">🎯 拖拽匹配互化结果</span>
+            </div>
+            <ConversionGame resetKey={gameResetKey} onNewGame={handleNewGame} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

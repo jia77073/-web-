@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>🐟 除数是两位数的除法 · 口算估算大挑战</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      user-select: none;
+    }
+    .drag-fish:active {
+      opacity: 0.6;
+      cursor: grabbing;
+    }
+    .drop-zone {
+      transition: all 0.1s ease;
+    }
+    .drop-zone.drag-over {
+      background-color: #e9d4ff;
+      border-color: #a855f7;
+      transform: scale(1.02);
+    }
+    /* 竖式专用样式：完全对齐，标准阿拉伯数字0 */
+    .ld-digit-cell {
+      width: 2.8rem;
+      text-align: center;
+      font-size: 2.2rem;
+      line-height: 1.3;
+      font-weight: 700;
+      flex-shrink: 0;
+      font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    }
+    @media (max-width: 700px) {
+      .ld-digit-cell { width: 2.2rem; font-size: 1.9rem; }
+      .ld-divisor-fix { width: 58px; font-size: 1.8rem; }
+    }
+    @media (max-width: 480px) {
+      .ld-digit-cell { width: 1.8rem; font-size: 1.6rem; }
+      .ld-divisor-fix { width: 48px; font-size: 1.5rem; }
+    }
+    .ld-divisor-fix {
+      width: 70px;
+      flex-shrink: 0;
+      text-align: right;
+      padding-right: 8px;
+      font-size: 2.2rem;
+      font-weight: 700;
+      font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    }
+    .ld-bracket-col {
+      display: flex;
+      flex-direction: column;
+      border-left: 3px solid #a77b58;
+    }
+    .ld-top-line {
+      height: 3px;
+      background: #a77b58;
+      width: 100%;
+      margin-bottom: 4px;
+    }
+    /* 统一横线用底部边框实现全宽 */
+    .full-width-line {
+      display: flex;
+      margin-top: 4px;
+      margin-bottom: 2px;
+    }
+    .standard-digit {
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#F3EAF5] to-[#E9D7F0] font-sans antialiased">
+  <div id="root" class="w-full min-h-screen flex items-center justify-center p-4"></div>
+
+  <script type="text/babel">
+    // ---------- 生成题目：除数是两位数的除法口算估算（整十数除整百整十数，商为整数）----------
+    // 例如：640 ÷ 80 = 8，720 ÷ 90 = 8，560 ÷ 70 = 8，480 ÷ 60 = 8，360 ÷ 40 = 9，270 ÷ 30 = 9
+    // 被除数范围 100~990，除数范围 20~90，商范围 2~9，保证整除且被除数是整十数（方便口算）
+    const generateEstimationQuestion = () => {
+      const divisors = [20, 30, 40, 50, 60, 70, 80, 90];
+      const divisor = divisors[Math.floor(Math.random() * divisors.length)];
+      // 商从2到9，避免过小或过大
+      const quotient = Math.floor(Math.random() * 8) + 2; // 2~9
+      const dividend = divisor * quotient;
+      // 确保被除数不超过990且是整十数（自动满足）
+      if (dividend >= 100 && dividend <= 990) {
+        return { dividend, divisor, quotient, remainder: 0 };
+      } else {
+        // 如果超出范围，递归一次简单修正
+        return { dividend: divisor * 5, divisor, quotient: 5, remainder: 0 };
+      }
+    };
+
+    // ---------- 生成竖式步骤 (除数是两位数，被除数是三位数，商是一位数) ----------
+    // 例如：80 ) 640，商8对齐个位。步骤：看被除数前两位64，64÷8=8，8×80=640，余0
+    const generateDivisionSteps = (dividend, divisor, quotient, remainder) => {
+      const dividendStr = dividend.toString().split(''); // ['6','4','0']
+      const quotientStr = quotient.toString(); // "8"
+      const quotientDigits = [quotientStr]; // ['8']
+      // 除数两位数，被除数三位数，看前两位
+      const firstTwo = parseInt(dividendStr[0] + dividendStr[1], 10); // 64
+      const product = quotient * divisor; // 8*80=640
+      const firstProduct = product; // 640
+      const firstRemainder = dividend - product; // 0
+      
+      // 构建显示行（共三列：百、十、个）
+      // 乘积640，应显示在百、十、个位
+      const productStr = product.toString(); // "640"
+      let productVals = ['', '', ''];
+      if (productStr.length === 3) {
+        productVals[0] = productStr[0];
+        productVals[1] = productStr[1];
+        productVals[2] = productStr[2];
+      } else if (productStr.length === 2) {
+        productVals[1] = productStr[0];
+        productVals[2] = productStr[1];
+      } else {
+        productVals[2] = productStr[0];
+      }
+      
+      // 最终余数
+      const finalRemainderVals = ['', '', firstRemainder.toString()];
+      
+      const steps = [
+        { type: 'product', values: productVals },
+        { type: 'line' },
+        { type: 'remainder', values: finalRemainderVals }
+      ];
+      
+      return { quotientDigits, steps, finalRemainder: firstRemainder };
+    };
+    
+    // 竖式组件 (横线拉长至三列，数字标准)
+    const VerticalDivision = ({ dividend, divisor, quotient, remainder }) => {
+      const { quotientDigits, steps, finalRemainder } = generateDivisionSteps(dividend, divisor, quotient, remainder);
+      const dividendDigits = dividend.toString().split('');
+      const totalDigits = 3;
+      
+      const renderDigitRow = (values) => {
+        const cells = values.map((val, idx) => (
+          <div key={idx} className="ld-digit-cell">{val !== '' ? val : ''}</div>
+        ));
+        return <div className="flex">{cells}</div>;
+      };
+      
+      const renderFullWidthLine = (key) => (
+        <div key={key} className="flex mt-1">
+          <div className="ld-divisor-fix"></div>
+          <div className="flex">
+            {Array.from({ length: totalDigits }).map((_, idx) => (
+              <div key={idx} className="ld-digit-cell border-b-2 border-[#9f7e63]"></div>
+            ))}
+          </div>
+        </div>
+      );
+      
+      // 商行：因为商是一位数，显示在个位，百位十位留空
+      const paddedQuotient = ['', '', ...quotientDigits];
+      
+      return (
+        <div className="bg-[#FFFBF3] rounded-3xl p-5 shadow-inner border border-[#e6cfbc] inline-block w-full">
+          <div className="flex justify-center">
+            <div className="font-mono font-bold">
+              {/* 商行 */}
+              <div className="flex mb-1">
+                <div className="ld-divisor-fix"></div>
+                <div className="flex">
+                  {paddedQuotient.map((d, idx) => (
+                    <div key={idx} className="ld-digit-cell text-emerald-700">{d}</div>
+                  ))}
+                </div>
+              </div>
+              {/* 除数 + 括号 + 被除数 */}
+              <div className="flex items-start">
+                <div className="ld-divisor-fix text-amber-700">{divisor}</div>
+                <div className="ld-bracket-col">
+                  <div className="ld-top-line"></div>
+                  <div className="flex">
+                    {dividendDigits.map((d, idx) => (
+                      <div key={idx} className="ld-digit-cell">{d}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* 动态步骤 */}
+              {steps.map((step, idx) => {
+                if (step.type === 'product') {
+                  return (
+                    <div key={idx} className="flex mt-1">
+                      <div className="ld-divisor-fix"></div>
+                      {renderDigitRow(step.values)}
+                    </div>
+                  );
+                }
+                if (step.type === 'line') {
+                  return renderFullWidthLine(idx);
+                }
+                if (step.type === 'remainder') {
+                  return (
+                    <div key={idx} className="flex mt-1">
+                      <div className="ld-divisor-fix"></div>
+                      {renderDigitRow(step.values)}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          </div>
+          <div className="text-center text-sm mt-3 text-stone-500">余数：{finalRemainder}</div>
+        </div>
+      );
+    };
+    
+    // 横式组件
+    const HorizontalExpr = ({ dividend, divisor, quotient, remainder }) => (
+      <div className="bg-white/70 rounded-2xl p-5 text-center shadow-md border border-[#DDC7B0]">
+        <span className="text-3xl font-bold text-stone-700">{dividend} ÷ {divisor} = {quotient}</span>
+        {remainder !== 0 && <span className="text-2xl ml-2 text-orange-600">…… {remainder}</span>}
+        {remainder === 0 && <span className="text-2xl ml-2 text-emerald-600"> 余 0</span>}
+      </div>
+    );
+    
+    // ---------- 拖拽钓鱼游戏：口算估算匹配（拖拽正确数字到鱼篓）----------
+    const FishingGame = ({ dividend, divisor, quotient, remainder, resetKey }) => {
+      const correctAnswer = quotient; // 商就是正确结果
+      // 生成干扰项：与正确答案相差1或2，且在2~9之间，且不为负数
+      const generateDistractors = (correct) => {
+        let dist = new Set();
+        dist.add(correct);
+        while(dist.size < 4) {
+          let offset = Math.floor(Math.random() * 3) + 1; // 1或2
+          let candidate = correct + (Math.random() > 0.5 ? offset : -offset);
+          if (candidate >= 2 && candidate <= 9 && candidate !== correct) {
+            dist.add(candidate);
+          } else {
+            // 备选
+            let fallback = correct === 9 ? 7 : correct + 1;
+            if (fallback !== correct && fallback >=2 && fallback<=9) dist.add(fallback);
+          }
+        }
+        // 转为数组并打乱顺序
+        let options = Array.from(dist);
+        for (let i = options.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [options[i], options[j]] = [options[j], options[i]];
+        }
+        return options;
+      };
+      
+      const [options, setOptions] = React.useState(() => generateDistractors(correctAnswer));
+      const [selectedValue, setSelectedValue] = React.useState(null);
+      const [feedback, setFeedback] = React.useState('');
+      const [isCompleted, setIsCompleted] = React.useState(false);
+      
+      // 题目更新时重置
+      React.useEffect(() => {
+        setOptions(generateDistractors(correctAnswer));
+        setSelectedValue(null);
+        setFeedback('');
+        setIsCompleted(false);
+      }, [resetKey, dividend, correctAnswer]);
+      
+      const handleDrop = (value) => {
+        if (isCompleted) return;
+        setSelectedValue(value);
+        if (value === correctAnswer) {
+          setFeedback('🎣 哇！钓到正确的鱼啦！口算正确！ 🎉');
+          setIsCompleted(true);
+        } else {
+          setFeedback('❌ 这条鱼不对哦，再试试看！估算时要看除数和被除数的前几位。');
+          setIsCompleted(false);
+        }
+      };
+      
+      const onDragStart = (e, val) => {
+        if (isCompleted) { e.preventDefault(); return false; }
+        e.dataTransfer.setData('text/plain', val);
+        e.dataTransfer.effectAllowed = 'copy';
+      };
+      
+      const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+      
+      const onDropZone = (e) => {
+        e.preventDefault();
+        if (isCompleted) return;
+        const val = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (!isNaN(val)) handleDrop(val);
+      };
+      
+      const resetGame = () => {
+        if (isCompleted) return;
+        setSelectedValue(null);
+        setFeedback('');
+        setIsCompleted(false);
+      };
+      
+      return (
+        <div className="flex flex-col gap-5">
+          {/* 钓鱼场景 */}
+          <div className="relative bg-gradient-to-b from-sky-100 to-blue-100 rounded-2xl p-4 border-2 border-blue-300">
+            <div className="flex justify-between items-center flex-wrap gap-3">
+              <div className="bg-white rounded-xl p-3 shadow-md flex-1">
+                <div className="text-sm text-stone-500 mb-1">🎯 口算挑战</div>
+                <div className="text-3xl font-bold text-purple-800">{dividend} ÷ {divisor} = ?</div>
+                <div className="text-xs text-stone-400 mt-1">估算时，把除数看作整十数，被除数看作几百几十</div>
+              </div>
+              <div className="bg-amber-100 rounded-xl p-3 text-center min-w-[100px]">
+                <div className="text-sm font-bold text-amber-700">🐟 鱼篓</div>
+                <div 
+                  className={`drop-zone w-24 h-20 mx-auto bg-white rounded-full border-4 border-dashed flex items-center justify-center text-4xl font-black transition-all ${selectedValue !== null ? 'border-emerald-500 bg-emerald-50' : 'border-amber-400 bg-yellow-50'}`}
+                  onDragOver={onDragOver}
+                  onDrop={onDropZone}
+                >
+                  {selectedValue !== null ? selectedValue : '?'}
+                </div>
+                <p className="text-[10px] mt-1 text-stone-500">拖拽鱼到这里</p>
+              </div>
+            </div>
+            <div className="mt-4 text-center text-sm text-blue-700">🐟 下面是小鱼，把正确数字的鱼拖到鱼篓里！</div>
+          </div>
+          
+          {/* 可拖拽的鱼卡片 */}
+          <div className="bg-[#EADDF0] p-4 rounded-2xl">
+            <div className="text-center text-sm font-medium text-purple-800 mb-3">🐠 拖拽这些小鱼到右边的鱼篓 🐠</div>
+            <div className="flex flex-wrap justify-center gap-4">
+              {options.map((num) => (
+                <div
+                  key={num}
+                  draggable={!isCompleted}
+                  onDragStart={(e) => onDragStart(e, num)}
+                  className={`drag-fish w-20 h-20 bg-gradient-to-br from-orange-200 to-yellow-200 rounded-full flex items-center justify-center text-3xl font-bold text-orange-700 cursor-grab active:cursor-grabbing hover:scale-105 transition-transform shadow-md border-2 border-orange-400 ${isCompleted ? 'opacity-50' : ''}`}
+                >
+                  <span className="transform rotate-0">🐟</span>
+                  <span className="ml-1">{num}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex gap-3">
+            <button onClick={resetGame} className="flex-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-bold py-2 rounded-full transition shadow-sm text-sm" disabled={isCompleted}>🔄 重新钓鱼</button>
+          </div>
+          {feedback && (
+            <div className={`text-center font-bold p-3 rounded-full ${feedback.includes('正确') ? 'bg-green-200 text-green-800' : 'bg-amber-100 text-amber-700'}`}>
+              {feedback}
+            </div>
+          )}
+          {isCompleted && (
+            <div className="text-center text-emerald-700 bg-emerald-100 p-2 rounded-full text-sm font-bold">
+              🌟 太厉害了！点击“换一题”继续钓鱼挑战 🌟
+            </div>
+          )}
+        </div>
+      );
+    };
+    
+    // ---------- 主应用 ----------
+    const MathAdventureApp = () => {
+      const [question, setQuestion] = React.useState(() => generateEstimationQuestion());
+      const [displayMode, setDisplayMode] = React.useState('vertical');
+      const [gameResetKey, setGameResetKey] = React.useState(0);
+      const { dividend, divisor, quotient, remainder } = question;
+      
+      const handleNewQuestion = () => {
+        const newQ = generateEstimationQuestion();
+        setQuestion(newQ);
+        setGameResetKey(prev => prev + 1);
+      };
+      const toggleDisplay = () => setDisplayMode(prev => prev === 'vertical' ? 'horizontal' : 'vertical');
+      
+      return (
+        <div className="max-w-7xl w-full mx-auto">
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* 左侧知识点卡片 */}
+            <div className="lg:w-5/12 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 border border-[#D9C2E6]">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-3xl">📖</span>
+                <h2 className="text-2xl font-bold text-purple-800">除数是两位数的除法 · 口算估算</h2>
+              </div>
+              <div className="space-y-3 text-stone-700 text-base leading-relaxed">
+                <p className="bg-[#F3E9FC] p-3 rounded-2xl">🎯 <strong>口算与估算小妙招</strong><br/>
+                当除数是两位数时，我们可以把它看作<span className="font-bold text-purple-700">整十数</span>，被除数看作几百几十，然后想乘法算除法，就能快速估算出商。</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-[#CBAACB]/20 p-2 rounded-xl">✨ 1. 除数四舍五入成整十</div>
+                  <div className="bg-[#CBAACB]/20 p-2 rounded-xl">✨ 2. 被除数看成整百整十</div>
+                  <div className="bg-[#CBAACB]/20 p-2 rounded-xl">✨ 3. 想：几乘除数接近被除数</div>
+                  <div className="bg-[#CBAACB]/20 p-2 rounded-xl">✨ 4. 利用乘法口诀快速试商</div>
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-sm bg-amber-50 p-3 rounded-2xl">
+                  <span>🧸 例：640÷80，想8×80=640，所以商8。</span>
+                </div>
+                <div className="mt-2 text-xs text-center text-stone-400">💡 右边游戏：把正确数字的鱼拖进鱼篓，练习口算估算！</div>
+              </div>
+              <button onClick={handleNewQuestion} className="mt-4 w-full bg-gradient-to-r from-[#CBAACB] to-[#D9C2E6] hover:from-purple-400 hover:to-purple-300 text-purple-900 font-extrabold py-3 rounded-full shadow-md transition flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                换一题 🎲
+              </button>
+            </div>
+            
+            {/* 右侧算式展示 + 游戏区 */}
+            <div className="lg:w-7/12 flex flex-col gap-5">
+              <div className="bg-white/70 rounded-3xl shadow-xl p-5 border border-[#E1CAEC]">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+                  <button onClick={toggleDisplay} className="bg-[#CBAACB] hover:bg-[#D9C2E6] text-purple-800 font-bold px-5 py-2 rounded-full transition shadow flex items-center gap-1">
+                    {displayMode === 'vertical' ? '📐 竖式' : '✖️ 横式'} ⇄ 切换
+                  </button>
+                  <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">当前挑战: {dividend} ÷ {divisor}</span>
+                </div>
+                <div className="mb-6 flex justify-center">
+                  {displayMode === 'vertical' ? 
+                    <VerticalDivision dividend={dividend} divisor={divisor} quotient={quotient} remainder={remainder} /> :
+                    <HorizontalExpr dividend={dividend} divisor={divisor} quotient={quotient} remainder={remainder} />
+                  }
+                </div>
+                <div className="border-t-2 border-dashed border-purple-200 pt-4 mt-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                    <h3 className="text-xl font-bold text-purple-800">🎣 钓鱼游戏 · 拖拽正确数字</h3>
+                    <span className="text-xs bg-yellow-200 px-2 py-1 rounded-full">拖拽小鱼 → 放入鱼篓</span>
+                  </div>
+                  <FishingGame dividend={dividend} divisor={divisor} quotient={quotient} remainder={remainder} resetKey={gameResetKey} />
+                </div>
+              </div>
+              <div className="text-xs text-center text-stone-400 bg-white/50 rounded-full py-2 px-3 flex justify-center gap-3">
+                <span>✨ 观察算式，快速估算，把正确结果的小鱼拖进鱼篓</span>
+                <span>🐟 全部正确就能获得星星奖励！</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-center text-[10px] text-stone-400 mt-6">🐼 数学竖式完全符合教材规范 · 所有数字均为标准阿拉伯数字0，横线统一拉长</div>
+        </div>
+      );
+    };
+    
+    ReactDOM.createRoot(document.getElementById('root')).render(<MathAdventureApp />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>六年级分数乘法·应用题特训营 | 解题步骤拖拽排序</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽排序库 (移动端完美支持) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #CBAACB 0%, #D9C2E6 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, -apple-system, '圆体', '微软雅黑', sans-serif;
+        }
+        /* 卡片风格 */
+        .step-card {
+            background: #FFF7E8;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 0 #b88b5a;
+            transition: 0.1s linear;
+            cursor: grab;
+            user-select: none;
+        }
+        .step-card:active {
+            cursor: grabbing;
+        }
+        .sortable-drag {
+            opacity: 0.4;
+            background: #ffe0a3;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .answer-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 1.8rem !important;
+            }
+            .step-card {
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
+        /* 步骤列表容器 */
+        .sortable-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-6xl mx-auto"></div>
+
+    <script type="text/babel">
+        // --------------------------------------------------------------
+        // 左侧题库: 分数乘法应用题 (单位1判断, 连续求几分之几, 多/少几分之几, 工程基础, 占比)
+        const fractionQuestions = [
+            {
+                text: "📖 一本故事书有240页，小明第一天看了全书的 1/4，第二天看了剩下的 1/3，第二天看了多少页？",
+                answer: 60,
+                solution: "🔍 单位“1”转化：第一天剩下 1 - 1/4 = 3/4；第二天看的是剩下的 1/3 → 240 × 3/4 × 1/3 = 240 × (3/4 × 1/3) = 240 × 1/4 = 60 (页)。综合算式：240×(1-1/4)×1/3 = 60页。"
+            },
+            {
+                text: "🍎 果园里有苹果树120棵，梨树的棵数是苹果树的 3/5，桃树的棵数是梨树的 2/3，桃树有多少棵？",
+                answer: 48,
+                solution: "🔍 连续求一个数的几分之几：梨树 = 120 × 3/5 = 72棵；桃树 = 72 × 2/3 = 48棵。综合：120 × 3/5 × 2/3 = 48棵。"
+            },
+            {
+                text: "🏭 某工厂计划生产600个零件，实际比计划多生产了 1/6，实际生产了多少个零件？",
+                answer: 700,
+                solution: "🔍 比单位“1”多几分之几：实际 = 计划 × (1 + 1/6) = 600 × 7/6 = 700 (个)。"
+            },
+            {
+                text: "🚗 一辆汽车行驶了全程的 3/8 后，距离中点还有30千米，全程是多少千米？(提示：中点即全程的1/2)",
+                answer: 240,
+                solution: "🔍 30千米对应全程的 (1/2 - 3/8) = 1/8，所以全程 = 30 ÷ 1/8 = 240千米。本题需要除法，但强化分数乘法思维：也可方程。"
+            },
+            {
+                text: "🧱 修一条水渠，甲队每天修全长的 1/12，乙队每天修全长的 1/15，两队合修3天，一共修了全长的几分之几？",
+                answer: 9/20,
+                answerFrac: "9/20",
+                solution: "🔍 工作效率和 = 1/12 + 1/15 = 5/60 + 4/60 = 9/60 = 3/20；3天完成：3 × 3/20 = 9/20。注意分数乘法。"
+            },
+            {
+                text: "🎒 小华的零花钱有200元，买文具用了 2/5，买零食用了剩下的 1/3，买零食花了多少钱？",
+                answer: 40,
+                solution: "🔍 剩下钱数：200×(1 - 2/5) = 200×3/5=120元；零食：120×1/3=40元。综合：200×3/5×1/3=40元。"
+            },
+            {
+                text: "📐 一个长方形，长是12米，宽比长短 1/4，这个长方形的面积是多少平方米？",
+                answer: 108,
+                solution: "🔍 宽 = 长 × (1 - 1/4) = 12 × 3/4 = 9米；面积 = 12×9 = 108平方米。"
+            },
+            {
+                text: "🍞 食堂运来一批大米，第一天吃了总数的 1/5，第二天吃了剩下的 1/4，还剩90千克，这批大米原有多少千克？",
+                answer: 150,
+                solution: "🔍 倒推法：第一天剩 4/5，第二天吃剩下1/4即吃了总数的 4/5×1/4=1/5，总共吃了2/5，剩余3/5对应90kg，原有90÷3/5=150kg。"
+            }
+        ];
+
+        // 处理分数答案兼容 (针对第5题分数输出)
+        const getDisplayAnswer = (q) => {
+            if (q.answerFrac) return q.answerFrac;
+            return q.answer;
+        };
+
+        // 左侧应用题主组件
+        const FractionApp = () => {
+            const [currentQ, setCurrentQ] = React.useState(null);
+            const [userAnswer, setUserAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            const [showSolution, setShowSolution] = React.useState('');
+            const [isCorrect, setIsCorrect] = React.useState(false);
+
+            const loadRandomQuestion = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * fractionQuestions.length);
+                const newQ = { ...fractionQuestions[randomIndex] };
+                setCurrentQ(newQ);
+                setUserAnswer('');
+                setFeedback('');
+                setShowSolution('');
+                setIsCorrect(false);
+            }, []);
+
+            React.useEffect(() => {
+                if (fractionQuestions.length) loadRandomQuestion();
+            }, [loadRandomQuestion]);
+
+            const handleSubmit = () => {
+                if (!currentQ) return;
+                let rawAnswer = userAnswer.trim();
+                let answerNum;
+                // 如果当前题目包含分数答案 (如9/20)
+                if (currentQ.answerFrac) {
+                    // 接受分数形式 如 9/20 或小数 0.45
+                    if (rawAnswer.includes('/')) {
+                        const parts = rawAnswer.split('/');
+                        if (parts.length === 2) {
+                            const num = parseFloat(parts[0]);
+                            const den = parseFloat(parts[1]);
+                            if (!isNaN(num) && !isNaN(den) && den !== 0) {
+                                answerNum = num / den;
+                            } else answerNum = NaN;
+                        } else answerNum = parseFloat(rawAnswer);
+                    } else {
+                        answerNum = parseFloat(rawAnswer);
+                    }
+                    const correctVal = eval(currentQ.answerFrac); // 安全计算 9/20
+                    if (!isNaN(answerNum) && Math.abs(answerNum - correctVal) < 0.0001) {
+                        setFeedback("🎉 完全正确！分数乘法掌握得真棒！ 👏");
+                        setIsCorrect(true);
+                        setShowSolution(currentQ.solution);
+                    } else {
+                        setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answerFrac}。看看解题步骤吧～`);
+                        setIsCorrect(false);
+                        setShowSolution(currentQ.solution);
+                    }
+                } else {
+                    answerNum = parseFloat(rawAnswer);
+                    if (isNaN(answerNum)) {
+                        setFeedback("❓ 请输入数字答案（或分数如 9/20）哟～");
+                        setShowSolution('');
+                        setIsCorrect(false);
+                        return;
+                    }
+                    const isAnsCorrect = Math.abs(answerNum - currentQ.answer) < 0.01;
+                    if (isAnsCorrect) {
+                        setFeedback("🎉 完全正确！单位“1”找得很准！🎈");
+                        setIsCorrect(true);
+                        setShowSolution(currentQ.solution);
+                    } else {
+                        setFeedback(`😲 答案不对哦！正确答案是 ${currentQ.answer}。一起分析～`);
+                        setIsCorrect(false);
+                        setShowSolution(currentQ.solution);
+                    }
+                }
+            };
+
+            const handleNext = () => loadRandomQuestion();
+
+            if (!currentQ) return <div className="text-center text-white text-2xl p-10">✨ 加载分数题库中...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-300 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-4xl">🧮</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 title-main tracking-tight">分数乘法·应用题特训</h1>
+                    </div>
+                    {/* 知识点卡片 */}
+                    <div className="bg-gradient-to-r from-[#F3E8FF] to-[#FDE9F0] rounded-2xl p-4 mb-5 shadow-inner">
+                        <h2 className="text-xl font-bold text-purple-800 flex items-center gap-2">📖 核心秘籍 <span className="text-sm bg-purple-200 px-2 py-0.5 rounded-full">六年级上册</span></h2>
+                        <ul className="mt-2 space-y-1 text-gray-700 text-base md:text-lg list-disc pl-5">
+                            <li>🎯 <span className="font-semibold">单位“1”</span>：找准“是、比、占、相当于”后面的量，通常为整体。</li>
+                            <li>✖️ <span className="font-semibold">求一个数的几分之几</span>：用乘法（单位“1” × 分率 = 对应量）</li>
+                            <li>🔄 <span className="font-semibold">连续求几分之几</span>：步步为营，每次找准新的单位“1”。</li>
+                            <li>📈 <span className="font-semibold">比一个数多/少几分之几</span>：单位“1” × (1 ± 分率)</li>
+                            <li>🧱 <span className="font-semibold">工程·占比</span>：工作总量=工作效率×时间，分率相加减。</li>
+                        </ul>
+                    </div>
+
+                    {/* 题目区域 */}
+                    <div className="bg-amber-50 rounded-2xl p-5 border-l-[12px] border-l-amber-400 shadow-md mb-5">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                            <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">🔥 分数挑战</span>
+                            <button onClick={handleNext} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-5 rounded-full shadow-md transition flex items-center gap-1 text-sm md:text-base">
+                                🔄 换一题
+                            </button>
+                        </div>
+                        <div className="mt-4 text-gray-800 text-xl md:text-2xl font-medium leading-relaxed">
+                            {currentQ.text}
+                        </div>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3 items-center">
+                            <input 
+                                type="text" 
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                placeholder="输入整数、小数或分数 (如 9/20)"
+                                className="answer-input w-full sm:w-56 px-5 py-3 border-2 border-purple-300 rounded-2xl text-center text-lg bg-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-md transition text-lg w-full sm:w-auto">
+                                ✅ 提交闯关
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 反馈 + 解题步骤 */}
+                    {feedback && (
+                        <div className={`rounded-2xl p-4 mb-4 ${isCorrect ? 'bg-green-100 border-l-8 border-green-500' : 'bg-rose-50 border-l-8 border-rose-400'}`}>
+                            <p className="text-lg font-semibold flex items-center gap-2">{isCorrect ? '🏆 反馈' : '📚 学习提示'}</p>
+                            <p className="text-gray-800 text-base md:text-lg mt-1">{feedback}</p>
+                        </div>
+                    )}
+                    {showSolution && (
+                        <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                            <p className="font-bold text-sky-800 text-lg flex items-center gap-2">✍️ 单位“1”分析 & 综合算式</p>
+                            <p className="text-gray-700 mt-1 text-base md:text-lg leading-relaxed whitespace-pre-line">{showSolution}</p>
+                            <div className="mt-2 text-purple-600 text-sm italic">⭐ 牢记：单位“1”已知用乘法，未知用除法或方程。</div>
+                        </div>
+                    )}
+                    <div className="mt-3 text-center text-gray-500 text-sm">
+                        💡 连续求几分之几、比多比少、工程问题全覆盖！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 右侧小游戏: 解题步骤排序 (拖拽排序 + 分数乘法步骤逻辑)
+        // 预定义排序挑战库 (题干 + 正确步骤数组)
+        const stepsChallenges = [
+            {
+                title: "🧩 挑战1：书本页数问题",
+                description: "一本书180页，第一天看了全书的 1/3，第二天看了剩下的 1/2，第二天看了多少页？",
+                correctSteps: [
+                    "① 第一天剩下的分率：1 - 1/3 = 2/3",
+                    "② 第二天看了剩下的 1/2 → 第二天看了全书的 (2/3) × (1/2) = 1/3",
+                    "③ 第二天页数：180 × 1/3 = 60 (页)"
+                ]
+            },
+            {
+                title: "🧩 挑战2：水果连乘",
+                description: "果园有苹果树150棵，梨树是苹果树的 2/5，桃树是梨树的 3/4，桃树有多少棵？",
+                correctSteps: [
+                    "① 梨树棵数：150 × 2/5 = 60 (棵)",
+                    "② 桃树棵数：60 × 3/4 = 45 (棵)",
+                    "③ 综合算式：150 × 2/5 × 3/4 = 45 (棵)"
+                ]
+            },
+            {
+                title: "🧩 挑战3：比多几分之几",
+                description: "去年产量240吨，今年比去年增产 1/8，今年产量多少吨？",
+                correctSteps: [
+                    "① 今年占去年的分率：1 + 1/8 = 9/8",
+                    "② 今年产量：240 × 9/8 = 270 (吨)",
+                    "③ 答：今年生产270吨。"
+                ]
+            },
+            {
+                title: "🧩 挑战4：工程合修",
+                description: "修一段公路，甲队每天修全长的 1/10，乙队每天修全长的 1/15，两队合修4天，共修全长的几分之几？",
+                correctSteps: [
+                    "① 两队效率和：1/10 + 1/15 = 3/30 + 2/30 = 5/30 = 1/6",
+                    "② 4天完成：4 × 1/6 = 4/6 = 2/3",
+                    "③ 答：共修全长的 2/3。"
+                ]
+            }
+        ];
+
+        // 右侧步骤排序组件 (拖拽互动)
+        const StepsSortGame = () => {
+            const [challenge, setChallenge] = React.useState(null);
+            const [shuffledSteps, setShuffledSteps] = React.useState([]);
+            const [gameFeedback, setGameFeedback] = React.useState('');
+            const [checkStyle, setCheckStyle] = React.useState('info');
+            const containerRef = React.useRef(null);
+            const sortableRef = React.useRef(null);
+
+            // 随机获取挑战并打乱步骤
+            const loadRandomChallenge = React.useCallback(() => {
+                const randomIndex = Math.floor(Math.random() * stepsChallenges.length);
+                const newChallenge = { ...stepsChallenges[randomIndex] };
+                // 深拷贝正确步骤并打乱顺序
+                const stepsCopy = [...newChallenge.correctSteps];
+                for (let i = stepsCopy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [stepsCopy[i], stepsCopy[j]] = [stepsCopy[j], stepsCopy[i]];
+                }
+                setChallenge(newChallenge);
+                setShuffledSteps(stepsCopy);
+                setGameFeedback('✨ 拖拽卡片，按正确解题顺序排列吧！');
+                setCheckStyle('info');
+            }, []);
+
+            React.useEffect(() => {
+                loadRandomChallenge();
+            }, [loadRandomChallenge]);
+
+            // 当 shuffledSteps 变化时，重新初始化 Sortable 实例 (确保DOM更新后绑定)
+            React.useEffect(() => {
+                if (!containerRef.current || !challenge) return;
+                const listContainer = containerRef.current.querySelector('#sortable-steps-list');
+                if (!listContainer) return;
+                if (sortableRef.current) {
+                    sortableRef.current.destroy();
+                }
+                sortableRef.current = new Sortable(listContainer, {
+                    animation: 250,
+                    ghostClass: 'sortable-drag',
+                    handle: '.step-card',
+                    touchStartThreshold: 2,
+                    onEnd: () => {
+                        // 拖拽后无自动反馈，用户主动点击检查
+                    }
+                });
+                return () => {
+                    if (sortableRef.current) {
+                        sortableRef.current.destroy();
+                        sortableRef.current = null;
+                    }
+                };
+            }, [shuffledSteps, challenge]);
+
+            // 检查排序是否正确 (与原始correctSteps比较)
+            const handleCheckOrder = () => {
+                if (!challenge) return;
+                const listItems = containerRef.current?.querySelectorAll('#sortable-steps-list li');
+                if (!listItems || listItems.length === 0) return;
+                const currentOrder = Array.from(listItems).map(li => li.innerText.trim());
+                const isMatch = currentOrder.length === challenge.correctSteps.length &&
+                    currentOrder.every((step, idx) => step === challenge.correctSteps[idx]);
+                if (isMatch) {
+                    setGameFeedback('🎉 完美！解题步骤顺序正确！你彻底掌握了分数乘法的逻辑！🏆');
+                    setCheckStyle('success');
+                    // 简单动画
+                    if (containerRef.current) {
+                        containerRef.current.style.transform = 'scale(1.01)';
+                        setTimeout(() => { if(containerRef.current) containerRef.current.style.transform = ''; }, 200);
+                    }
+                } else {
+                    setGameFeedback('🤔 顺序不对哦！再想想单位“1”的转化和运算顺序，重新拖拽排序吧！💪');
+                    setCheckStyle('error');
+                }
+            };
+
+            // 重置当前挑战 (新的一组排序)
+            const handleRefreshGame = () => {
+                loadRandomChallenge();
+            };
+
+            if (!challenge) return <div className="bg-white/90 rounded-3xl p-5 text-center">加载游戏...</div>;
+
+            return (
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-5 md:p-6 border border-purple-100 h-full flex flex-col">
+                    <div className="border-b-2 border-dashed border-purple-300 pb-2 mb-3 flex items-center gap-2">
+                        <span className="text-3xl">🎲</span>
+                        <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽排序·解题大师</h2>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3 mb-4">
+                        <p className="font-bold text-indigo-800 text-lg">📌 当前排序挑战</p>
+                        <p className="text-gray-800 text-base md:text-lg mt-1">{challenge.description}</p>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2 flex items-center gap-1">👇 <strong>拖拽下方卡片</strong>，按正确的解题步骤顺序排列（从上到下）</div>
+                    <div ref={containerRef} className="bg-[#FFF4E6] rounded-2xl p-4 min-h-[280px] shadow-inner">
+                        <ul id="sortable-steps-list" className="sortable-steps space-y-3">
+                            {shuffledSteps.map((step, idx) => (
+                                <li key={idx} className="step-card p-4 text-gray-800 text-base md:text-lg font-medium shadow-md rounded-xl border-l-8 border-amber-400 bg-white cursor-grab transition-all hover:shadow-lg">
+                                    {step}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-6">
+                        <button onClick={handleCheckOrder} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            ✅ 检查排序
+                        </button>
+                        <button onClick={handleRefreshGame} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-full shadow transition text-base md:text-lg">
+                            🔄 新步骤挑战
+                        </button>
+                    </div>
+                    <div className={`mt-4 text-center text-base font-medium rounded-xl p-2 transition-all ${
+                        checkStyle === 'success' ? 'bg-green-100 text-green-700' : 
+                        checkStyle === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                        {gameFeedback}
+                    </div>
+                    <div className="mt-3 text-center text-xs text-purple-500">
+                        💡 拖拽卡片上下移动，按逻辑顺序排列（先找分率 → 列式 → 计算结果）。强化分数乘法步骤！
+                    </div>
+                    <div className="mt-3 text-green-700 bg-green-50 p-2 rounded-xl text-sm text-center">
+                        🧸 小游戏结合数学：通过排序掌握“单位1→分率→对应量”的解题链条，拖拽互动让思维更清晰！
+                    </div>
+                </div>
+            );
+        };
+
+        // --------------------------------------------------------------
+        // 根组件: 左右布局 (左侧应用题，右侧拖拽排序游戏)
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    {/* 左侧 分数应用题训练 */}
+                    <div className="flex-1">
+                        <FractionApp />
+                    </div>
+                    {/* 右侧 拖拽步骤排序游戏 */}
+                    <div className="flex-1">
+                        <StepsSortGame />
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染根组件
+        const rootElement = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootElement);
+        reactRoot.render(<MainPage />);
+    </script>
+</body>
+</html>

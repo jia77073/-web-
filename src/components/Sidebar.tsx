@@ -1,7 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, ChevronDown, ChevronRight, CheckCircle2, Circle, Download } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, CheckCircle2, Circle, Download, AlertCircle } from 'lucide-react';
 import { KnowledgePoint } from '../types';
+
+// Error Boundary Fallback Component
+const ErrorFallback = ({ message }: { message: string }) => (
+  <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-600 text-sm">
+    <AlertCircle size={18} />
+    <span>{message}</span>
+  </div>
+);
 
 interface SidebarProps {
   points: KnowledgePoint[];
@@ -51,13 +59,26 @@ export const Sidebar = ({
 
   const groupedData = useMemo(() => {
     const groups: Record<string, Record<string, KnowledgePoint[]>> = {};
-    filteredPoints.forEach(p => {
-      if (!groups[p.category]) groups[p.category] = {};
-      if (!groups[p.category][p.subcategory]) groups[p.category][p.subcategory] = [];
-      groups[p.category][p.subcategory].push(p);
-    });
+    try {
+      filteredPoints.forEach(p => {
+        const cat = p.category || '未分类';
+        const sub = p.subcategory || '默认';
+        if (!groups[cat]) groups[cat] = {};
+        if (!groups[cat][sub]) groups[cat][sub] = [];
+        groups[cat][sub].push(p);
+      });
+    } catch (err) {
+      console.error('Grouping data failed:', err);
+    }
     return groups;
   }, [filteredPoints]);
+
+  // Sync expanded state with initialCategory change
+  useEffect(() => {
+    if (initialCategory) {
+      setExpandedCategories(prev => new Set([...Array.from(prev), initialCategory]));
+    }
+  }, [initialCategory]);
 
   return (
     <div className="w-full h-full flex flex-col bg-white border-r border-gray-100">

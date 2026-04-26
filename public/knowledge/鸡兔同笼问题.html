@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>鸡兔同笼·思维特训营 | 假设法拓展 + 拖拽配对游戏</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM & Babel CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <!-- SortableJS 拖拽库 (完美支持移动端触摸拖拽) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        /* 自定义拖拽反馈 */
+        .sortable-drag {
+            opacity: 0.4;
+            background-color: #f3e8ff;
+            transform: scale(0.95);
+        }
+        .sortable-ghost {
+            opacity: 0.3;
+            background-color: #d8b4fe;
+        }
+        .answer-slot {
+            transition: all 0.2s ease;
+            min-height: 85px;
+        }
+        .number-card {
+            cursor: grab;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .number-card:active {
+            cursor: grabbing;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2.2rem !important;
+            }
+            .number-card {
+                font-size: 1.2rem;
+                padding: 0.5rem 0.8rem;
+            }
+            .answer-slot {
+                min-height: 70px;
+            }
+        }
+        /* 绿色氛围 + 紫色主题点缀 */
+        body {
+            background: linear-gradient(135deg, #d9f0c5 0%, #b8e0a0 100%);
+            font-family: 'Segoe UI', 'Comic Neue', 'Poppins', system-ui, sans-serif;
+        }
+        .knowledge-card, .game-card {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex items-center justify-center">
+    <div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // ----------------------------- 题型库（鸡兔同笼拓展变式）--------------------------------
+        // 包含动物腿数、车船载人、钱币组合、得分扣分等经典变式
+        const problemBank = [
+            { id: 1, text: "🐔🐇 经典鸡兔同笼：笼子里有鸡和兔，共35个头，94只脚。鸡和兔各有多少只？", itemAName: "🐔 鸡", itemBName: "🐇 兔", answerA: 23, answerB: 12, hint: "假设全是鸡，则脚70只，少24只，每换一只兔增加2脚 → 兔12只，鸡23只。" },
+            { id: 2, text: "🚲🛺 停车场有自行车和三轮车共10辆，总共有26个轮子。自行车和三轮车各多少辆？", itemAName: "🚲 自行车", itemBName: "🛺 三轮车", answerA: 4, answerB: 6, hint: "假设全自行车轮20个，少6个，每换一辆三轮车增1轮 → 三轮车6辆，自行车4辆。" },
+            { id: 3, text: "💰 储蓄罐里有5角硬币和1元硬币共20枚，总金额14元。两种硬币各多少枚？(提示: 单位统一为角)", itemAName: "5角硬币", itemBName: "1元硬币", answerA: 12, answerB: 8, hint: "假设全是5角共10元，少4元 → 每换一枚1元多5角 → 1元硬币8枚，5角12枚。" },
+            { id: 4, text: "📝 数学竞赛共10道题，做对一题得5分，做错一题扣3分。小明得了34分，他做对了几题？", itemAName: "✅ 做对题数", itemBName: "❌ 做错题数", answerA: 8, answerB: 2, hint: "假设全对得50分，相差16分，每错一题少8分 → 错2题，对8题。" },
+            { id: 5, text: "⚙️ 某工厂生产零件，晴天每天生产20个，雨天每天生产12个，连续8天共生产112个。晴天、雨天各几天？", itemAName: "☀️ 晴天", itemBName: "🌧️ 雨天", answerA: 2, answerB: 6, hint: "假设全雨天96个，少16个，每晴一天多8个 → 晴天2天，雨天6天。" },
+            { id: 6, text: "🦶 龟鹤同池，共有20只，腿共56条。龟和鹤各多少只？(龟4腿，鹤2腿)", itemAName: "🐢 龟", itemBName: "🕊️ 鹤", answerA: 8, answerB: 12, hint: "假设全鹤40腿，少16腿，每龟多2腿 → 龟8只，鹤12只。" },
+            { id: 7, text: "🎓 全班42人去划船，共租10条船。大船坐5人，小船坐3人，大船和小船各几条？", itemAName: "⛵ 大船", itemBName: "🛶 小船", answerA: 6, answerB: 4, hint: "假设全小船30人，少12人，每大船多2人 → 大船6条，小船4条。" },
+            { id: 8, text: "🏆 投球比赛，投中一个得3分，投失一个扣1分。小明投了18个，得42分，他投中了几个？", itemAName: "🎯 投中数", itemBName: "❌ 投失数", answerA: 15, answerB: 3, hint: "假设全中54分，相差12分，每失一球少4分 → 投失3个，投中15个。" }
+        ];
+
+        // ----------------------------- 左侧知识讲解组件 ----------------------------------------
+        const KnowledgeBase = () => {
+            return (
+                <div className="knowledge-card rounded-3xl shadow-2xl p-5 md:p-7 border-2 border-purple-300 h-full flex flex-col">
+                    <div className="border-b-4 border-purple-500 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-5xl">🐔</span>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 main-title">鸡兔同笼·思维特训营</h1>
+                    </div>
+                    
+                    {/* 核心知识点区域 */}
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 mb-5 shadow-md border border-purple-200">
+                        <h2 className="text-2xl font-bold text-purple-800 flex items-center gap-2">🧠 进阶秘籍 · 假设法思维</h2>
+                        <div className="mt-3 space-y-3 text-gray-700 text-base md:text-lg leading-relaxed">
+                            <p>✨ <strong class="text-purple-800">核心思想：假设全是其中一种，求差值，再调整。</strong> 适用于“两类事物，已知总量与总量的另一种和”的问题。</p>
+                            <div className="bg-amber-50 p-3 rounded-xl border-l-8 border-amber-400 my-2">
+                                <p className="font-bold">📐 万能解题步骤 (假设法):</p>
+                                <p>① 假设全是A，计算总差；② 求单个替换带来的差值；③ 替换次数 = 总差值 ÷ 单次差值；④ 得出B数量，再求A数量。</p>
+                                <p className="text-sm mt-1">📌 拓展变式：得分问题(倒扣分) → 单次差值 = 得分 + 扣分；车船问题(载人/轮子) → 类比腿数。</p>
+                            </div>
+                            <p>⚡ <strong class="text-purple-800">抬腿法（趣味版）</strong>：让每只动物抬起一半腿，计算剩余腿对应种类。 ❤️ 列表法适合小数据，方程法设未知数。</p>
+                            <p>🎯 本训练营包含：<strong>动物腿数、车船轮子、钱币组合、得分扣分、生产天数</strong>等多种高阶变式！</p>
+                        </div>
+                    </div>
+
+                    {/* 经典公式总结 */}
+                    <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200 mb-3">
+                        <h3 className="text-xl font-bold text-purple-800 flex items-center gap-1">📖 记忆小锦囊</h3>
+                        <div className="mt-2 grid grid-cols-1 gap-2 text-gray-700">
+                            <p>🐔🐇 <strong>鸡兔同笼公式</strong>：兔数量 = (总脚数 - 2×总头数) ÷ 2；鸡数量 = 总头数 - 兔数。</p>
+                            <p>🚲🛺 <strong>车轮问题</strong>：(轮子总数 - 2×车辆数) ÷ 额外轮子差 = 三轮/四轮数量。</p>
+                            <p>📝 <strong>得失问题</strong>：(全对总分 - 实际得分) ÷ (每题得分+每题扣分) = 答错题数。</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-2 text-center text-sm text-gray-500 bg-white/70 rounded-xl p-2">
+                        💡 右侧小游戏 → 拖拽数字卡片到对应答案槽，亲手配对鸡兔数量！换题挑战各类变式。
+                    </div>
+                </div>
+            );
+        };
+
+        // ----------------------------- 右侧拖拽配对游戏 (使用 SortableJS 实现跨容器拖拽) ---------------------------------
+        const InteractiveGame = () => {
+            // 当前选中的题目
+            const [currentProblem, setCurrentProblem] = React.useState(problemBank[0]);
+            // 左侧物品名称
+            const [leftName, setLeftName] = React.useState(problemBank[0].itemAName);
+            const [rightName, setRightName] = React.useState(problemBank[0].itemBName);
+            // 正确答案储备
+            const [correctA, setCorrectA] = React.useState(problemBank[0].answerA);
+            const [correctB, setCorrectB] = React.useState(problemBank[0].answerB);
+            
+            // 交互状态: 用于刷新Sortable实例, 拖拽配对完成后验证反馈
+            const [feedback, setFeedback] = React.useState('');
+            const [isWin, setIsWin] = React.useState(false);
+            // 控制重置/换题时重新生成UI 的 key (强制刷新容器内容)
+            const [resetKey, setResetKey] = React.useState(0);
+            
+            // refs: 卡片容器（数字池）, 物品A放置槽, 物品B放置槽
+            const cardPoolRef = React.useRef(null);
+            const slotARef = React.useRef(null);   // 鸡/自行车等 放置区
+            const slotBRef = React.useRef(null);   // 兔/三轮车等 放置区
+            let sortablePool = null;
+            let sortableSlotA = null;
+            let sortableSlotB = null;
+            
+            // 生成数字卡片: 根据正确答案 + 合理干扰项 (干扰项保证不等于正确答案, 且为正整数)
+            const generateNumberCards = (correctValA, correctValB, maxRange = 30) => {
+                // 干扰数字池: 使用附近整数且不相等于两个正确答案，也不重复
+                let candidates = new Set();
+                candidates.add(correctValA);
+                candidates.add(correctValB);
+                // 添加干扰数字：围绕答案附近 ±2 ~ ±5 且 >0, 并且唯一，总共6-8个卡片
+                const allNumbers = [];
+                const addIfUnique = (num) => {
+                    if (num > 0 && !candidates.has(num)) {
+                        candidates.add(num);
+                        allNumbers.push(num);
+                    }
+                };
+                for (let i = -3; i <= 3; i++) {
+                    if (i === 0) continue;
+                    addIfUnique(correctValA + i);
+                    addIfUnique(correctValB + i);
+                }
+                addIfUnique(correctValA + 4);
+                addIfUnique(correctValB - 2);
+                addIfUnique(correctValA - 1);
+                addIfUnique(correctValB + 2);
+                // 保证至少有4个数字可选
+                let finalNumbers = [correctValA, correctValB];
+                for (let num of allNumbers) {
+                    if (!finalNumbers.includes(num) && finalNumbers.length < 8) finalNumbers.push(num);
+                }
+                // 随机打乱顺序
+                for (let i = finalNumbers.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [finalNumbers[i], finalNumbers[j]] = [finalNumbers[j], finalNumbers[i]];
+                }
+                return finalNumbers;
+            };
+            
+            // 重置游戏UI: 根据当前题目彻底刷新卡片区和清空放置槽
+            const rebuildGameUI = () => {
+                if (!cardPoolRef.current || !slotARef.current || !slotBRef.current) return;
+                // 清空所有容器
+                cardPoolRef.current.innerHTML = '';
+                slotARef.current.innerHTML = '';
+                slotBRef.current.innerHTML = '';
+                
+                // 生成数字卡片数组
+                const numbers = generateNumberCards(correctA, correctB);
+                numbers.forEach(num => {
+                    const card = document.createElement('div');
+                    card.className = 'number-card bg-gradient-to-br from-amber-200 to-orange-200 rounded-xl shadow-md px-4 py-3 text-center font-bold text-2xl cursor-grab select-none flex items-center justify-center gap-1 transition-all hover:scale-105';
+                    card.setAttribute('data-value', num);
+                    card.innerHTML = `<span class="text-3xl">🔢</span> ${num}`;
+                    card.style.touchAction = 'none';
+                    cardPoolRef.current.appendChild(card);
+                });
+                
+                // 在两个放置槽中增加占位提示文本（当为空时显示）
+                updateSlotPlaceholder();
+                setFeedback('');
+                setIsWin(false);
+            };
+            
+            const updateSlotPlaceholder = () => {
+                if (slotARef.current && slotARef.current.children.length === 0) {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'text-gray-400 text-sm italic w-full text-center py-3';
+                    placeholder.innerText = `✨ 拖拽 ${leftName} 的数量至此 ✨`;
+                    placeholder.setAttribute('data-placeholder', 'true');
+                    slotARef.current.appendChild(placeholder);
+                }
+                if (slotBRef.current && slotBRef.current.children.length === 0) {
+                    const placeholder2 = document.createElement('div');
+                    placeholder2.className = 'text-gray-400 text-sm italic w-full text-center py-3';
+                    placeholder2.innerText = `✨ 拖拽 ${rightName} 的数量至此 ✨`;
+                    placeholder2.setAttribute('data-placeholder', 'true');
+                    slotBRef.current.appendChild(placeholder2);
+                }
+                // 清理多余占位符（如果有实际卡片则移除占位符的辅助逻辑在拖拽事件后需要同步；不过放置区可以保留占位符，但会干扰拖拽，我们稍后onEnd时清理）
+            };
+            
+            const cleanPlaceholders = () => {
+                if (slotARef.current) {
+                    const placeholders = slotARef.current.querySelectorAll('[data-placeholder="true"]');
+                    placeholders.forEach(p => p.remove());
+                }
+                if (slotBRef.current) {
+                    const placeholders = slotBRef.current.querySelectorAll('[data-placeholder="true"]');
+                    placeholders.forEach(p => p.remove());
+                }
+            };
+            
+            // 初始化 Sortable 拖拽组（实现跨容器移动）
+            const initSortable = () => {
+                if (!cardPoolRef.current || !slotARef.current || !slotBRef.current) return;
+                // 销毁可能之前的实例
+                if (window._sortablePool) window._sortablePool.destroy();
+                if (window._sortableSlotA) window._sortableSlotA.destroy();
+                if (window._sortableSlotB) window._sortableSlotB.destroy();
+                
+                // 共享 group: 三个容器可以互相拖拽, 实现任意数字卡片移动
+                const groupConfig = {
+                    name: 'chickenRabbitGroup',
+                    pull: true,      // 可从其他容器取
+                    revertClone: false,
+                    put: true        // 允许放入
+                };
+                window._sortablePool = new Sortable(cardPoolRef.current, {
+                    group: groupConfig,
+                    animation: 200,
+                    sort: true,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    onEnd: () => {
+                        // 拖拽结束后清理占位符，并验证配对
+                        cleanPlaceholders();
+                        validatePairing();
+                    }
+                });
+                window._sortableSlotA = new Sortable(slotARef.current, {
+                    group: groupConfig,
+                    animation: 200,
+                    sort: true,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: () => {
+                        cleanPlaceholders();
+                        validatePairing();
+                    }
+                });
+                window._sortableSlotB = new Sortable(slotBRef.current, {
+                    group: groupConfig,
+                    animation: 200,
+                    sort: true,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: () => {
+                        cleanPlaceholders();
+                        validatePairing();
+                    }
+                });
+            };
+            
+            // 验证当前两个放置槽内的数字卡片是否匹配正确答案
+            const validatePairing = () => {
+                if (!slotARef.current || !slotBRef.current) return;
+                // 获取每个槽内 .number-card 元素上的 data-value
+                const slotACards = slotARef.current.querySelectorAll('.number-card');
+                const slotBCards = slotBRef.current.querySelectorAll('.number-card');
+                let slotAValue = null;
+                let slotBValue = null;
+                if (slotACards.length > 0) {
+                    const val = slotACards[0].getAttribute('data-value');
+                    if (val) slotAValue = parseInt(val, 10);
+                }
+                if (slotBCards.length > 0) {
+                    const val = slotBCards[0].getAttribute('data-value');
+                    if (val) slotBValue = parseInt(val, 10);
+                }
+                // 如果两个槽都有数字且完全匹配正确答案
+                if (slotAValue !== null && slotBValue !== null && slotAValue === correctA && slotBValue === correctB) {
+                    setFeedback(`🎉 完美！${leftName} = ${correctA} , ${rightName} = ${correctB} 完全正确！假设法真厉害！🎉`);
+                    setIsWin(true);
+                } 
+                else if (slotAValue !== null || slotBValue !== null) {
+                    // 部分配对或配错
+                    let msg = '';
+                    if (slotAValue !== null && slotAValue !== correctA) msg += `${leftName}应该是${correctA}，你放了${slotAValue}。`;
+                    if (slotBValue !== null && slotBValue !== correctB) msg += `${rightName}应该是${correctB}，你放了${slotBValue}。`;
+                    if (slotAValue === null && slotBValue === null) msg = '';
+                    else if (slotAValue === null && slotBValue !== null) msg = `还缺少${leftName}的数量，再拖拽一个数字放到左边槽位吧！`;
+                    else if (slotAValue !== null && slotBValue === null) msg = `还缺少${rightName}的数量，快拖拽数字卡片到右边！`;
+                    if (msg) setFeedback(`🤔 ${msg} 再试试拖拽调整～ 用好假设法哟！`);
+                    else if (slotAValue !== correctA || slotBValue !== correctB) setFeedback(`❌ 配对不正确，再思考一下依据假设法计算${{leftName}}和${{rightName}}的数量。`);
+                    setIsWin(false);
+                } else {
+                    setFeedback('✨ 把正确的数字卡片拖拽到对应的答案槽里吧！');
+                    setIsWin(false);
+                }
+                // 如果两个槽都有正确数字，且之前没匹配会触发上面正确分支；若多张卡片在槽内额外提醒只能放一个？
+                if (slotACards.length > 1) {
+                    setFeedback(prev => prev + ' ⚠️ 每个答案槽只能放一个数字，请把多余的拖回卡片池。');
+                }
+                if (slotBCards.length > 1) {
+                    setFeedback(prev => prev + ' ⚠️ 每个答案槽只能放一个数字，请把多余的拖回卡片池。');
+                }
+            };
+            
+            // 重置当前配对（将两个槽中的所有卡片移回卡片池）
+            const resetPairing = () => {
+                if (!cardPoolRef.current || !slotARef.current || !slotBRef.current) return;
+                const cardsInA = Array.from(slotARef.current.querySelectorAll('.number-card'));
+                const cardsInB = Array.from(slotBRef.current.querySelectorAll('.number-card'));
+                cardsInA.forEach(card => cardPoolRef.current.appendChild(card));
+                cardsInB.forEach(card => cardPoolRef.current.appendChild(card));
+                cleanPlaceholders();
+                updateSlotPlaceholder();
+                setFeedback('已清空配对区，重新拖拽挑战吧！');
+                setIsWin(false);
+            };
+            
+            // 换一题: 随机抽取不同题目，更新状态并完全重置游戏
+            const handleNextProblem = () => {
+                let newIdx = Math.floor(Math.random() * problemBank.length);
+                // 避免一直相同题目
+                while (problemBank[newIdx].id === currentProblem.id && problemBank.length > 1) {
+                    newIdx = Math.floor(Math.random() * problemBank.length);
+                }
+                const newProb = problemBank[newIdx];
+                setCurrentProblem(newProb);
+                setLeftName(newProb.itemAName);
+                setRightName(newProb.itemBName);
+                setCorrectA(newProb.answerA);
+                setCorrectB(newProb.answerB);
+                setFeedback('');
+                setIsWin(false);
+                // 提升 resetKey 触发重建
+                setResetKey(prev => prev + 1);
+            };
+            
+            // 当resetKey或题目相关参数变化时，重新构建UI和Sortable
+            React.useEffect(() => {
+                rebuildGameUI();
+                // 延迟重建Sortable保证dom已更新
+                setTimeout(() => {
+                    initSortable();
+                    cleanPlaceholders();
+                    updateSlotPlaceholder();
+                }, 30);
+            }, [resetKey, leftName, rightName, correctA, correctB]);
+            
+            // 组件首次挂载时构建
+            React.useEffect(() => {
+                rebuildGameUI();
+                setTimeout(() => {
+                    initSortable();
+                    cleanPlaceholders();
+                    updateSlotPlaceholder();
+                }, 50);
+                return () => {
+                    if (window._sortablePool) window._sortablePool.destroy();
+                    if (window._sortableSlotA) window._sortableSlotA.destroy();
+                    if (window._sortableSlotB) window._sortableSlotB.destroy();
+                };
+            }, []);
+            
+            return (
+                <div className="game-card rounded-3xl shadow-2xl p-5 md:p-6 border-2 border-purple-300 h-full flex flex-col bg-white/95">
+                    {/* 头部 + 换一题按钮 */}
+                    <div className="flex flex-wrap justify-between items-center border-b border-purple-200 pb-3 mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-4xl">🎮</span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-purple-800">拖拽配对· 动物智慧岛</h2>
+                        </div>
+                        <button onClick={handleNextProblem} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-2xl shadow-md transition text-sm md:text-base flex items-center gap-1">
+                            🔄 换一题
+                        </button>
+                    </div>
+                    
+                    {/* 当前题目卡片 */}
+                    <div className="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-2xl p-4 mb-5 border-l-[12px] border-l-purple-500 shadow-inner">
+                        <p className="text-gray-800 text-xl md:text-2xl font-bold leading-tight">{currentProblem.text}</p>
+                        <div className="text-sm text-purple-700 bg-white/70 rounded-lg p-2 mt-2 italic">
+                            💡 小提示: {currentProblem.hint}
+                        </div>
+                    </div>
+                    
+                    {/* 拖拽配对区: 两个答案槽 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                        {/* 左侧物品槽位 */}
+                        <div className="bg-emerald-50 rounded-2xl p-3 border-2 border-emerald-300 shadow-md">
+                            <div className="font-bold text-purple-800 text-xl mb-2 flex items-center gap-2">
+                                <span>📦 {leftName}</span>
+                                <span className="text-sm text-gray-500">(拖拽数字至此)</span>
+                            </div>
+                            <div ref={slotARef} className="answer-slot bg-white/70 rounded-xl p-3 min-h-[90px] flex flex-wrap gap-2 items-center justify-start transition-all">
+                                {/* 动态卡片会出现在这里 */}
+                            </div>
+                        </div>
+                        {/* 右侧物品槽位 */}
+                        <div className="bg-amber-50 rounded-2xl p-3 border-2 border-amber-300 shadow-md">
+                            <div className="font-bold text-purple-800 text-xl mb-2 flex items-center gap-2">
+                                <span>📦 {rightName}</span>
+                                <span className="text-sm text-gray-500">(拖拽数字至此)</span>
+                            </div>
+                            <div ref={slotBRef} className="answer-slot bg-white/70 rounded-xl p-3 min-h-[90px] flex flex-wrap gap-2 items-center justify-start">
+                                {/* 动态卡片 */}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 数字卡片池 */}
+                    <div className="bg-purple-50 rounded-2xl p-4 border-2 border-purple-200">
+                        <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+                            <h3 className="font-bold text-purple-800 text-lg flex items-center gap-1">🎲 数字卡片池 (可拖拽任意卡片)</h3>
+                            <button onClick={resetPairing} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-full text-sm shadow transition">🔄 重置配对</button>
+                        </div>
+                        <div ref={cardPoolRef} className="flex flex-wrap gap-3 justify-start p-2 min-h-[110px] bg-white/50 rounded-xl">
+                            {/* 动态生成的数字卡片 */}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2 text-center">👉 长按/拖拽数字卡片，移动到左侧或右侧的槽位里，配对正确就会获得胜利反馈！</p>
+                    </div>
+                    
+                    {/* 反馈消息及胜利彩蛋 */}
+                    {feedback && (
+                        <div className={`mt-4 text-center text-base font-medium rounded-xl p-3 ${isWin ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-purple-100 text-purple-700 border border-purple-200'}`}>
+                            {feedback}
+                        </div>
+                    )}
+                    
+                    {/* 进度鼓励 */}
+                    <div className="mt-3 text-center text-purple-600 text-sm bg-purple-50 p-2 rounded-xl">
+                        🌟 逐步加深理解：假设全是鸡，再求兔；假设全对得分，再求错题。拖拽配对帮你直观建立假设思维！
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============================ 主页面 ============================
+        const MainPage = () => {
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 w-full">
+                    <div className="flex-1"><KnowledgeBase /></div>
+                    <div className="flex-1"><InteractiveGame /></div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainPage />);
+    </script>
+</body>
+</html>

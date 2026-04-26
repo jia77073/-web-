@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>📐 解方程·第1课时 | 淡绿代数工坊</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号 (基础很大) */
+    body {
+      font-size: 1.3rem;
+    }
+    .card-title {
+      font-size: 1.7rem;
+      font-weight: 700;
+    }
+    .balance-pan {
+      transition: all 0.2s;
+    }
+    .check-btn {
+      transition: all 0.2s;
+    }
+    .feedback-correct {
+      background-color: #bbf7d0;
+      color: #166534;
+    }
+    .feedback-wrong {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+    .equation-item {
+      background: #fefce8;
+      border-radius: 1rem;
+      transition: 0.1s;
+    }
+    input, select {
+      font-size: 1.2rem;
+    }
+    .lavender-bg-soft {
+      background-image: radial-gradient(circle at 10% 20%, rgba(120, 180, 120, 0.1) 2%, transparent 2.5%);
+      background-size: 48px 48px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#d9f0da] to-[#b8dcb8] min-h-screen p-5 font-sans lavender-bg-soft">
+
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 解方程·第1课时 核心组件 =======================
+  // 1. 10个待判断的式子库 (表达式, 是否为方程)
+  const EXPRESSIONS_SET = [
+    { text: "3x + 5 = 14", isEquation: true },
+    { text: "7 + 8 = 15", isEquation: false },
+    { text: "2y - 6 = 0", isEquation: true },
+    { text: "5 > 3", isEquation: false },
+    { text: "4a + 2", isEquation: false },
+    { text: "x - 4 = 9", isEquation: true },
+    { text: "6 + 9 = 15", isEquation: false },
+    { text: "7x < 21", isEquation: false },
+    { text: "3(m + 2) = 12", isEquation: true },
+    { text: "2b = b + 4", isEquation: true }
+  ];
+
+  // 2. 天平写等式题库 (两个场景)
+  const BALANCE_SCENES = [
+    { 
+      id: "balance1", 
+      leftDesc: "⚖️ 左盘: 🧊 未知数 x  +  5g 砝码", 
+      rightDesc: "右盘: 12g 砝码",
+      visual: "🌿 [ x + 5 ]  🟰  [ 12 ]",
+      expectedEq: "x+5=12",
+      hint: "左边物体的总质量 = 右边砝码总质量"
+    },
+    { 
+      id: "balance2", 
+      leftDesc: "⚖️ 左盘: 2 个 x 方块 + 3g 砝码", 
+      rightDesc: "右盘: 1 个 x 方块 + 9g 砝码",
+      visual: "🌿 [ 2x + 3 ]  🟰  [ x + 9 ]",
+      expectedEq: "2x+3=x+9",
+      hint: "天平平衡意味着左右两边质量相等"
+    }
+  ];
+
+  // 3. 等式性质填空题目 (运用等式性质)
+  const PROPERTY_QUESTIONS = [
+    { id: "prop1", text: "如果 a = b，那么 a + 7 = b + ______", correctAnswer: "7", hint: "等式两边同时加上同一个数" },
+    { id: "prop2", text: "如果 3x = 15，那么 x = ______ (利用等式性质)", correctAnswer: "5", hint: "两边同时除以3" },
+    { id: "prop3", text: "如果 2m - 4 = 10，两边同时加上4，得到 2m = ______", correctAnswer: "14", hint: "左边加4右边也要加4" }
+  ];
+
+  // ---------- 辅助组件：进度圆环/统计 ----------
+  const ProgressStats = ({ completed, total, label }) => (
+    <div className="flex items-center gap-2 bg-white/50 rounded-full px-4 py-1">
+      <span className="text-base font-bold">{label}:</span>
+      <span className="text-xl font-black text-green-800">{completed}/{total}</span>
+    </div>
+  );
+
+  // ---------- 模块1: 判断10个式子（方程/不是方程）----------
+  const EquationChecker = () => {
+    const [items, setItems] = React.useState(() => 
+      EXPRESSIONS_SET.map((exp, idx) => ({
+        id: idx,
+        text: exp.text,
+        isEquation: exp.isEquation,
+        userChoice: null,      // true表示选了"方程", false表示"不是方程"
+        showFeedback: false
+      }))
+    );
+    
+    const handleChoice = (id, choice) => {
+      setItems(prev => prev.map(item => {
+        if (item.id === id) {
+          const isCorrect = (choice === item.isEquation);
+          return { ...item, userChoice: choice, showFeedback: true, isCorrect: isCorrect };
+        }
+        return item;
+      }));
+    };
+    
+    const correctCount = items.filter(i => i.showFeedback && i.userChoice === i.isEquation).length;
+    const answeredCount = items.filter(i => i.showFeedback).length;
+    
+    const resetChecker = () => {
+      setItems(items.map(item => ({ ...item, userChoice: null, showFeedback: false, isCorrect: undefined })));
+    };
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-5 shadow-md border border-[#9ccc9c]">
+        <div className="flex flex-wrap justify-between items-center mb-4">
+          <h3 className="card-title text-green-800">📋 模块一 · 方程小侦探</h3>
+          <div className="flex gap-3">
+            <ProgressStats completed={correctCount} total={EXPRESSIONS_SET.length} label="✅ 正确数" />
+            <button onClick={resetChecker} className="bg-emerald-200 hover:bg-emerald-300 text-green-900 px-4 py-1 rounded-full text-base font-semibold transition">🔄 重置判断</button>
+          </div>
+        </div>
+        <p className="text-base text-green-700 mb-4">👇 判断下列式子是否为方程？(方程必须同时满足：等式 + 含有未知数)</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {items.map(item => (
+            <div key={item.id} className="equation-item p-4 shadow-sm border border-emerald-200">
+              <div className="text-xl font-mono font-bold text-gray-800 mb-2">{item.text}</div>
+              <div className="flex gap-3 mt-2">
+                <button 
+                  onClick={() => handleChoice(item.id, true)}
+                  className={`px-4 py-1.5 rounded-full text-base font-semibold transition ${item.userChoice === true ? (item.isCorrect ? 'bg-green-600 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-green-100'}`}
+                >✅ 方程</button>
+                <button 
+                  onClick={() => handleChoice(item.id, false)}
+                  className={`px-4 py-1.5 rounded-full text-base font-semibold transition ${item.userChoice === false ? (item.isCorrect ? 'bg-green-600 text-white' : 'bg-red-400 text-white') : 'bg-gray-200 hover:bg-rose-100'}`}
+                >❌ 不是方程</button>
+              </div>
+              {item.showFeedback && (
+                <div className={`mt-2 text-sm font-medium px-2 py-1 rounded ${item.isCorrect ? 'feedback-correct' : 'feedback-wrong'}`}>
+                  {item.isCorrect ? '✔️ 判断正确！' : `✖️ 判断错误。 ${item.isEquation ? '它是方程（含有未知数且是等式）' : '它不是方程（' + (item.text.includes('=') ? '没有未知数' : '不是等式') + '）'}`}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {answeredCount === EXPRESSIONS_SET.length && (
+          <div className="mt-4 text-center bg-green-100 p-2 rounded-xl text-green-800 font-bold text-base">
+            🎉 已完成全部判断！ 正确率 {correctCount}/{EXPRESSIONS_SET.length}
+          </div>
+        )}
+        <div className="mt-3 text-sm text-emerald-700 italic bg-emerald-50 p-2 rounded-lg">💡 小贴士：方程必须同时具备“等式”和“含有未知数”两个条件。</div>
+      </div>
+    );
+  };
+
+  // ---------- 模块2: 根据天平图写等式 ----------
+  const BalanceEquation = () => {
+    const [scenes, setScenes] = React.useState(() => 
+      BALANCE_SCENES.map(scene => ({
+        ...scene,
+        userAnswer: "",
+        feedback: null,
+        isCorrect: false
+      }))
+    );
+    
+    const handleAnswerChange = (id, value) => {
+      setScenes(prev => prev.map(s => s.id === id ? { ...s, userAnswer: value, feedback: null, isCorrect: false } : s));
+    };
+    
+    const checkBalance = (id) => {
+      setScenes(prev => prev.map(s => {
+        if (s.id !== id) return s;
+        const normalizedAnswer = s.userAnswer.trim().replace(/\s/g, '');
+        const expected = s.expectedEq;
+        const isMatch = normalizedAnswer === expected;
+        return { 
+          ...s, 
+          feedback: isMatch ? "✔️ 完全正确！天平平衡方程成立。" : `❌ 不正确，正确等式应为 ${expected}。${s.hint}`,
+          isCorrect: isMatch
+        };
+      }));
+    };
+    
+    const allBalanceCorrect = scenes.every(s => s.isCorrect === true);
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-5 shadow-md border border-[#9ccc9c]">
+        <h3 className="card-title text-green-800 mb-2">⚖️ 模块二 · 天平实验室——看图写等式</h3>
+        <p className="text-base text-green-700 mb-4">根据天平平衡状态，写出正确的等式（例如 x+5=12）。</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {scenes.map(scene => (
+            <div key={scene.id} className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-300">
+              <div className="text-center">
+                <div className="text-4xl mb-2">⚖️</div>
+                <div className="bg-white p-3 rounded-xl font-mono text-lg font-bold text-gray-700">
+                  {scene.visual}
+                </div>
+                <div className="flex justify-between text-sm mt-2 text-emerald-800">
+                  <span>{scene.leftDesc}</span>
+                  <span>{scene.rightDesc}</span>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2 items-center">
+                <input 
+                  type="text" 
+                  value={scene.userAnswer}
+                  onChange={(e) => handleAnswerChange(scene.id, e.target.value)}
+                  placeholder="输入等式，例如 x+5=12"
+                  className="flex-1 border border-emerald-400 rounded-xl p-2 text-base bg-white focus:ring-2 focus:ring-emerald-300"
+                />
+                <button onClick={() => checkBalance(scene.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-5 rounded-xl text-base transition">检验</button>
+              </div>
+              {scene.feedback && (
+                <div className={`mt-3 p-2 rounded-lg text-sm font-medium ${scene.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+                  {scene.feedback}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {allBalanceCorrect && scenes.length > 0 && (
+          <div className="mt-4 text-center bg-green-100 p-2 rounded-xl text-green-800 font-bold">🌟 太棒了！天平等式全部正确，方程两边相等是解方程的基础！</div>
+        )}
+      </div>
+    );
+  };
+
+  // ---------- 模块3: 运用等式性质完成填空 ----------
+  const PropertyFillBlank = () => {
+    const [questions, setQuestions] = React.useState(() => 
+      PROPERTY_QUESTIONS.map(q => ({
+        ...q,
+        userInput: "",
+        feedback: null,
+        isCorrect: false
+      }))
+    );
+    
+    const handleInputChange = (id, value) => {
+      setQuestions(prev => prev.map(q => q.id === id ? { ...q, userInput: value, feedback: null, isCorrect: false } : q));
+    };
+    
+    const checkAnswer = (id) => {
+      setQuestions(prev => prev.map(q => {
+        if (q.id !== id) return q;
+        const normalized = q.userInput.trim();
+        const isMatch = normalized === q.correctAnswer;
+        return {
+          ...q,
+          feedback: isMatch ? "✓ 正确！运用性质很棒。" : `✗ 正确答案是 “${q.correctAnswer}”。 ${q.hint}`,
+          isCorrect: isMatch
+        };
+      }));
+    };
+    
+    const correctCount = questions.filter(q => q.isCorrect).length;
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-5 shadow-md border border-[#9ccc9c]">
+        <div className="flex flex-wrap justify-between items-center mb-3">
+          <h3 className="card-title text-green-800">📝 模块三 · 等式性质填空</h3>
+          <ProgressStats completed={correctCount} total={PROPERTY_QUESTIONS.length} label="🎯 掌握" />
+        </div>
+        <p className="text-base text-green-700 mb-3">运用等式的性质（同加减、同乘除）完成填空，解方程的关键技能。</p>
+        <div className="space-y-5">
+          {questions.map(q => (
+            <div key={q.id} className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200">
+              <div className="text-lg font-bold text-gray-800 mb-2">{q.text}</div>
+              <div className="flex flex-wrap gap-3 items-center">
+                <input 
+                  type="text"
+                  value={q.userInput}
+                  onChange={(e) => handleInputChange(q.id, e.target.value)}
+                  className="flex-1 min-w-[150px] border border-emerald-400 rounded-xl p-2 text-base bg-white"
+                  placeholder="输入答案"
+                />
+                <button onClick={() => checkAnswer(q.id)} className="bg-teal-500 hover:bg-teal-600 text-white px-5 py-2 rounded-xl text-base font-semibold transition">验证</button>
+              </div>
+              {q.feedback && (
+                <div className={`mt-2 p-2 rounded-lg text-sm ${q.isCorrect ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+                  {q.feedback}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {correctCount === PROPERTY_QUESTIONS.length && (
+          <div className="mt-4 text-center bg-emerald-100 p-2 rounded-xl font-bold text-green-800">🎉 完美！等式性质掌握扎实，为解方程铺平道路！</div>
+        )}
+      </div>
+    );
+  };
+
+  // ---------- 模块4: 解释方程必须具备的两个条件（互动填空+知识点）----------
+  const EquationConditions = () => {
+    const [condition1, setCondition1] = React.useState("");
+    const [condition2, setCondition2] = React.useState("");
+    const [feedback1, setFeedback1] = React.useState(null);
+    const [feedback2, setFeedback2] = React.useState(null);
+    const [overallMsg, setOverallMsg] = React.useState("");
+    
+    const checkConditions = () => {
+      const trim1 = condition1.trim();
+      const trim2 = condition2.trim();
+      const isCond1Ok = trim1.includes("未知数") || trim1.includes("字母") || trim1 === "含有未知数";
+      const isCond2Ok = trim2.includes("等式") || trim2 === "等式" || trim2 === "等号";
+      setFeedback1(isCond1Ok ? "✅ 正确：必须含有未知数" : "❌ 方程的第一个条件是“含有未知数”（字母表示的数）");
+      setFeedback2(isCond2Ok ? "✅ 正确：必须是等式（含有等号）" : "❌ 方程的第二个条件是“等式”（必须有等号）");
+      if (isCond1Ok && isCond2Ok) {
+        setOverallMsg("🌟 完美！方程就是“含有未知数的等式”，两个条件缺一不可！");
+      } else {
+        setOverallMsg("📖 再试试看：方程必须具备两个要素：① 含有未知数；② 是等式。");
+      }
+    };
+    
+    const resetConditions = () => {
+      setCondition1("");
+      setCondition2("");
+      setFeedback1(null);
+      setFeedback2(null);
+      setOverallMsg("");
+    };
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-5 shadow-md border border-[#9ccc9c]">
+        <h3 className="card-title text-green-800">🧠 模块四 · 方程定义深度剖析</h3>
+        <div className="bg-emerald-100 rounded-xl p-4 my-3">
+          <p className="text-lg font-bold text-green-900">📖 核心概念：方程必须同时满足两个条件</p>
+          <p className="text-base mt-1">1️⃣ 含有<strong className="bg-white px-1 rounded">未知数</strong>（如 x, y, a 等字母）<br/>2️⃣ 是一个<strong className="bg-white px-1 rounded">等式</strong>（含有等号“=”）</p>
+          <p className="text-sm text-green-700 mt-2">✨ 举例：3x+2=8 是方程；5+2=7 不是方程（无未知数）；4y-3 不是方程（不是等式）</p>
+        </div>
+        <div className="mt-3">
+          <p className="font-bold text-green-800 text-lg">✍️ 自主解释挑战：补全方程的两个条件</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div>
+              <label className="block text-base font-medium text-gray-700">条件①：方程必须_______</label>
+              <input 
+                type="text" 
+                value={condition1}
+                onChange={e => setCondition1(e.target.value)}
+                placeholder="例如：含有未知数"
+                className="w-full border border-emerald-400 rounded-xl p-2 mt-1 text-base bg-white"
+              />
+              {feedback1 && <div className="text-sm mt-1 font-medium">{feedback1}</div>}
+            </div>
+            <div>
+              <label className="block text-base font-medium text-gray-700">条件②：方程必须是_______</label>
+              <input 
+                type="text" 
+                value={condition2}
+                onChange={e => setCondition2(e.target.value)}
+                placeholder="例如：等式"
+                className="w-full border border-emerald-400 rounded-xl p-2 mt-1 text-base bg-white"
+              />
+              {feedback2 && <div className="text-sm mt-1 font-medium">{feedback2}</div>}
+            </div>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button onClick={checkConditions} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full text-base transition">🔍 验证解释</button>
+            <button onClick={resetConditions} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-5 rounded-full text-base transition">🔄 重置</button>
+          </div>
+          {overallMsg && (
+            <div className="mt-3 p-3 bg-emerald-200 rounded-xl text-green-900 font-bold text-center text-base">
+              {overallMsg}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- 整体解方程第1课时 仪表板 ----------
+  const EquationLesson1 = () => {
+    // 汇总进度（根据各个模块的完成度简单反馈）
+    const [checkerComplete, setCheckerComplete] = React.useState(false);
+    // 我们可以监听各个模块的完成状态? 简单起见，全局不做强制联动，但保留一个“学习总结”区域。
+    // 添加一个总结卡片，展示本节课的收获。
+    return (
+      <div className="space-y-8 pb-6">
+        {/* 页头 */}
+        <div className="text-center bg-white/60 backdrop-blur-sm rounded-3xl p-4 shadow-md border border-emerald-200">
+          <h1 className="text-4xl font-extrabold text-green-900">📐 解方程 · 第1课时</h1>
+          <p className="text-xl text-green-700 mt-1">认识方程 & 等式性质初步 | 从天平到代数核心</p>
+          <div className="flex justify-center gap-6 mt-2 text-emerald-800 text-base flex-wrap">
+            <span>🎯 学习目标：① 判断方程 ② 根据天平写等式 ③ 运用等式性质填空 ④ 掌握方程两个条件</span>
+          </div>
+        </div>
+        
+        {/* 四个核心模块 */}
+        <EquationChecker />
+        <BalanceEquation />
+        <PropertyFillBlank />
+        <EquationConditions />
+        
+        {/* 学习总结 + 拓展 */}
+        <div className="bg-gradient-to-r from-[#c8e6c9] to-[#a5d6a7] rounded-2xl p-5 shadow-inner border border-emerald-400">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl">📌</span>
+            <h3 className="text-2xl font-bold text-green-900">课堂小结 · 解方程预备知识</h3>
+          </div>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-base text-green-900">
+            <div className="bg-white/70 rounded-xl p-3">✨ 方程是含有未知数的等式，缺一不可。</div>
+            <div className="bg-white/70 rounded-xl p-3">⚖️ 天平平衡→等式成立，两边同时加减乘除同一个数等式不变。</div>
+            <div className="bg-white/70 rounded-xl p-3">📖 等式的性质是解方程的依据，灵活运用化繁为简。</div>
+          </div>
+          <p className="text-center text-emerald-800 mt-3 font-medium text-base">💪 完成所有挑战，你已迈出解方程的第一步！下一课时学习解简单方程。</p>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用入口 ----------
+  const App = () => {
+    return (
+      <div className="w-full">
+        <EquationLesson1 />
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

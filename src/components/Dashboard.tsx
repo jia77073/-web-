@@ -1,7 +1,8 @@
-import { motion } from 'motion/react';
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './CircularProgress';
 import { ModuleCard } from './ModuleCard';
-import { Calculator, Shapes, BarChart3, Lightbulb, ChevronRight, Mountain, Download, Info } from 'lucide-react';
+import { Calculator, Shapes, BarChart3, Lightbulb, ChevronRight, Mountain, Download, Info, Search } from 'lucide-react';
 import { KnowledgePoint } from '../types';
 
 interface DashboardProps {
@@ -12,9 +13,21 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ points, learnedIds, onEnterDirectory, onExport }: DashboardProps) => {
+  const [search, setSearch] = useState('');
+  
   const totalPoints = points.length;
   const totalLearned = learnedIds.size;
   const totalPercentage = totalPoints > 0 ? (totalLearned / totalPoints) * 100 : 0;
+
+  const filteredPoints = useMemo(() => {
+    if (!search) return points;
+    const s = search.toLowerCase();
+    return points.filter(p => 
+      p.name.toLowerCase().includes(s) || 
+      p.subcategory.toLowerCase().includes(s) || 
+      p.category.toLowerCase().includes(s)
+    );
+  }, [points, search]);
 
   const categories = [
     { name: '数与代数', icon: Calculator, color: '#1976D2' },
@@ -24,12 +37,17 @@ export const Dashboard = ({ points, learnedIds, onEnterDirectory, onExport }: Da
   ];
 
   const getCategoryStats = (categoryName: string) => {
-    const categoryPoints = points.filter(p => p.category === categoryName);
-    const learnedInCategory = categoryPoints.filter(p => learnedIds.has(p.id)).length;
-    return {
-      learned: learnedInCategory,
-      total: categoryPoints.length
-    };
+    try {
+      const categoryPoints = filteredPoints.filter(p => p && p.category === categoryName);
+      const learnedInCategory = categoryPoints.filter(p => learnedIds.has(p.id)).length;
+      return {
+        learned: learnedInCategory,
+        total: categoryPoints.length
+      };
+    } catch (err) {
+      console.error(`Error calculating stats for ${categoryName}:`, err);
+      return { learned: 0, total: 0 };
+    }
   };
 
   return (
@@ -58,6 +76,18 @@ export const Dashboard = ({ points, learnedIds, onEnterDirectory, onExport }: Da
       </header>
 
       <main className="flex-1 p-6 flex flex-col gap-6 max-w-5xl mx-auto w-full">
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40" size={20} />
+          <input
+            type="text"
+            placeholder="搜索你想学习的知识点... (如: 加法, 分数)"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-12 pr-6 py-4 bg-white border-2 border-primary/5 rounded-2xl shadow-sm focus:ring-4 focus:ring-primary/10 transition-all text-lg placeholder:text-gray-300"
+          />
+        </div>
+
         {/* Hero Section */}
         <section className="bg-white p-8 rounded-3xl shadow-sm border border-gray-50 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex-1 text-center md:text-left">
@@ -85,29 +115,69 @@ export const Dashboard = ({ points, learnedIds, onEnterDirectory, onExport }: Da
           </div>
         </section>
 
-        {/* Modules Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {categories.map((cat, index) => {
-            const stats = getCategoryStats(cat.name);
-            return (
-              <motion.div
-                key={cat.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <ModuleCard
-                  title={cat.name}
-                  icon={cat.icon}
-                  learned={stats.learned}
-                  total={stats.total}
-                  color={cat.color}
-                  onClick={() => onEnterDirectory(cat.name)}
-                />
-              </motion.div>
-            );
-          })}
-        </div>
+        {/* Modules Grid or Search Results */}
+        <AnimatePresence mode="wait">
+          {search ? (
+            <motion.div 
+              key="search-results"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="space-y-4"
+            >
+              <h2 className="text-xl font-bold text-text-dark px-2">搜索结果 ({filteredPoints.length})</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredPoints.map((kp) => (
+                  <button
+                    key={kp.id}
+                    onClick={() => onEnterDirectory(kp.category)}
+                    className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between hover:border-primary/30 transition-all text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-primary/60 uppercase">{kp.category} · {kp.subcategory}</p>
+                      <h4 className="font-bold text-text-dark truncate">{kp.name}</h4>
+                    </div>
+                    <ChevronRight size={16} className="text-gray-300" />
+                  </button>
+                ))}
+                {filteredPoints.length === 0 && (
+                  <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+                    <p className="text-gray-400">没有找到相关知识点，换个词试试吧 ~</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="category-grid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+            >
+              {categories.map((cat, index) => {
+                const stats = getCategoryStats(cat.name);
+                return (
+                  <motion.div
+                    key={cat.name}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <ModuleCard
+                      title={cat.name}
+                      icon={cat.icon}
+                      learned={stats.learned}
+                      total={stats.total}
+                      color={cat.color}
+                      onClick={() => onEnterDirectory(cat.name)}
+                    />
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Bottom Action Bar */}
         <div className="mt-auto flex flex-wrap justify-center gap-6 py-4 border-t border-gray-100/50">

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes, viewport-fit=cover">
+  <title>比的意义 · 彩虹拖拽配对 | 数学乐园</title>
+  <!-- Tailwind + React CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 全局字体放大2号，淡紫色主题背景 */
+    body {
+      font-size: 1.3rem;
+      background: linear-gradient(135deg, #D9C2E6 0%, #CBAACB 100%);
+      font-family: system-ui, 'Segoe UI', 'Comic Neue', 'Quicksand', sans-serif;
+    }
+    .drag-card {
+      cursor: grab;
+      transition: all 0.1s ease;
+    }
+    .drag-card:active {
+      cursor: grabbing;
+    }
+    .drop-slot {
+      transition: all 0.2s ease;
+      border: 2px dashed #b87cd6;
+    }
+    .drag-over {
+      background-color: #f3e0ff;
+      transform: scale(1.02);
+      border: 2px solid #9b6bc0;
+    }
+    .matched-card {
+      opacity: 0.6;
+      filter: grayscale(0.15);
+      background: #d4badc;
+      text-decoration: line-through;
+      cursor: default;
+      pointer-events: none;
+    }
+    .btn-fun:active {
+      transform: scale(0.96);
+    }
+    @keyframes bounceSoft {
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    .celebration {
+      animation: bounceSoft 0.5s ease;
+    }
+    .ratio-badge {
+      background: #f9f0ff;
+      border-radius: 2rem;
+    }
+    /* 移动端优化 */
+    @media (max-width: 768px) {
+      .drag-card, .drop-slot {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+<div id="root" class="w-full max-w-7xl mx-auto"></div>
+
+<script type="text/babel">
+  // ======================= 小学数学 · 比的意义 =======================
+  // 知识点卡片: 比的定义, 各部分名称, 比值, 比与除法/分数的关系
+  
+  // ---------- 右侧互动游戏: 拖拽配对（比 与 比值 连连看）----------
+  // 游戏数据：每个比对应一个正确的比值（整数或最简分数形式）
+  const gameRatios = [
+    { id: "r1", ratioText: "3 : 4", ratioValue: "0.75", valueNum: 0.75, displayValue: "0.75" },
+    { id: "r2", ratioText: "6 : 2", ratioValue: "3", valueNum: 3, displayValue: "3" },
+    { id: "r3", ratioText: "5 : 10", ratioValue: "0.5", valueNum: 0.5, displayValue: "0.5" },
+    { id: "r4", ratioText: "8 : 4", ratioValue: "2", valueNum: 2, displayValue: "2" },
+    { id: "r5", ratioText: "2 : 5", ratioValue: "0.4", valueNum: 0.4, displayValue: "0.4" },
+    { id: "r6", ratioText: "9 : 3", ratioValue: "3", valueNum: 3, displayValue: "3" }
+  ];
+  
+  // 辅助函数：比较数值（处理分数展示）
+  const isValueMatch = (ratioVal, targetVal) => {
+    // 比值可能是数值比较
+    return Math.abs(parseFloat(ratioVal) - parseFloat(targetVal)) < 1e-6;
+  };
+  
+  // 游戏主组件
+  const MatchingGame = () => {
+    // 初始化比卡片列表（未配对）
+    const [ratioCards, setRatioCards] = React.useState(() => 
+      gameRatios.map(ratio => ({
+        id: ratio.id,
+        text: ratio.ratioText,
+        correctValue: ratio.valueNum,
+        displayValue: ratio.displayValue,
+        matched: false
+      }))
+    );
+    
+    // 初始化比值槽位（打乱顺序，让孩子去匹配）
+    const [valueSlots, setValueSlots] = React.useState(() => {
+      const slots = gameRatios.map(ratio => ({
+        id: `slot-${ratio.id}`,
+        value: ratio.valueNum,
+        display: ratio.displayValue,
+        matched: false,
+        matchedRatioId: null
+      }));
+      // 打乱顺序增加挑战
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots;
+    });
+    
+    const [gameWin, setGameWin] = React.useState(false);
+    const [dragOverSlotId, setDragOverSlotId] = React.useState(null);
+    const [feedbackMsg, setFeedbackMsg] = React.useState("");
+    
+    // 检查胜利
+    const checkVictory = (cards, slots) => {
+      const allMatched = cards.every(c => c.matched) && slots.every(s => s.matched);
+      if (allMatched && !gameWin) setGameWin(true);
+      else if (!allMatched && gameWin) setGameWin(false);
+    };
+    
+    // 拖拽比卡片
+    const onDragStart = (e, cardId, cardValueNum) => {
+      const card = ratioCards.find(c => c.id === cardId);
+      if (card?.matched) {
+        e.preventDefault();
+        return false;
+      }
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "ratio", cardId, correctValue: cardValueNum }));
+      e.dataTransfer.effectAllowed = "copy";
+      e.target.style.opacity = "0.6";
+    };
+    const onDragEnd = (e) => { if(e.target) e.target.style.opacity = ""; };
+    
+    // 槽位拖拽悬停/离开
+    const onDragOverSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(slotId);
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeaveSlot = () => setDragOverSlotId(null);
+    
+    // 放置到槽位：验证比和比值是否匹配
+    const onDropToSlot = (e, slotId) => {
+      e.preventDefault();
+      setDragOverSlotId(null);
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      let dragData;
+      try { dragData = JSON.parse(rawData); } catch(err) { return; }
+      if (dragData.type !== "ratio") return;
+      const { cardId, correctValue: cardValue } = dragData;
+      
+      const targetSlot = valueSlots.find(s => s.id === slotId);
+      const sourceCard = ratioCards.find(c => c.id === cardId);
+      if (!targetSlot || !sourceCard) return;
+      
+      // 检查是否已经配对
+      if (sourceCard.matched || targetSlot.matched) {
+        setFeedbackMsg("⏳ 这个卡片或槽位已经配对过了！");
+        setTimeout(() => setFeedbackMsg(""), 1300);
+        return;
+      }
+      
+      // 验证比值是否匹配
+      const isMatch = isValueMatch(cardValue, targetSlot.value);
+      if (isMatch) {
+        // 配对成功
+        setRatioCards(prev => prev.map(c => c.id === cardId ? { ...c, matched: true } : c));
+        setValueSlots(prev => prev.map(s => s.id === slotId ? { ...s, matched: true, matchedRatioId: cardId } : s));
+        setFeedbackMsg(`✅ 配对成功！${sourceCard.text} 的比值是 ${targetSlot.display}，完全正确！`);
+        setTimeout(() => setFeedbackMsg(""), 1000);
+        // 检查胜利
+        const newCards = ratioCards.map(c => c.id === cardId ? { ...c, matched: true } : c);
+        const newSlots = valueSlots.map(s => s.id === slotId ? { ...s, matched: true } : s);
+        checkVictory(newCards, newSlots);
+      } else {
+        setFeedbackMsg(`❌ 配对错误！${sourceCard.text} 的比值不是 ${targetSlot.display}，再试试看～`);
+        setTimeout(() => setFeedbackMsg(""), 1500);
+      }
+    };
+    
+    // 重置游戏
+    const resetGame = () => {
+      const newCards = gameRatios.map(ratio => ({
+        id: ratio.id,
+        text: ratio.ratioText,
+        correctValue: ratio.valueNum,
+        displayValue: ratio.displayValue,
+        matched: false
+      }));
+      let newSlots = gameRatios.map(ratio => ({
+        id: `slot-${ratio.id}`,
+        value: ratio.valueNum,
+        display: ratio.displayValue,
+        matched: false,
+        matchedRatioId: null
+      }));
+      // 打乱顺序
+      for (let i = newSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSlots[i], newSlots[j]] = [newSlots[j], newSlots[i]];
+      }
+      setRatioCards(newCards);
+      setValueSlots(newSlots);
+      setGameWin(false);
+      setFeedbackMsg("✨ 新的一局！把比拖拽到正确的比值上吧～");
+      setTimeout(() => setFeedbackMsg(""), 1500);
+    };
+    
+    const allMatched = ratioCards.every(c => c.matched) && valueSlots.every(s => s.matched);
+    
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-[#cbaacb] h-full flex flex-col">
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <h3 className="text-2xl font-extrabold text-purple-800">🎮 比值连连看 · 拖拽配对</h3>
+          <button onClick={resetGame} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-1.5 px-4 rounded-full text-sm shadow btn-fun">🔄 新的一局</button>
+        </div>
+        <p className="text-sm text-purple-700 bg-purple-50 rounded-xl p-2 mb-3 text-center">
+          🧸 玩法：将左边的 <strong>比</strong> 卡片拖拽到右边正确的 <strong>比值</strong> 槽位上！配对成功会消失，全部配对胜利！
+        </p>
+        
+        <div className="flex flex-col md:flex-row gap-5 flex-1">
+          {/* 左侧：比卡片区 */}
+          <div className="flex-1 bg-purple-50/60 rounded-2xl p-3">
+            <div className="font-bold text-purple-800 text-center mb-2">📦 比卡片 (拖拽我)</div>
+            <div className="space-y-3">
+              {ratioCards.map(card => (
+                <div 
+                  key={card.id}
+                  draggable={!card.matched}
+                  onDragStart={(e) => onDragStart(e, card.id, card.correctValue)}
+                  onDragEnd={onDragEnd}
+                  className={`drag-card bg-gradient-to-r from-amber-400 to-amber-500 text-white font-bold rounded-xl p-3 text-center shadow-md transition ${card.matched ? 'matched-card' : 'hover:scale-102'}`}
+                >
+                  <span className="text-xl font-mono">{card.text}</span>
+                  {!card.matched && <div className="text-xs mt-1">✨ 拖拽到右侧</div>}
+                  {card.matched && <div className="text-xs mt-1">✔️ 已配对</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* 右侧：比值槽位区 */}
+          <div className="flex-1 bg-amber-50/60 rounded-2xl p-3">
+            <div className="font-bold text-amber-800 text-center mb-2">🎯 比值宝藏 (放置区)</div>
+            <div className="grid grid-cols-1 gap-3">
+              {valueSlots.map(slot => (
+                <div 
+                  key={slot.id}
+                  onDragOver={(e) => onDragOverSlot(e, slot.id)}
+                  onDragLeave={onDragLeaveSlot}
+                  onDrop={(e) => onDropToSlot(e, slot.id)}
+                  className={`drop-slot rounded-xl p-3 text-center transition-all ${dragOverSlotId === slot.id ? 'drag-over bg-purple-100' : 'bg-white/80 border-2 border-dashed border-amber-400'} ${slot.matched ? 'matched-card bg-green-100' : ''}`}
+                >
+                  <div className="text-2xl font-bold text-amber-700">{slot.display}</div>
+                  <div className="text-xs text-gray-500 mt-1">{slot.matched ? '✓ 已配对' : '⬅️ 把比拖到这里'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {feedbackMsg && (
+          <div className="mt-3 text-center bg-purple-100 p-2 rounded-xl text-purple-800 font-medium text-sm">
+            {feedbackMsg}
+          </div>
+        )}
+        {allMatched && (
+          <div className="mt-3 text-center bg-gradient-to-r from-green-300 to-emerald-400 p-3 rounded-xl text-white font-bold text-lg celebration">
+            🎉🎉 太厉害了！所有比都找到了自己的比值！你已经是比的小行家～ 🎉🎉
+          </div>
+        )}
+        <div className="mt-3 text-xs text-center text-purple-600 bg-purple-50 p-2 rounded-full">
+          💡 小贴士：比的前项除以后项等于比值。例如 3:4 = 3÷4 = 0.75
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 左侧知识点：比的意义 ----------
+  const KnowledgeCard = () => {
+    return (
+      <div className="bg-gradient-to-br from-[#f3e5ff] to-[#e9d4f5] rounded-3xl p-5 shadow-xl border border-[#c28fcb]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-5xl">📊</span>
+          <h2 className="text-3xl font-extrabold text-purple-900">比的意义</h2>
+        </div>
+        <div className="space-y-4 text-base text-purple-900">
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold text-xl">✨ 什么是比？</p>
+            <p>两个数相除又叫做两个数的<strong className="bg-purple-200 px-1 rounded">比</strong>。</p>
+            <p className="mt-1">例如：<span className="font-mono font-bold">3 : 4</span> 读作“3比4”，表示 3 ÷ 4。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">📐 比的各部分名称</p>
+            <div className="flex justify-around items-center text-center mt-2 flex-wrap gap-2">
+              <div className="bg-purple-100 p-2 rounded-xl"><span className="font-mono text-2xl">3</span><br/>前项</div>
+              <span className="text-3xl font-bold">:</span>
+              <div className="bg-purple-100 p-2 rounded-xl"><span className="font-mono text-2xl">4</span><br/>后项</div>
+              <span className="text-2xl">=</span>
+              <div className="bg-purple-100 p-2 rounded-xl"><span className="font-mono text-2xl">0.75</span><br/>比值</div>
+            </div>
+            <p className="mt-2 text-sm">比值 = 前项 ÷ 后项，通常用分数、小数或整数表示。</p>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3">
+            <p className="font-bold">🔗 比与除法、分数的关系</p>
+            <div className="grid grid-cols-3 gap-2 text-center mt-2 text-sm">
+              <div className="bg-amber-50 p-2 rounded">比<br/>3 : 4</div>
+              <div className="bg-amber-50 p-2 rounded">除法<br/>3 ÷ 4</div>
+              <div className="bg-amber-50 p-2 rounded">分数<br/>¾</div>
+            </div>
+            <p className="mt-2 text-xs">比的前项相当于被除数/分子，后项相当于除数/分母，比值相当于商/分数值。</p>
+          </div>
+          <div className="bg-amber-50 border-l-8 border-amber-400 p-3 rounded-xl">
+            <p className="font-bold">🌟 小练习：</p>
+            <p>求比值：<span className="font-mono">8 : 2 = ( )</span> &nbsp;  <span className="font-mono">5 : 10 = ( )</span></p>
+            <p className="text-sm text-purple-700">（答案：4 和 0.5，试着玩玩右边的游戏巩固吧！）</p>
+          </div>
+          <div className="bg-purple-100 p-3 rounded-xl text-center text-sm">
+            💡 注意：比的后项不能为0，比值可以是整数、小数或分数。
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 比值计算小练习(快速心算) 可作为额外组件，但为了整洁，整合在左边底部 ----------
+  const QuickPractice = () => {
+    const [question, setQuestion] = React.useState({ text: "6 : 3", answer: 2 });
+    const [userAns, setUserAns] = React.useState("");
+    const [feedback, setFeedback] = React.useState("");
+    
+    const questionsBank = [
+      { text: "6 : 3", answer: 2 },
+      { text: "8 : 4", answer: 2 },
+      { text: "9 : 3", answer: 3 },
+      { text: "10 : 5", answer: 2 },
+      { text: "7 : 2", answer: 3.5 },
+      { text: "1 : 4", answer: 0.25 }
+    ];
+    
+    const nextQuestion = () => {
+      const random = questionsBank[Math.floor(Math.random() * questionsBank.length)];
+      setQuestion(random);
+      setUserAns("");
+      setFeedback("");
+    };
+    
+    const checkAnswer = () => {
+      const val = parseFloat(userAns);
+      if (isNaN(val)) {
+        setFeedback("🐣 输入数字答案哟～");
+        return;
+      }
+      if (Math.abs(val - question.answer) < 1e-6) {
+        setFeedback("✅ 完全正确！比值计算真棒！");
+      } else {
+        setFeedback(`❌ 再算算看，${question.text} 的比值应该是 ${question.answer}`);
+      }
+    };
+    
+    return (
+      <div className="bg-white/90 rounded-3xl p-4 shadow-xl border border-[#cbaacb]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🧮</span>
+          <h3 className="text-xl font-extrabold text-purple-800">比值小擂台</h3>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 text-center">
+          <p className="font-mono font-bold text-2xl">{question.text} = ?</p>
+          <div className="flex gap-2 mt-2 justify-center">
+            <input 
+              type="number" step="any" value={userAns}
+              onChange={(e) => setUserAns(e.target.value)}
+              className="border border-purple-300 rounded-lg px-3 py-1 w-28 text-center"
+              placeholder="比值"
+            />
+            <button onClick={checkAnswer} className="bg-purple-400 hover:bg-purple-500 text-white px-3 py-1 rounded-lg text-sm">检验</button>
+            <button onClick={nextQuestion} className="bg-emerald-400 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-sm">下一题</button>
+          </div>
+          {feedback && <div className="mt-2 text-sm text-purple-800">{feedback}</div>}
+        </div>
+      </div>
+    );
+  };
+  
+  // ---------- 主应用布局：左侧知识点 + 练习，右侧游戏 ----------
+  const App = () => {
+    return (
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧区域：知识点 + 比值小擂台 */}
+        <div className="flex-1 xl:w-3/5 space-y-5">
+          <KnowledgeCard />
+          <QuickPractice />
+          <div className="bg-white/70 rounded-2xl p-3 text-center text-purple-700 text-sm border border-purple-200">
+            🌈 比在生活中随处可见：果汁配比、地图比例尺、班级男女生比... 学好比的意义用处大！
+          </div>
+        </div>
+        {/* 右侧游戏区 */}
+        <div className="flex-1 xl:w-2/5">
+          <MatchingGame />
+        </div>
+      </div>
+    );
+  };
+  
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

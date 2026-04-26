@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>数学小天才：数与形 | 拖拖乐图形配对</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置主题：淡紫色 + 标题3号 + 内容5号 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontSize: {
+                        '5xl': '3rem',
+                        '3xl': '1.875rem',
+                    },
+                    colors: {
+                        'lavender-primary': '#CBAACB',
+                        'lavender-light': '#D9C2E6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [draggable="true"] {
+            cursor: grab;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        [draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            background-color: #fef9c3 !important;
+            border-color: #eab308 !important;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+        @keyframes matchSuccess {
+            0% { transform: scale(1); background-color: #dcfce7; }
+            80% { transform: scale(1.05); background-color: #bbf7d0; }
+            100% { transform: scale(1); background-color: #f0fdf4; }
+        }
+        .match-animation {
+            animation: matchSuccess 0.4s ease-out;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBAACB;
+            border-radius: 10px;
+        }
+        .no-tap-highlight {
+            -webkit-touch-callout: none;
+        }
+        /* 点阵图形样式 */
+        .dot-grid {
+            display: inline-grid;
+            gap: 6px;
+            background: #fef9e6;
+            padding: 12px;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .dot-cell {
+            width: 32px;
+            height: 32px;
+            background-color: #c084fc;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        @media (max-width: 640px) {
+            .dot-cell { width: 24px; height: 24px; }
+            .dot-grid { gap: 4px; }
+        }
+        .trapezoid-grid {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .trapezoid-row {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+        }
+        .trapezoid-cell {
+            width: 28px;
+            height: 28px;
+            background-color: #f97316;
+            border-radius: 6px;
+        }
+        @media (max-width: 640px) {
+            .trapezoid-cell { width: 20px; height: 20px; }
+        }
+    </style>
+    <!-- React & ReactDOM & Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-lavender-primary to-lavender-light min-h-screen p-4 md:p-5 font-sans no-tap-highlight">
+    <div id="root" class="max-w-7xl mx-auto"></div>
+
+    <script type="text/babel">
+        // React 主逻辑: 数与形 —— 拖拽算式配对图形规律
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ---------- 题库：图形规律与对应算式 ----------
+        // 每个题目包含: 图形类型、参数、图形渲染函数、正确算式文本、干扰选项
+        const generateOddSquarePattern = (n) => {
+            // n 从 2 到 4 的正方形点阵，对应奇数求和公式 1+3+...+(2n-1)=n²
+            const size = Math.min(n, 5);
+            const dots = [];
+            for (let i = 0; i < size; i++) {
+                const row = [];
+                for (let j = 0; j < size; j++) {
+                    row.push(<div key={`${i}-${j}`} className="dot-cell"></div>);
+                }
+                dots.push(<div key={i} className="flex justify-center gap-1 md:gap-2">{row}</div>);
+            }
+            return {
+                render: () => <div className="dot-grid">{dots}</div>,
+                correctText: `1 + 3 + 5 + ... + ${2*size-1} = ${size*size}`,
+                correctValue: `${size*size}`,
+                description: `边长为 ${size} 的大正方形，包含 ${size*size} 个小正方形。`,
+                formulaType: "oddSum"
+            };
+        };
+        
+        const generateNaturalSumPattern = (n) => {
+            // 自然数求和 1+2+...+n 用梯形点阵（三角形数）
+            const rows = Math.min(n, 5);
+            const trapezoidRows = [];
+            for (let i = 1; i <= rows; i++) {
+                const cells = [];
+                for (let j = 0; j < i; j++) {
+                    cells.push(<div key={j} className="trapezoid-cell"></div>);
+                }
+                trapezoidRows.push(<div key={i} className="flex justify-center gap-1">{cells}</div>);
+            }
+            return {
+                render: () => <div className="trapezoid-grid">{trapezoidRows}</div>,
+                correctText: `1 + 2 + 3 + ... + ${rows} = ${rows*(rows+1)/2}`,
+                correctValue: `${rows*(rows+1)/2}`,
+                description: `前 ${rows} 个自然数之和，像三角形一样排列。`,
+                formulaType: "naturalSum"
+            };
+        };
+        
+        const generateFractionPattern = () => {
+            // 分数裂项图形：单位正方形分割，展示 1/2 + 1/4 + 1/8 + ... 逼近 1
+            const steps = 4;
+            const squares = [];
+            let size = 120;
+            let colors = ["#f87171", "#fbbf24", "#34d399", "#60a5fa"];
+            for (let i = 0; i < steps; i++) {
+                const fraction = 1 / Math.pow(2, i+1);
+                squares.push(
+                    <div key={i} className="relative" style={{ width: size, height: size }}>
+                        <div className="absolute inset-0 bg-gray-200 rounded-lg"></div>
+                        <div className="absolute inset-0" style={{ width: `${100 / Math.pow(2, i+1)}%`, height: '100%', backgroundColor: colors[i % colors.length], borderRadius: '0.5rem' }}></div>
+                        <div className="absolute bottom-0 right-0 text-xs bg-white/70 px-1 rounded">{fraction}</div>
+                    </div>
+                );
+                size = size / 2;
+            }
+            return {
+                render: () => <div className="flex flex-wrap justify-center gap-2 p-2 bg-white/40 rounded-xl">{squares}</div>,
+                correctText: `1/2 + 1/4 + 1/8 + 1/16 = 15/16`,
+                correctValue: `15/16`,
+                description: `每次取剩余的一半，越来越接近整个正方形。`,
+                formulaType: "fraction"
+            };
+        };
+        
+        // 题目池
+        const questionGenerators = [
+            () => generateOddSquarePattern(3),
+            () => generateOddSquarePattern(4),
+            () => generateNaturalSumPattern(4),
+            () => generateNaturalSumPattern(5),
+            () => generateFractionPattern(),
+            () => generateOddSquarePattern(5),
+            () => generateNaturalSumPattern(3),
+        ];
+        
+        // 随机选取题目并生成选项
+        const generateRandomQuestion = () => {
+            const randomIndex = Math.floor(Math.random() * questionGenerators.length);
+            const questionData = questionGenerators[randomIndex]();
+            // 构造干扰项（根据不同类型生成合理干扰）
+            let distractors = new Set();
+            let correct = questionData.correctText;
+            distractors.add(correct);
+            if (questionData.formulaType === "oddSum") {
+                // 提取数字平方，干扰为相邻平方
+                const match = correct.match(/= (\d+)/);
+                if (match) {
+                    const val = parseInt(match[1]);
+                    distractors.add(`1 + 3 + 5 + ... + ${2*Math.sqrt(val)-1} = ${val+1}`);
+                    distractors.add(`1 + 3 + 5 + ... + ${2*Math.sqrt(val)-3} = ${val-1}`);
+                    distractors.add(`${val} 个小正方形，列式为 ${val} × 1`);
+                }
+            } else if (questionData.formulaType === "naturalSum") {
+                const match = correct.match(/= (\d+)/);
+                if (match) {
+                    const val = parseInt(match[1]);
+                    distractors.add(`1 + 2 + ... + ${Math.floor(Math.sqrt(val*2))} = ${val+2}`);
+                    distractors.add(`1 + 2 + ... + ${Math.floor(Math.sqrt(val*2))-1} = ${val-3}`);
+                }
+            } else {
+                distractors.add("1/2 + 1/4 + 1/8 = 7/8");
+                distractors.add("1/2 + 1/4 = 3/4");
+                distractors.add("1/2 + 1/4 + 1/8 + 1/16 = 1");
+            }
+            // 确保正好有4个选项（包含正确）
+            let options = Array.from(distractors).slice(0, 4);
+            while(options.length < 4) {
+                options.push(`算式 ${options.length + 10}`);
+            }
+            // 打乱顺序
+            for (let i = options.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [options[i], options[j]] = [options[j], options[i]];
+            }
+            return {
+                id: Date.now() + Math.random(),
+                renderGraphic: questionData.render,
+                correctText: correct,
+                options: options,
+                description: questionData.description,
+                formulaType: questionData.formulaType,
+            };
+        };
+        
+        // ---------- 主游戏组件: 拖拽算式配对图形 ----------
+        const NumberShapeGame = () => {
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            const [score, setScore] = useState(0);
+            const [answered, setAnswered] = useState(false);
+            const [message, setMessage] = useState("🔢 观察图形规律，把正确的算式拖拽到答案区！");
+            const [highlightDrop, setHighlightDrop] = useState(false);
+            const [effectTrigger, setEffectTrigger] = useState(0);
+            const [options, setOptions] = useState([]);
+            
+            // 加载新题目
+            const loadNewQuestion = () => {
+                const newQ = generateRandomQuestion();
+                setCurrentQuestion(newQ);
+                setOptions([...newQ.options]);
+                setAnswered(false);
+                setMessage(`✨ 新图形规律！${newQ.description} 拖拽正确的算式到下方区域 ✨`);
+                setHighlightDrop(false);
+                setEffectTrigger(prev => prev+1);
+            };
+            
+            // 换一题
+            const handleChangeQuestion = () => {
+                loadNewQuestion();
+            };
+            
+            // 初始化
+            useEffect(() => {
+                loadNewQuestion();
+            }, []);
+            
+            // 处理拖拽放置
+            const handleDropOnZone = (e) => {
+                e.preventDefault();
+                setHighlightDrop(false);
+                if (answered) {
+                    setMessage("本题已答对，请换一题继续挑战！");
+                    return;
+                }
+                if (!currentQuestion) return;
+                
+                let dragData;
+                try {
+                    const raw = e.dataTransfer.getData("text/plain");
+                    if (!raw) return;
+                    dragData = JSON.parse(raw);
+                } catch(err) {
+                    setMessage("请从右侧算式卡片上拖拽～");
+                    return;
+                }
+                const { optionText } = dragData;
+                if (!optionText) return;
+                
+                if (optionText === currentQuestion.correctText) {
+                    setAnswered(true);
+                    setScore(prev => prev + 1);
+                    setMessage(`🎉 完全正确！ ${currentQuestion.correctText} 完美匹配图形规律！ +1分 🎉`);
+                    const zoneElem = document.getElementById('answer-dropzone');
+                    if (zoneElem) {
+                        zoneElem.classList.add('match-animation');
+                        setTimeout(() => zoneElem.classList.remove('match-animation'), 500);
+                    }
+                    // 2秒后自动换题
+                    setTimeout(() => {
+                        loadNewQuestion();
+                    }, 2000);
+                } else {
+                    setMessage(`❌ 不对哦！ “${optionText}” 不符合图形规律。再观察一下图形数量关系～`);
+                    const zoneElem = document.getElementById('answer-dropzone');
+                    if (zoneElem) {
+                        zoneElem.style.backgroundColor = "#fee2e2";
+                        setTimeout(() => zoneElem.style.backgroundColor = "", 400);
+                    }
+                }
+            };
+            
+            const onDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDragEnterZone = () => setHighlightDrop(true);
+            const onDragLeaveZone = () => setHighlightDrop(false);
+            
+            // 算式卡片拖拽
+            const onOptionDragStart = (e, opt) => {
+                if (answered) {
+                    e.preventDefault();
+                    setMessage("本题已完成，请换题后再拖拽。");
+                    return false;
+                }
+                e.dataTransfer.setData("text/plain", JSON.stringify({ optionText: opt }));
+                e.dataTransfer.effectAllowed = "copy";
+                if (e.target) e.target.style.opacity = "0.6";
+            };
+            const onOptionDragEnd = (e) => {
+                if (e.target) e.target.style.opacity = "";
+            };
+            
+            if (!currentQuestion) return <div className="text-white text-2xl">加载图形中...</div>;
+            
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* 左侧知识点区 */}
+                    <div className="lg:w-2/5 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-5 md:p-6 border border-white/50">
+                        <div className="border-b-4 border-lavender-primary pb-2 mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold text-purple-800 flex items-center gap-2">
+                                🎨 数与形小课堂
+                                <span className="text-lg bg-amber-200 px-3 py-0.5 rounded-full">数形结合</span>
+                            </h2>
+                        </div>
+                        <div className="space-y-5 text-base md:text-lg text-gray-800 leading-relaxed">
+                            <p className="flex gap-2">
+                                <span className="text-3xl">📐</span>
+                                <span><strong className="text-purple-700">数与形</strong> 用图形帮助理解数字规律，让抽象变得直观。</span>
+                            </p>
+                            <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-4 rounded-2xl shadow-inner space-y-3">
+                                <p className="font-bold text-2xl text-center text-purple-800">📖 经典规律</p>
+                                <ul className="list-disc list-inside text-base space-y-1">
+                                    <li>✨ <strong>奇数求和</strong>：1+3+5+...+(2n-1)=n²  (正方形点阵)</li>
+                                    <li>✨ <strong>自然数求和</strong>：1+2+...+n = n×(n+1)/2 (三角形数)</li>
+                                    <li>✨ <strong>分数裂项</strong>：1/2+1/4+1/8+...=1 (无限逼近)</li>
+                                </ul>
+                                <div className="bg-amber-50 rounded-xl p-2 text-center">
+                                    <p>💡 核心思想：<br/>“以形助数，以数解形”</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-xl">
+                                <p className="font-semibold">🧸 例子：</p>
+                                <p>边长为3的正方形有9个小方格 → 1+3+5=9。</p>
+                                <p>三角形点阵：●<br/>●●<br/>●●● → 1+2+3=6。</p>
+                            </div>
+                            <div className="mt-2 text-sm text-center text-purple-600 bg-white/60 rounded-xl p-2">
+                                💡 <span className="font-medium">游戏玩法：</span> 观察右边的图形规律，把正确的算式卡片拖拽到下方的“答案放置区”。答对得分并自动换题！
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 右侧游戏互动区 */}
+                    <div className="lg:w-3/5 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-5 md:p-6 flex flex-col gap-5" id="game-area">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                            <h3 className="text-2xl md:text-3xl font-bold text-purple-800 flex items-center gap-2">
+                                🧩 图形算式配对 · 拖拖乐
+                                <span className="text-sm bg-yellow-200 px-2 py-0.5 rounded-full">拖拽算式</span>
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-amber-100 rounded-full px-4 py-1 text-xl font-bold text-amber-800">
+                                    🏆 得分: {score}
+                                </div>
+                                <button 
+                                    onClick={handleChangeQuestion}
+                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-2 px-5 rounded-full shadow-lg transition transform hover:scale-105 text-base"
+                                >
+                                    🔄 换一题
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* 图形展示区 */}
+                        <div className="bg-white/60 rounded-2xl p-4 flex justify-center items-center min-h-[240px]">
+                            {currentQuestion.renderGraphic()}
+                        </div>
+                        <div className="text-center text-sm text-purple-700 bg-purple-50/70 rounded-xl p-2">
+                            📐 图形规律：{currentQuestion.description}
+                        </div>
+                        
+                        {/* 动态消息区域 */}
+                        <div className="bg-amber-50 rounded-xl p-2 text-center text-amber-800 font-medium text-sm shadow-sm">
+                            💬 {message}
+                        </div>
+                        
+                        {/* 答案放置区（拖拽目标） */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2">📦 答案放置区（拖拽正确算式到这里）</h4>
+                            <div 
+                                id="answer-dropzone"
+                                onDragOver={onDragOver}
+                                onDrop={handleDropOnZone}
+                                onDragEnter={onDragEnterZone}
+                                onDragLeave={onDragLeaveZone}
+                                className={`border-4 border-dashed rounded-2xl p-6 transition-all duration-200 flex flex-col items-center justify-center min-h-[100px] ${
+                                    highlightDrop ? 'drop-zone-active bg-yellow-50' : 'border-purple-300 bg-white/50'
+                                } ${answered ? 'bg-green-100 border-green-400' : ''}`}
+                            >
+                                {answered ? (
+                                    <div className="text-center">
+                                        <span className="text-3xl">✅ 已答对！</span>
+                                        <p className="text-xl text-green-700 mt-1">正确答案：{currentQuestion.correctText}</p>
+                                        <p className="text-sm text-gray-600">即将进入下一题...</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <span className="text-2xl font-semibold text-purple-600">⬅️ 拖拽算式卡片到这里</span>
+                                        <p className="text-md text-gray-500 mt-2">把正确的算式拖到此区域</p>
+                                        <div className="mt-2 text-sm bg-purple-50 inline-block px-3 py-1 rounded-full">✨ 拖拽卡片松手即可 ✨</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* 可拖拽算式卡片区 */}
+                        <div>
+                            <h4 className="font-bold text-2xl text-purple-700 mb-2 flex items-center gap-2">📜 算式卡片（拖拽到上方放置区）</h4>
+                            <div className="flex flex-wrap gap-3 justify-center items-center min-h-[120px] bg-white/40 rounded-2xl p-4 custom-scroll">
+                                {options.map((opt, idx) => (
+                                    <div
+                                        key={`opt_${currentQuestion.id}_${idx}`}
+                                        draggable="true"
+                                        onDragStart={(e) => onOptionDragStart(e, opt)}
+                                        onDragEnd={onOptionDragEnd}
+                                        className="bg-gradient-to-br from-cyan-200 to-blue-200 rounded-xl p-3 shadow-md cursor-grab active:cursor-grabbing transition hover:scale-105 w-48 text-center font-medium text-purple-900"
+                                    >
+                                        <span className="text-lg">{opt}</span>
+                                        <div className="text-xs text-gray-600 mt-1">拖拽配对</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-center text-purple-600 mt-2">👉 拖拽算式卡片到上方「答案放置区」松手，系统会自动判断对错！</p>
+                        </div>
+                        
+                        {/* 操作小贴士 */}
+                        <div className="flex flex-wrap justify-between items-center text-xs text-purple-600 bg-white/50 rounded-xl p-2 mt-1">
+                            <span>✋ 拖拽技巧：观察图形中小方块的数量规律，找到对应的算式。</span>
+                            <button onClick={() => setMessage("💡 提示：正方形点阵对应奇数求和，三角形点阵对应自然数求和。")} className="underline text-purple-700">❓ 再试一次提示</button>
+                        </div>
+                        
+                        {/* 得分与鼓励 */}
+                        <div className="flex justify-center gap-4 text-sm font-medium text-purple-800">
+                            <div className="bg-white/50 rounded-full px-3 py-1">✅ 已答对 {score} 道题</div>
+                            <div className="bg-white/50 rounded-full px-3 py-1">🎯 继续挑战，感受数形之美！</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // 根组件
+        const App = () => {
+            return (
+                <div className="min-h-screen py-2">
+                    <div className="text-center mb-5 mt-1">
+                        <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-xl tracking-wider" style={{textShadow: "3px 3px 0 #7e22ce"}}>
+                            🎨 数与形大冒险 · 图形算式配对 🧸
+                        </h1>
+                        <p className="text-white/90 text-lg md:text-xl mt-2 font-medium">观察图形，拖拽正确算式，体验数形结合的奇妙！</p>
+                    </div>
+                    <NumberShapeGame />
+                    <footer className="text-center text-white/80 text-sm mt-8 pb-3">
+                        🌟 拖拽正确的算式卡片到答案区，配对成功即可得分换题～ 点击【换一题】挑战更多图形规律 🌟
+                    </footer>
+                </div>
+            );
+        };
+        
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>
